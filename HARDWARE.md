@@ -187,8 +187,15 @@ everything reconnected, drop toward 10 kHz.
   ESPHome component, so `packages/matrix.yaml` drives it with raw-I2C register
   writes. Pixel `(x,y)` → LED `x + y*16`; PWM byte at `0x24 + LED` (144 LEDs);
   enable regs `0x00–0x11`; bank select via command reg `0xFD` (`0x00` = frame 0,
-  `0x0B` = function/config). A "Matrix: show 12:34" button renders a demo through
-  a 3×5 digit font — the scaffolding for real clock/graphics output.
+  `0x0B` = function/config). A "Matrix: show 12:34" button renders a demo — the
+  scaffolding for real clock/graphics output.
+  - **Single vs dual:** the package tiles N panels side-by-side into one logical
+    framebuffer (16·N wide × 9). `matrix_panels: "1"` brings up the left panel
+    alone with a compact 3×5 font; `"2"` gives a 32×9 display with a 5×7 font for
+    a real clock. Horizontal tiling: panel *p* owns logical columns
+    `[16p … 16p+15]`. A second board needs its **ADDR jumper** moved off `0x74`
+    (`0x75`/`0x76`/`0x77`) — set `matrix_address_2` to match. In single mode the
+    second address is never touched, so an unwired 2nd board causes no I2C errors.
 
 ---
 

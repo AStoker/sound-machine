@@ -55,7 +55,11 @@ substitutions:
   # ============ SINGLE PLACE FOR FLAGS & VALUES ============
   # Hardware
   ht16k33_address: "0x70"            # 7-seg clock display (I2C)
-  matrix_address: "0x74"             # IS31FL3731 charlieplex 16x9 matrix (I2C)
+  # IS31FL3731 charlieplex matrix(es). Bring up ONE panel first, then set
+  # matrix_panels to 2 for the full 32x9 clock display (see packages/matrix.yaml).
+  matrix_panels: "1"                 # 1 = single (bring-up); 2 = dual side-by-side
+  matrix_address: "0x74"             # panel 0 (left)
+  matrix_address_2: "0x75"           # panel 1 (right); set 2nd board's ADDR jumper
   matrix_pwm_on: "40"                # lit-pixel PWM (0..255); 40 ~= comfortable
   touch_pin: GPIO4                   # capacitive preset pad (D3; D2 = GPIO3)
   touch_threshold: "700000"          # ESP32-S3 raw touch threshold - CALIBRATE
@@ -299,9 +303,10 @@ time:
           id: ds3231_time
 
 # =====================================================================
-# IS31FL3731 charlieplex 16x9 matrix (0x74) now lives in
-# packages/matrix.yaml - it has no native ESPHome component, so it is driven
-# with raw-I2C register writes. A "Matrix: show 12:34" button renders a demo
-# via a built-in 3x5 font; that render script is the scaffolding for real
+# IS31FL3731 charlieplex matrix now lives in packages/matrix.yaml - it has no
+# native ESPHome component, so it is driven with raw-I2C register writes. A
+# "Matrix: show 12:34" button renders a demo. It tiles N panels into one logical
+# framebuffer: bring up a single panel (matrix_panels: "1") first, then flip to
+# "2" for the full 32x9 clock. That render script is the scaffolding for real
 # clock/graphics output.
 # =====================================================================

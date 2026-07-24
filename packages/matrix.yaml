@@ -1,11 +1,24 @@
 # =====================================================================
-# IS31FL3731 CHARLIEPLEX 16x9 MATRIX (I2C 0x74) - demo / bring-up
+# IS31FL3731 CHARLIEPLEX 16x9 MATRIX (I2C) - demo / bring-up
 #
 # There is NO native ESPHome component for the IS31FL3731, so this drives it
 # over the shared I2C bus with raw register writes (same approach as the amp/
 # clock init lambdas). It is a self-contained demo: a template button renders
-# "12:34" using a built-in 3x5 digit font, which both proves the wiring and is
-# the scaffolding a real clock/graphics renderer would build on.
+# "12:34", which both proves the wiring and is the scaffolding a real clock/
+# graphics renderer would build on.
+#
+# SINGLE vs DUAL PANEL --------------------------------------------------------
+# One 16x9 panel is tight for a clock, so the design tiles N panels side-by-side
+# into ONE logical framebuffer 16*N wide x 9 tall. Everything downstream draws
+# in logical (x,y); a flush step slices the framebuffer per panel and pushes
+# each slice to that panel's own I2C address. To go from bring-up to the full
+# clock display, change ONE substitution:
+#     matrix_panels: "1"   -> left panel only, compact 3x5 font  (bring-up)
+#     matrix_panels: "2"   -> 32x9, roomy 5x7 font               (real clock)
+# In single mode the 2nd address (${matrix_address_2}) is never touched, so a
+# board that isn't wired yet causes no I2C errors. Tiling is horizontal: panel p
+# owns logical columns [16*p .. 16*p+15]. Second board needs its ADDR jumper set
+# to a free address (0x75/0x76/0x77) - see HARDWARE.md.
 #
 # Chip model (from Adafruit's Adafruit_IS31FL3731 base 16x9 class):
 #   - pixel (x,y) -> LED number  = x + y*16   (x: 0..15 cols, y: 0..8 rows)
@@ -19,86 +32,116 @@
 #       0x01 picture-display-frame, 0x0A shutdown (0 = off, 1 = normal).
 #
 # Defines ids: matrix_render_demo (script), and the demo button.
-# Consumes: internal_i2c (main). Address is ${matrix_address} (main subs).
+# Consumes: internal_i2c (main). Panel count / addresses / brightness are the
+#   ${matrix_*} substitutions in main.
 # =====================================================================
 script:
-  # Initialise the driver (if needed) and paint "12:34" onto the matrix.
-  # Idempotent: re-running just repaints, so the button can be mashed safely.
+  # Initialise the driver(s) and paint "12:34" across the logical display.
+  # Idempotent: re-running re-inits + repaints, so the button can be mashed
+  # safely and it self-heals after a 5V glitch (the chip has no NVM).
   - id: matrix_render_demo
     then:
       - lambda: |-
-          const uint8_t ADDR = ${matrix_address};
+          const int     PANELS = ${matrix_panels};                 // 1 or 2
+          const uint8_t ADDR[2] = {(uint8_t)${matrix_address},
+                                   (uint8_t)${matrix_address_2}};
+          const int     W  = 16 * PANELS;                          // logical width
+          const int     H  = 9;
+          const uint8_t ON = ${matrix_pwm_on};                     // lit PWM (0..255)
 
-          // --- tiny raw-register helper (reg + one value) ---
-          auto W = [&](uint8_t reg, uint8_t val) {
-            uint8_t b[2] = {reg, val};
-            id(internal_i2c).write(ADDR, b, 2);
-          };
-
-          // --- 3x5 digit font. Each digit is 5 rows; the low 3 bits of each
-          //     byte are the row pattern (bit2 = left column .. bit0 = right). ---
-          static const uint8_t FONT[10][5] = {
-            {0b111,0b101,0b101,0b101,0b111},  // 0
-            {0b010,0b110,0b010,0b010,0b111},  // 1
-            {0b111,0b001,0b111,0b100,0b111},  // 2
-            {0b111,0b001,0b111,0b001,0b111},  // 3
-            {0b101,0b101,0b111,0b001,0b001},  // 4
-            {0b111,0b100,0b111,0b001,0b111},  // 5
-            {0b111,0b100,0b111,0b101,0b111},  // 6
-            {0b111,0b001,0b001,0b001,0b001},  // 7
-            {0b111,0b101,0b111,0b101,0b111},  // 8
-            {0b111,0b101,0b111,0b001,0b111},  // 9
-          };
-
-          // Off-screen 16x9 framebuffer of PWM values, laid out as LED = x + y*16.
-          uint8_t fb[144];
-          memset(fb, 0, sizeof(fb));
-          const uint8_t ON = ${matrix_pwm_on};   // lit-pixel brightness (0..255)
-
+          // ---- logical framebuffer (max 2 panels = 32 wide) ----
+          uint8_t fb[9][32];
+          for (int y = 0; y < H; y++)
+            for (int x = 0; x < 32; x++) fb[y][x] = 0;
           auto set_px = [&](int x, int y) {
-            if (x >= 0 && x < 16 && y >= 0 && y < 9) fb[x + y * 16] = ON;
+            if (x >= 0 && x < W && y >= 0 && y < H) fb[y][x] = ON;
           };
-          // Draw a digit's 3x5 glyph with its top-left at (dx, dy).
-          auto draw_digit = [&](int dx, int dy, int value) {
-            if (value < 0 || value > 9) return;
-            for (int row = 0; row < 5; row++) {
-              uint8_t bits = FONT[value][row];
-              for (int col = 0; col < 3; col++)
-                if (bits & (1 << (2 - col))) set_px(dx + col, dy + row);
+
+          // ---- fonts. Each glyph row is a bit pattern, MSB = leftmost column. ----
+          // Compact 3x5 for a single panel; roomy 5x7 for the 32-wide clock.
+          static const uint8_t FONT3x5[10][5] = {
+            {0b111,0b101,0b101,0b101,0b111}, {0b010,0b110,0b010,0b010,0b111},
+            {0b111,0b001,0b111,0b100,0b111}, {0b111,0b001,0b111,0b001,0b111},
+            {0b101,0b101,0b111,0b001,0b001}, {0b111,0b100,0b111,0b001,0b111},
+            {0b111,0b100,0b111,0b101,0b111}, {0b111,0b001,0b001,0b001,0b001},
+            {0b111,0b101,0b111,0b101,0b111}, {0b111,0b101,0b111,0b001,0b111},
+          };
+          static const uint8_t FONT5x7[10][7] = {
+            {0b01110,0b10001,0b10001,0b10001,0b10001,0b10001,0b01110},  // 0
+            {0b00100,0b01100,0b00100,0b00100,0b00100,0b00100,0b01110},  // 1
+            {0b01110,0b10001,0b00001,0b00010,0b00100,0b01000,0b11111},  // 2
+            {0b01110,0b10001,0b00001,0b00110,0b00001,0b10001,0b01110},  // 3
+            {0b00010,0b00110,0b01010,0b10010,0b11111,0b00010,0b00010},  // 4
+            {0b11111,0b10000,0b11110,0b00001,0b00001,0b10001,0b01110},  // 5
+            {0b01110,0b10001,0b10000,0b11110,0b10001,0b10001,0b01110},  // 6
+            {0b11111,0b00001,0b00010,0b00100,0b01000,0b01000,0b01000},  // 7
+            {0b01110,0b10001,0b10001,0b01110,0b10001,0b10001,0b01110},  // 8
+            {0b01110,0b10001,0b10001,0b01111,0b00001,0b10001,0b01110},  // 9
+          };
+
+          // Draw glyph `rows` (gw wide, gh tall) with its top-left at (dx,dy).
+          auto draw_glyph = [&](const uint8_t *rows, int gw, int gh, int dx, int dy) {
+            for (int r = 0; r < gh; r++)
+              for (int c = 0; c < gw; c++)
+                if (rows[r] & (1 << (gw - 1 - c))) set_px(dx + c, dy + r);
+          };
+
+          // ---- lay out "12:34" per panel count (data-driven so the two modes
+          //      share one draw path) ----
+          const int digits[4] = {1, 2, 3, 4};
+          if (PANELS >= 2) {
+            const int top = 1;                       // 7-tall band, rows 1..7
+            const int xoff[4] = {2, 8, 18, 24};      // HH on left panel, MM on right
+            for (int d = 0; d < 4; d++)
+              draw_glyph(FONT5x7[digits[d]], 5, 7, xoff[d], top);
+            set_px(15, top + 2);                     // colon dots, near the seam
+            set_px(15, top + 4);
+          } else {
+            const int top = 2;                       // 5-tall band, rows 2..6
+            const int xoff[4] = {0, 4, 9, 13};
+            for (int d = 0; d < 4; d++)
+              draw_glyph(FONT3x5[digits[d]], 3, 5, xoff[d], top);
+            set_px(7, top + 1);                      // colon dots
+            set_px(7, top + 3);
+          }
+
+          // ---- per-panel raw-I2C helpers ----
+          auto W1 = [&](uint8_t addr, uint8_t reg, uint8_t val) {
+            uint8_t b[2] = {reg, val};
+            id(internal_i2c).write(addr, b, 2);
+          };
+          auto init_panel = [&](uint8_t addr) {
+            W1(addr, 0xFD, 0x0B);                    // function register bank
+            W1(addr, 0x0A, 0x00);                    // shutdown
+            delay(10);
+            W1(addr, 0x0A, 0x01);                    // normal operation
+            W1(addr, 0x00, 0x00);                    // picture mode
+            W1(addr, 0x01, 0x00);                    // display frame 0
+            W1(addr, 0xFD, 0x00);                    // frame 0 bank
+            for (uint8_t r = 0x00; r <= 0x11; r++) W1(addr, r, 0xFF);  // enable all
+            for (uint8_t r = 0x12; r <= 0x23; r++) W1(addr, r, 0x00);  // blink off
+          };
+
+          // ---- init + flush each active panel ----
+          for (int p = 0; p < PANELS; p++) {
+            uint8_t addr = ADDR[p];
+            init_panel(addr);
+
+            // Slice this panel's 16 logical columns into a 144-byte PWM buffer.
+            uint8_t pwm[144];
+            for (int y = 0; y < H; y++)
+              for (int lx = 0; lx < 16; lx++)
+                pwm[lx + y * 16] = fb[y][p * 16 + lx];
+
+            // Push it in auto-incrementing 16-byte bursts (9 bursts). The chip
+            // advances its internal address pointer within a page, so each burst
+            // is [start-reg, b0, b1, ...].
+            for (int i = 0; i < 144; i += 16) {
+              uint8_t burst[1 + 16];
+              burst[0] = 0x24 + i;
+              for (int j = 0; j < 16; j++) burst[1 + j] = pwm[i + j];
+              id(internal_i2c).write(addr, burst, sizeof(burst));
             }
-          };
-
-          // Layout of "12:34" across 16 cols, vertically centred (rows 2..6):
-          //   1: 0-2 | gap 3 | 2: 4-6 | colon 7 | gap 8 | 3: 9-11 | gap 12 | 4: 13-15
-          const int TOP = 2;               // top row of the 5-tall glyph band
-          draw_digit(0,  TOP, 1);
-          draw_digit(4,  TOP, 2);
-          set_px(7, TOP + 1);              // colon: two dots inside the band
-          set_px(7, TOP + 3);
-          draw_digit(9,  TOP, 3);
-          draw_digit(13, TOP, 4);
-
-          // --- power-on / mode init (function bank) ---
-          W(0xFD, 0x0B);                   // select function register bank
-          W(0x0A, 0x00);                   // shutdown
-          delay(10);
-          W(0x0A, 0x01);                   // normal operation
-          W(0x00, 0x00);                   // picture mode
-          W(0x01, 0x00);                   // display frame 0
-
-          // --- frame 0 bank: enable all LEDs, blink off ---
-          W(0xFD, 0x00);
-          for (uint8_t r = 0x00; r <= 0x11; r++) W(r, 0xFF);   // LED on/off = all on
-          for (uint8_t r = 0x12; r <= 0x23; r++) W(r, 0x00);   // blink = off
-
-          // --- push the 144-byte PWM framebuffer ---
-          // The chip auto-increments its internal address pointer within a page,
-          // so each burst is [start-reg, b0, b1, ...]. 16 bytes/burst -> 9 bursts.
-          for (int i = 0; i < 144; i += 16) {
-            uint8_t burst[1 + 16];
-            burst[0] = 0x24 + i;
-            for (int j = 0; j < 16; j++) burst[1 + j] = fb[i + j];
-            id(internal_i2c).write(ADDR, burst, sizeof(burst));
           }
 
 button:
