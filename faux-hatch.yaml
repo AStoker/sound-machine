@@ -6,7 +6,8 @@
 #   AIC3104 codec (on Flex)  -> line out -> TPA2016 amp -> 2x speakers
 #   HT16K33 7-seg clock display (Adafruit #1002)        [I2C 0x70]
 #   BH1750 light, SHT40 temp/hum, VL53L0X ToF, DS3231 RTC, seesaw knob
-#   SK6812 GRBW crescent strip (data on GPIO1 / D0)
+#   SK6812 GRBW crescent strip (data on GPIO1 / D0), 48 px half-circle
+#   Waveshare UPS Module 3S (3x 18650 series) - I2C power monitoring
 #   OPTIONAL: IS31FL3731 charlieplex 9x16 matrix        [I2C 0x74]
 #
 # PIN MAP (Flex claims I2S; everything else is I2C = zero extra pins):
@@ -24,16 +25,25 @@
 # I2C ADDRESS MAP (no conflicts):
 #   0x18 AIC3104 codec     0x23 BH1750         0x29 VL53L0X
 #   0x2C XVF3800           0x36 seesaw encoder  0x44 SHT40
-#   0x68 DS3231            0x70 HT16K33 clock   0x74 IS31FL3731 (opt)
-#   0x58 TPA2016 (only if you wire its I2C - optional, see amp notes)
+#   0x58 TPA2016 amp       0x68 DS3231          0x70 HT16K33 clock
+#   0x4?? UPS monitor  << PLACEHOLDER, see ups_i2c_address in substitutions
+#   0x74 IS31FL3731 (opt)
 #
-# TPA2016 AMP NOTES (no ESPHome component exists - none needed):
-#   - Works standalone at default gain with NO I2C connection at all:
-#     wire codec line-out L/R -> TPA2016 IN L/R, speakers on OUT L/R.
-#   - STEREO amp: one 4-ohm speaker per channel. No series wiring needed
-#     (that was a PAM8302 constraint - it no longer applies).
-#   - If you later want software gain control, wire its I2C to the bus
-#     (addr 0x58) and we add raw-I2C gain writes like the clock below.
+# TPA2016 AMP NOTES - ITS I2C IS NOW REQUIRED, NOT OPTIONAL:
+#   - STEREO amp: one 4-ohm speaker per channel. Outputs are BRIDGE-TIED:
+#     every terminal swings, there is no output ground. Do NOT common the
+#     two speakers' negative leads and do NOT tie an output to GND - either
+#     shorts half a bridge and kills the amp.
+#   - Left standalone the amp boots with its AGC ENABLED. That fights the
+#     software volume (turn it down, the AGC ramps it back up), breathes
+#     audibly on steady noise, and - the real problem - makes the echo path
+#     time-varying, which is precisely what the XVF3800's AEC cannot cancel.
+#     Wake-word-over-noise would suffer.
+#   - So the amp is configured once at boot by the custom `tpa2016:` block
+#     below: compression 1:1 (AGC off), one fixed analog gain, limiter parked
+#     high as a pure fault stop. All volume stays in software.
+#   - The chip has no NVM. A glitch on the 5V rail returns it to factory
+#     defaults (AGC back on); id(amp).apply() rewrites it.
 # =====================================================================
 
 substitutions:
@@ -66,9 +76,41 @@ substitutions:
 
   # Hard current ceiling for the crescent, as a % of full-white output. This
   # caps the max PWM (color_correct) so the strip PHYSICALLY can't exceed it.
-  # 60% keeps 37 SK6812 RGBWs under the 4A boost limit with sound maxed (~1.8A
-  # reserved for the system). Raise only after measuring actual draw.
-  led_max_pct: "60%"
+  # BUDGET (5V rail = Waveshare UPS 3S, 5A):
+  #   48 SK6812 RGBW at full all-channel white ~= 2.9A
+  #   TPA2016 into 2x 4ohm at clipping           ~= 1.3A
+  #   Flex + XVF3800 + ESP32-S3 + sensors        ~= 0.5A
+  # 65% of 2.9A = ~1.9A for the strip, total ~3.7A of 5A. Also keeps the
+  # sealed dome from cooking. Raise only after measuring actual draw.
+  led_max_pct: "65%"
+
+  # ---- Waveshare UPS Module 3S (3x 18650 series) power monitoring ----
+  # !! PLACEHOLDER !! The monitor chip's address is UNCONFIRMED. Run the boot
+  # I2C scan (scan: true below) with the UPS connected and look for an address
+  # that isn't already in the map above. Waveshare's UPS boards normally carry
+  # an INA219 at 0x40-0x43; if the scan turns up 0x40 that's almost certainly
+  # it. If the readings come back nonsense, the part may be an INA226 instead -
+  # change `platform: ina219` to `platform: ina226` in the sensor block.
+  ups_i2c_address: "0x41"
+  # Series shunt on the UPS board. ALSO UNCONFIRMED - 0.01 ohm is the usual
+  # value for a 5A-class board. If reported current is 10x off, this is why.
+  ups_shunt_ohms: "0.01 ohm"
+
+  # 3S pack thresholds, PACK volts (per-cell x3).
+  battery_full_v: "12.6"      # 4.20 V/cell
+  battery_low_v: "10.2"       # 3.40 V/cell - start warning
+  battery_empty_v: "9.0"      # 3.00 V/cell - protection cutoff is just below
+  battery_low_pct: "15"       # SOC at/below this = "low battery"
+
+  # ---- Clock display auto-dim curve (HT16K33, 16 levels) ----
+  # Deliberately weighted dark: level sits at the floor for anything up to a
+  # dim room, and only climbs into the top half in real daylight.
+  display_lux_dark: "3"       # at/below this lux -> display_level_min
+  display_lux_bright: "500"   # at/above this lux -> display_level_max
+  display_level_min: "0"      # HT16K33 hardware floor (1/16 duty)
+  display_level_max: "14"
+  # Curve shape. >1 holds the low end down; 1.0 would be a straight log ramp.
+  display_dim_gamma: "1.8"
 
   # Second layer: cap how bright individual presets can command, so nothing
   # even approaches the color_correct ceiling. Fractions (0..1).
@@ -296,6 +338,34 @@ script:
             {0x3F,0x06,0x5B,0x4F,0x66,0x6D,0x7D,0x07,0x7F,0x6F};
           uint8_t display_bytes[11] = {0x00,0,0,0,0,0,0,0,0,0,0};
 
+          // ---- FUTURE: low-battery indication ----------------------------
+          // When id(battery_low) trips, show a warning instead of the clock.
+          // Insert this as the FIRST branch of the if/else chain below, so it
+          // outranks both the preset codes and the clock:
+          //
+          //   if (id(battery_low).state) {
+          //     // "LO" - there is no 'W' on a 7-segment display, and "LOW"
+          //     // rendered as "LOb" reads worse than a clean two-letter code.
+          //     // Right-aligned in the last two digits so it doesn't sit
+          //     // where the hour normally is and get misread as a time.
+          //     display_bytes[1] = 0x00;  // blank
+          //     display_bytes[3] = 0x00;  // blank
+          //     display_bytes[5] = 0x00;  // colon OFF - stops it reading "12:34"
+          //     display_bytes[7] = 0x38;  // 'L'
+          //     display_bytes[9] = 0x3F;  // 'O'
+          //   } else if (id(showing_preset)) {
+          //
+          // Two decisions worth making before wiring this up:
+          //  1. Solid or blinking? A dead-steady "LO" at 3am is less alarming
+          //     than a flash, but easier to sleep through. Alternating with the
+          //     clock every few seconds is the middle road - gate it on
+          //     (millis() / 3000) % 2 rather than adding another script.
+          //  2. Should it be suppressed while charging? Probably yes:
+          //     `if (id(battery_low).state && !id(battery_charging).state)`.
+          //     Otherwise you plug it in at night and still stare at "LO"
+          //     for the next hour while it recovers.
+          // -----------------------------------------------------------------
+
           if (id(showing_preset)) {
             // Render up to 4 chars of preset_code (e.g. "L1", "S3", "OFF")
             // across the four digit slots.
@@ -421,7 +491,7 @@ external_components:
   - source:
       type: local
       path: components
-    components: [ noise_source, seesaw ]
+    components: [ noise_source, seesaw, tpa2016 ]
 
 # ---------------------------------------------------------------------
 # I2C - one bus, everything lives here
@@ -437,6 +507,39 @@ i2c:
                      # still flaky with everything reconnected, try 10kHz.
   timeout: 1ms       # give the XVF3800 room to clock-stretch while its
                      # firmware boots; avoids "I2C transaction timeout" at setup
+
+# ---------------------------------------------------------------------
+# TPA2016 AMP - written ONCE at boot, then never touched again.
+#
+# Why this exists at all: left alone the amp powers up with its AGC enabled,
+# which fights the software volume and - fatally for this build - makes the
+# gain between the DAC and the speakers time-varying. The XVF3800 builds its
+# echo reference from what we send the DAC, and AEC can only cancel a LINEAR
+# echo path. An active compressor downstream breaks that. Wake word over
+# playing noise is the exact case that would fail.
+#
+# ORDER OF THE REGISTER WRITES MATTERS and is handled inside the component:
+# compression must go to 1:1 BEFORE the gain is set, because disabling
+# compression narrows the legal gain range from -28..30 dB to 0..30 dB. Set
+# gain first and it gets clamped - people end up with a silent amp this way.
+#
+# gain_db: the ceiling, not the operating point. Volume lives in the AIC3104
+#   upstream. 6 dB into 4-ohm drivers lands full-scale playback around 1W,
+#   plenty for bedside. Raise it only if 100% volume isn't loud enough; if you
+#   hear it clip before the knob maxes out, come back down.
+# limiter_level: 9.0 dBV is the top of the range (~2.5W into 4 ohm), just under
+#   the clipping point at 5V. It should NEVER engage in normal use - it exists
+#   to stop a runaway signal, not to shape dynamics.
+# ---------------------------------------------------------------------
+tpa2016:
+  id: amp
+  address: 0x58
+  i2c_id: internal_i2c
+  compression: "1:1"     # AGC OFF. Do not change without re-testing AEC.
+  gain_db: 6
+  limiter: true
+  limiter_level: 9.0
+  noise_gate: false
 
 # ---------------------------------------------------------------------
 # TIME - DS3231 is battery-backed source, HA is the fallback that syncs when loaded
@@ -526,14 +629,51 @@ sensor:
           send_every: 2
     on_value:
       - lambda: |-
+          // Auto-dim the 7-seg. Eyes respond to light roughly logarithmically,
+          // so the map is log-in-lux rather than linear - a linear map spends
+          // almost its whole range on daylight and leaves the whole dim end
+          // pinned at one level.
+          //
+          // Tuned DARK on purpose (this thing lives 60cm from a face at 3am):
+          //   below display_lux_dark lux the display sits at the hardware floor,
+          //   and display_dim_gamma > 1 holds the curve down through the middle
+          //   so an ordinary lamp-lit room is still only ~level 5, not 9.
+          //
+          // NOTE ON THE FLOOR: HT16K33 level 0 is 1/16 duty and is as dim as
+          // this chip goes. If it's STILL too bright at night the only remedy
+          // is blanking digits - the brightness register has nothing lower.
           float lux = x;
-          int display_level;
-          if      (lux < 2)   display_level = 0;
-          else if (lux < 10)  display_level = 2;
-          else if (lux < 50)  display_level = 5;
-          else if (lux < 200) display_level = 9;
-          else                display_level = 15;
+          if (!(lux >= 0.0f)) lux = 0.0f;               // nan/negative guard
+
+          const float lux_dark   = ${display_lux_dark};
+          const float lux_bright = ${display_lux_bright};
+          const float level_min  = ${display_level_min};
+          const float level_max  = ${display_level_max};
+
+          float target;
+          if (lux <= lux_dark) {
+            target = level_min;
+          } else if (lux >= lux_bright) {
+            target = level_max;
+          } else {
+            // Normalised position between the two anchors, in log space.
+            float t = logf(lux / lux_dark) / logf(lux_bright / lux_dark);
+            target = level_min + (level_max - level_min) * powf(t, ${display_dim_gamma}f);
+          }
+
+          // Slew toward the target instead of snapping. The BH1750's moving
+          // average already kills sample jitter; this stops a visible step when
+          // you walk past the sensor or the room light crosses a boundary.
+          static float smoothed = -1.0f;
+          if (smoothed < 0.0f) smoothed = target;       // first reading: jump
+          smoothed += (target - smoothed) * 0.35f;
+
+          int display_level = (int) lroundf(smoothed);
+          if (display_level < 0)  display_level = 0;
+          if (display_level > 15) display_level = 15;
           id(display_brightness) = display_level;
+          // render_display only pushes the brightness register when the value
+          // actually changes, so calling this every reading is cheap.
 
   # ToF - touchless wake (automation TBD: wake display/show clock bright)
   - platform: vl53l0x
@@ -555,14 +695,110 @@ sensor:
             #- 0.300 -> 0.300
       - multiply: 39.3701          # meters -> inches (keep this last)
 
-  # Temp / humidity
-  - platform: sht4x
-    address: 0x44
-    temperature:
-      name: "Temperature"
-    humidity:
-      name: "Humidity"
+
+  # ===================================================================
+  # BATTERY / UPS MONITORING - Waveshare UPS Module 3S
+  #
+  # !! THE ADDRESS AND SHUNT VALUE ARE PLACEHOLDERS !! See the substitutions
+  # block. Boot with the UPS connected, read the I2C scan in the logs, and set
+  # ups_i2c_address to whatever unclaimed address appears. Everything below
+  # keys off the substitutions, so that's the only thing you should need to
+  # change once the scan comes back.
+  #
+  # SIGN CONVENTION: current is positive when the shunt sees flow in the
+  # board's designed direction. Which direction that is depends on how
+  # Waveshare wired it, so verify on the bench: run on battery, note the sign;
+  # if discharge reads positive, flip the comparison in `battery_charging`
+  # and drop the `- multiply: -1` filter from Battery Current.
+  # ===================================================================
+  - platform: ina219
+    address: ${ups_i2c_address}
+    i2c_id: internal_i2c
+    shunt_resistance: ${ups_shunt_ohms}
+    max_voltage: 16.0V         # 3S tops out at 12.6V; 16V bus range covers it
+    max_current: 5.0A          # matches the board's 5V/5A output rating
     update_interval: 30s
+    bus_voltage:
+      name: "Battery Voltage"
+      id: battery_voltage
+      unit_of_measurement: "V"
+      accuracy_decimals: 2
+      device_class: voltage
+      state_class: measurement
+    current:
+      name: "Battery Current"
+      id: battery_current
+      unit_of_measurement: "A"
+      accuracy_decimals: 3
+      device_class: current
+      state_class: measurement
+      filters:
+        - multiply: -1.0       # see SIGN CONVENTION above: make discharge negative
+    power:
+      name: "Battery Power"
+      id: battery_power
+      unit_of_measurement: "W"
+      accuracy_decimals: 2
+      device_class: power
+      state_class: measurement
+    shunt_voltage:
+      name: "Battery Shunt Voltage"
+      id: battery_shunt_voltage
+      internal: true           # diagnostic only; not worth an HA entity
+
+  # State of charge, derived from pack voltage against a lithium-ion OCV curve.
+  # This is an ESTIMATE and it is worst exactly when you're drawing hardest:
+  # under a bright sunrise plus loud audio the pack sags and this will read low,
+  # then recover when the load drops. The UPS board has no coulomb counter, so
+  # voltage is all we get. Treat <20% as "plug it in", not as a fuel gauge.
+  - platform: template
+    name: "Battery Level"
+    id: battery_level
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    device_class: battery
+    state_class: measurement
+    icon: "mdi:battery"
+    update_interval: 30s
+    lambda: |-
+      if (!id(battery_voltage).has_state()) return {};
+      float pack = id(battery_voltage).state;
+      if (!(pack > 0.0f)) return {};
+      float cell = pack / 3.0f;          // 3 cells in SERIES
+
+      // Li-ion rest-voltage curve. Flat through the middle by nature - that
+      // plateau is why voltage-based SOC is only ever approximate.
+      static const float curve_v[]   = {3.00f, 3.30f, 3.50f, 3.62f, 3.70f, 3.75f,
+                                        3.80f, 3.85f, 3.92f, 4.00f, 4.10f, 4.20f};
+      static const float curve_pct[] = {0.0f,  5.0f,  10.0f, 20.0f, 30.0f, 40.0f,
+                                        50.0f, 60.0f, 75.0f, 85.0f, 95.0f, 100.0f};
+      const int points = sizeof(curve_v) / sizeof(curve_v[0]);
+
+      if (cell <= curve_v[0]) return 0.0f;
+      if (cell >= curve_v[points - 1]) return 100.0f;
+      for (int i = 0; i < points - 1; i++) {
+        if (cell < curve_v[i + 1]) {
+          float span = curve_v[i + 1] - curve_v[i];
+          float blend = (cell - curve_v[i]) / span;
+          return curve_pct[i] + (curve_pct[i + 1] - curve_pct[i]) * blend;
+        }
+      }
+      return 100.0f;
+
+  # Per-cell average - the number that actually matters for pack health, and
+  # much easier to sanity-check against a multimeter than the pack total.
+  - platform: template
+    name: "Battery Cell Voltage"
+    id: battery_cell_voltage
+    unit_of_measurement: "V"
+    accuracy_decimals: 3
+    device_class: voltage
+    state_class: measurement
+    entity_category: diagnostic
+    update_interval: 30s
+    lambda: |-
+      if (!id(battery_voltage).has_state()) return {};
+      return id(battery_voltage).state / 3.0f;
 
 # ---------------------------------------------------------------------
 # CAPACITIVE TOUCH - tap = next light preset, long-press = off
@@ -606,6 +842,34 @@ binary_sensor:
           - ON for at least 1s
         then:
           - script.execute: turn_off_light
+
+  # ---- UPS state ----
+  # "Charging" here means the barrel jack is supplying the board. The UPS runs
+  # charge and discharge simultaneously, so this is really "mains present"
+  # rather than "cells are absorbing" - close enough to gate behaviour on.
+  # Threshold is above zero so shunt noise at idle doesn't flap the state.
+  - platform: template
+    name: "Battery Charging"
+    id: battery_charging
+    device_class: battery_charging
+    lambda: |-
+      if (!id(battery_current).has_state()) return {};
+      return id(battery_current).state > 0.05f;   // see SIGN CONVENTION above
+
+  # Latching low-battery flag with hysteresis: trips at battery_low_pct, and
+  # will not clear until SOC climbs 10 points past it. Without the gap this
+  # would chatter every time the sunrise ramps and the pack sags across the
+  # threshold. Anything that reacts to low battery should read THIS, not the
+  # raw percentage.
+  - platform: template
+    name: "Battery Low"
+    id: battery_low
+    device_class: battery
+    lambda: |-
+      if (!id(battery_level).has_state()) return {};
+      float pct = id(battery_level).state;
+      if (id(battery_low).state) return pct < (${battery_low_pct} + 10.0f);
+      return pct <= ${battery_low_pct};
 
 # --------
 # DROPDOWNS (Home Assistant)
@@ -814,10 +1078,12 @@ light:
     rgb_order: GRB
     is_rgbw: true
     pin: GPIO1
-    num_leds: 37             # TEST value; real build ~37
+    # Real build: half-circle crescent, 60 LED/m strip (16.7mm pitch).
+    # Row widths 160/158/151/139/119/88/20 mm -> 9/9/9/8/7/5/1 = 48 pixels.
+    num_leds: 48
     # Hard current ceiling: caps max PWM to led_max_pct of full scale, so the
     # strip physically can't exceed that current no matter what HA commands.
-    # Sized for the 4A boost limit with sound at max (see substitutions).
+    # Sized against the UPS 5V/5A rail with the amp at full tilt (see subs).
     color_correct:            # block style: ${} can't live inside a [ ] flow list
       - ${led_max_pct}
       - ${led_max_pct}
@@ -838,8 +1104,17 @@ light:
           update_interval: 100ms
           lambda: |-
             // ============ CONFIGURE FOR YOUR BUILD ============
-            // LEDs per row, DATA-LINE order, BOTTOM row first. Sum ~= num_leds.
-            static const uint8_t leds_per_row[] = {10, 9, 8, 5, 3, 2};
+            // LEDs per row, DATA-LINE order, BOTTOM row first. Sum == num_leds.
+            // Half-circle crescent at 16.7mm pitch (60 LED/m); the flat side is
+            // down, so the widest row is row 0 and the single-pixel apex is last.
+            //   row 0: 160mm -> 9    row 4: 119mm -> 7
+            //   row 1: 158mm -> 9    row 5:  88mm -> 5
+            //   row 2: 151mm -> 9    row 6:  20mm -> 1
+            //   row 3: 139mm -> 8                    total 48
+            // If the strip is laid serpentine, every ODD row runs right-to-left.
+            // The sunrise only fills whole rows so that doesn't matter here, but
+            // it will for any effect with horizontal structure.
+            static const uint8_t leds_per_row[] = {9, 9, 9, 8, 7, 5, 1};
             const uint8_t row_count = sizeof(leds_per_row) / sizeof(leds_per_row[0]);
 
             // Dawn keyframes across normalized progress 0..1.
