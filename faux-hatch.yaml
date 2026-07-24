@@ -1000,6 +1000,8 @@ noise_source:
   sample_rate: 48000
   gain: 30%               # base amplitude; leaves headroom so noise + TTS won't clip
   fade_length: 2s
+  high_pass_frequency: 160
+  high_pass_makeup: 4.0   # tune by ear against white at the same volume
 
 media_player:
   - platform: speaker
