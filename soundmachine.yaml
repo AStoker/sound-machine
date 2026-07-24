@@ -122,6 +122,16 @@ substitutions:
   preset_max_brightness: "0.60"     # brightest STATIC preset (Morning Light)
   sunrise_max_brightness: "0.70"    # caps the Circadian Sunrise's peak output
 
+  # ---- On-device media source ----
+  # ESPHome resolves a LOCAL `file:` path against the config dir of whatever
+  # machine runs the build. When this config is pulled onto Home Assistant as a
+  # remote package that dir is HA's, not this repo - so a bare `sounds/...` path
+  # would not be found there even though the file lives in the repo. A value
+  # starting with http(s):// is instead downloaded at build time, so the URL
+  # default just works everywhere. For LOCAL/offline dev with the repo checked
+  # out, override this with the repo-relative path: sounds/La-la-sad.mp3
+  la_la_sad_source: "https://raw.githubusercontent.com/astoker/sound-machine/main/sounds/La-la-sad.mp3"
+
   # ---- Credentials (injected, NOT stored here) ----
   # This config is designed to be pulled as a remote ESPHome package, and remote
   # packages may not contain `!secret` lookups. So credentials are substitutions
@@ -267,7 +277,7 @@ external_components:
   # source would resolve against the local config dir, which the HA side doesn't
   # have.) For local component development, push first, then build - or
   # temporarily switch this back to `type: local, path: components`.
-  - source: github://astoker/sound-machine
+  - source: github://astoker/sound-machine@main
     components: [ noise_source, seesaw, tpa2016 ]
     refresh: 0s
 

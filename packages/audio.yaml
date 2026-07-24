@@ -398,8 +398,13 @@ media_player:
     # On-device files baked into flash, playable with no HA/network connection.
     # Encode mono, 48 kHz, 16-bit MP3 (matches media_mixing_input / pipeline).
     files:
+      # Source is a substitution so it works in both worlds. ESPHome resolves a
+      # LOCAL file path against the *build machine's* config dir - which the HA
+      # side (pulling this as a remote package) does not have the asset in - so
+      # the default is a URL, which ESPHome downloads at build time. Override
+      # la_la_sad_source with a repo-relative path for local/offline dev.
       - id: la_la_sad
-        file: sounds/La-la-sad.mp3
+        file: ${la_la_sad_source}
     # NOTE: no on_idle hook here. The mixer keeps this player from reporting
     # idle reliably, so voice-turn un-ducking is handled by duck_watchdog
     # (keyed off is_announcing), not by media idle. Looping is done with

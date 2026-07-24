@@ -8,7 +8,7 @@ clock, an SK6812 sunrise crescent, and battery/UPS monitoring.
 
 | Path | What |
 |------|------|
-| `faux-hatch.yaml` | Device core + feature package includes (the build entry point) |
+| `soundmachine.yaml` | Device core + feature package includes (the build entry point) |
 | `packages/` | `audio`, `lighting`, `display`, `battery` — one slice each |
 | `components/` | Custom ESPHome components: `noise_source`, `seesaw`, `tpa2016` |
 | `sounds/` | On-device audio baked into flash |
@@ -34,7 +34,7 @@ sub-configs are all fetched from this repo at build time.
 
 - Credentials are **substitutions**, not `!secret` — remote packages can't
   contain secret lookups. The minimal device YAML injects them from the local
-  `secrets.yaml`, overriding the placeholders in `faux-hatch.yaml`.
+  `secrets.yaml`, overriding the placeholders in `soundmachine.yaml`.
 - The custom components are pulled via a **git** `external_components` source
   (`github://astoker/sound-machine`) so they resolve identically locally and on
   HA. For local component development, push first then build (or temporarily
@@ -43,16 +43,31 @@ sub-configs are all fetched from this repo at build time.
 ## Building locally
 
 ```sh
-# create a secrets.yaml next to faux-hatch.yaml with the 5 keys, then:
-esphome config faux-hatch.yaml     # validate
-esphome run faux-hatch.yaml        # build + upload
+# create a secrets.yaml next to soundmachine.yaml with the 5 keys, then:
+esphome config soundmachine.yaml     # validate
+esphome run soundmachine.yaml        # build + upload
 ```
+
+## On-device media (the `la_la_sad_source` substitution)
+
+ESPHome resolves a local `file:` path against the config directory of whichever
+machine runs the build. When HA pulls this repo as a remote package, that
+directory is HA's — not this repo — so a bare `sounds/…` path wouldn't be found
+there even though the file lives in the repo. So the media source is a
+substitution, `la_la_sad_source`, defaulting to a raw GitHub **URL** that
+ESPHome downloads at build time (works everywhere; verified). For local/offline
+dev with the repo checked out, override it with the repo-relative path:
+
+```yaml
+# in a local dev entry YAML (or temporarily in soundmachine.yaml substitutions)
+substitutions:
+  la_la_sad_source: sounds/La-la-sad.mp3
+```
+
+Any additional flashed audio should follow the same pattern: add a
+`<name>_source` substitution (URL default) rather than a bare path.
 
 ## Notes
 
-- On-device media (`sounds/La-la-sad.mp3`) is referenced by a repo-relative
-  path. On the very first HA build, confirm it resolves from the pulled repo. If
-  it doesn't, either drop the file into your HA ESPHome folder under `sounds/`,
-  or point the `file:` in `packages/audio.yaml` at the raw GitHub URL.
-- The UPS monitor I2C address and shunt value in `faux-hatch.yaml` are
+- The UPS monitor I2C address and shunt value in `soundmachine.yaml` are
   placeholders — see the comments in the `substitutions:` block.

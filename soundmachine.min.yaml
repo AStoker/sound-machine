@@ -25,6 +25,6 @@ substitutions:
 packages:
   soundmachine:
     url: https://github.com/astoker/sound-machine
-    files: [faux-hatch.yaml]
+    files: [soundmachine.yaml]
     ref: main
     refresh: 0s        # always pull the latest commit of `main` on each build
