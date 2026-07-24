@@ -1,0 +1,30 @@
+# =====================================================================
+# MINIMAL DEVICE YAML - put THIS file in your Home Assistant ESPHome dir.
+#
+# It holds nothing but your local secrets and a pointer at the GitHub repo.
+# The entire device config is pulled from github.com/astoker/sound-machine at
+# build time, so `refresh: 0s` means every build compiles the latest `main`.
+#
+# SETUP (once):
+#   1. Copy this file into your HA ESPHome config folder (rename if you like).
+#   2. Add the 5 keys below to that folder's secrets.yaml
+#      (see secrets.example.yaml in the repo).
+#   3. Install/compile from the ESPHome dashboard as usual.
+#
+# The substitutions here OVERRIDE the placeholder credentials in the packaged
+# config - a local substitution always wins over a package's. Remote packages
+# may not contain `!secret` lookups, which is why credentials are injected here.
+# =====================================================================
+substitutions:
+  wifi_ssid: !secret wifi_ssid
+  wifi_password: !secret wifi_password
+  ap_password: !secret ap_password
+  ota_password: !secret soundmachine__ota_password
+  api_key: !secret soundmachine__api_encryption
+
+packages:
+  soundmachine:
+    url: https://github.com/astoker/sound-machine
+    files: [faux-hatch.yaml]
+    ref: main
+    refresh: 0s        # always pull the latest commit of `main` on each build
