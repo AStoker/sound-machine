@@ -12,6 +12,15 @@ The config is designed to be **hosted on GitHub and pulled by Home Assistant as
 a remote ESPHome package** — this constraint shapes several non-obvious design
 choices (see "Remote-hosting constraints" below). Repo slug: `astoker/sound-machine`.
 
+## Companion docs
+
+- **[`HARDWARE.md`](HARDWARE.md)** — every physical part, the I2C address map,
+  pin map, power budget, and wiring cautions. Start here for "what is this pin /
+  chip / address."
+- **[`SOUNDMACHINE.md`](SOUNDMACHINE.md)** — the project narrative: goals, how
+  the pieces fit, roadblocks already overcome, and open work. Start here to
+  understand *why* the project is the way it is before changing behavior.
+
 ## Commands
 
 ```sh
@@ -46,7 +55,19 @@ work but each id must be defined exactly once. Top-level list keys (`sensor:`,
 `binary_sensor:`, `script:`, `globals:`, etc.) concatenate across packages.
 
 **Custom C++ components** in `components/` (`noise_source`, `seesaw`, `tpa2016`)
-follow standard ESPHome layout (`__init__.py` codegen + `.h`/`.cpp`).
+follow standard ESPHome layout (`__init__.py` codegen + `.h`/`.cpp`). `seesaw`
+is vendored locally (patched `dump_summary()` for ESPHome 2026.7.x); the upstream
+ssieb git source is left commented in `external_components`.
+
+**Sensors & controls live across packages, on one shared I2C bus.** Implemented
+today: BH1750 ambient light (display auto-dim), seesaw rotary encoder (volume +
+tap/hold sound control), DS3231 RTC (time source), plus an ESP32 native
+capacitive touch pad (light-preset cycle). See `HARDWARE.md` for the full map.
+
+> **Gotcha:** the hardware map and the `logger:` block reference a **VL53L0X
+> ToF** (`0x29`, planned touchless wake), but it has no ESPHome entity yet — it
+> is wired-in intent, not live config. Don't assume a `vl53l0x:` sensor exists;
+> adding it is open work.
 
 Cross-file invariants worth knowing before changing behavior:
 - **Display is single-owner.** `render_display` (in `packages/display.yaml`) is

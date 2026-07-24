@@ -5,7 +5,7 @@
 #   ReSpeaker Flex XVF3800 (linear 4-mic) w/ XIAO ESP32-S3 Plus seated
 #   AIC3104 codec (on Flex)  -> line out -> TPA2016 amp -> 2x speakers
 #   HT16K33 7-seg clock display (Adafruit #1002)        [I2C 0x70]
-#   BH1750 light, SHT40 temp/hum, VL53L0X ToF, DS3231 RTC, seesaw knob
+#   BH1750 light, VL53L0X ToF, DS3231 RTC, seesaw knob
 #   SK6812 GRBW crescent strip (data on GPIO1 / D0), 48 px half-circle
 #   Waveshare UPS Module 3S (3x 18650 series) - I2C power monitoring
 #   OPTIONAL: IS31FL3731 charlieplex 9x16 matrix        [I2C 0x74]
@@ -29,7 +29,7 @@
 #
 # I2C ADDRESS MAP (no conflicts):
 #   0x18 AIC3104 codec     0x23 BH1750         0x29 VL53L0X
-#   0x2C XVF3800           0x36 seesaw encoder  0x44 SHT40
+#   0x2C XVF3800           0x36 seesaw encoder
 #   0x58 TPA2016 amp       0x68 DS3231          0x70 HT16K33 clock
 #   0x4?? UPS monitor  << PLACEHOLDER, see ups_i2c_address in substitutions
 #   0x74 IS31FL3731 (opt)
