@@ -1,0 +1,181 @@
+# =====================================================================
+# HT16K33 7-SEG CLOCK DISPLAY + auto-dim
+#
+# Owns the display: the single render script, its brightness state, and the
+# BH1750 ambient-light auto-dim that feeds it. render_display is the ONE writer
+# of the 7-seg; it shows (in priority order) a low-battery warning, a transient
+# preset code, or the clock.
+#
+# Defines ids: display_brightness, display_brightness_last, preset_code,
+#   showing_preset, render_display, show_preset_code, ambient_light.
+# Consumes (from other packages / main): internal_i2c, ds3231_time (main),
+#   battery_low + battery_charging (battery), and preset_code / showing_preset
+#   are set by the Sound and Crescent Preset selects (audio, lighting).
+# The HT16K33 power-on sequence lives in the main config's esphome:on_boot.
+# =====================================================================
+globals:
+  - id: display_brightness
+    type: int
+    restore_value: no
+    initial_value: '9'      # sensible mid default until first lux read
+  - id: display_brightness_last
+    type: int
+    restore_value: no
+    initial_value: '-1'     # forces first write
+  # Transient display state: while showing_preset is true the 7-seg shows
+  # preset_code (e.g. "L1"/"S3") instead of the clock.
+  - id: preset_code
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+  - id: showing_preset
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
+script:
+  # Single owner of the 7-seg display: a low-battery warning, a preset code, or
+  # the clock. Called by the 1s interval AND on preset changes.
+  - id: render_display
+    then:
+      - lambda: |-
+          const uint8_t HT16K33_ADDRESS = ${ht16k33_address};
+
+          // Push display brightness only when it changes (no redundant writes).
+          if (id(display_brightness) != id(display_brightness_last)) {
+            uint8_t brightness_command = 0xE0 | (id(display_brightness) & 0x0F);
+            id(internal_i2c).write(HT16K33_ADDRESS, &brightness_command, 1);
+            id(display_brightness_last) = id(display_brightness);
+          }
+
+          static const uint8_t SEVEN_SEGMENT_DIGITS[10] =
+            {0x3F,0x06,0x5B,0x4F,0x66,0x6D,0x7D,0x07,0x7F,0x6F};
+          uint8_t display_bytes[11] = {0x00,0,0,0,0,0,0,0,0,0,0};
+
+          // Priority order: a low-battery warning outranks both the transient
+          // preset code and the clock. Suppressed while charging - plugging in
+          // at night shouldn't leave "LO" staring back for the hour it takes
+          // the pack to recover (battery_low itself has hysteresis; charging
+          // just clears the on-screen nag immediately).
+          if (id(battery_low).state && !id(battery_charging).state) {
+            // "LO", right-aligned in the last two digits so it doesn't sit
+            // where the hour normally is. There is no 'W' on a 7-segment
+            // display; "LO" reads cleaner than "LOb" would. Colon held OFF so
+            // it can't be misread as a time.
+            display_bytes[1] = 0x00;  // blank
+            display_bytes[3] = 0x00;  // blank
+            display_bytes[5] = 0x00;  // colon OFF
+            display_bytes[7] = 0x38;  // 'L'
+            display_bytes[9] = 0x3F;  // 'O'
+          } else if (id(showing_preset)) {
+            // Render up to 4 chars of preset_code (e.g. "L1", "S3", "OFF")
+            // across the four digit slots.
+            std::string code = id(preset_code);
+            auto char_to_segments = [](char glyph) -> uint8_t {
+              switch (glyph) {
+                case '0': return 0x3F; case '1': return 0x06; case '2': return 0x5B;
+                case '3': return 0x4F; case '4': return 0x66; case '5': return 0x6D;
+                case '6': return 0x7D; case '7': return 0x07; case '8': return 0x7F;
+                case '9': return 0x6F;
+                case 'L': return 0x38; case 'S': return 0x6D; case 'O': return 0x3F;
+                case 'F': return 0x71; case 'N': return 0x37; case 'H': return 0x76;
+                default:  return 0x00;   // space / unknown -> blank
+              }
+            };
+            const uint8_t digit_slots[4] = {1, 3, 7, 9};
+            for (uint8_t d = 0; d < 4; d++)
+              display_bytes[digit_slots[d]] = (d < code.size()) ? char_to_segments(code[d]) : 0x00;
+          } else {
+            // Normal 12-hour clock from the battery-backed RTC.
+            auto now = id(ds3231_time).now();
+            if (now.is_valid()) {
+              int hour = now.hour;
+              hour = hour % 12;
+              if (hour == 0) hour = 12;
+              int minute = now.minute;
+              display_bytes[1] = (hour >= 10) ? SEVEN_SEGMENT_DIGITS[hour / 10] : 0x00;  // blank leading zero
+              display_bytes[3] = SEVEN_SEGMENT_DIGITS[hour % 10];
+              display_bytes[5] = 0x02;  // colon always on
+              display_bytes[7] = SEVEN_SEGMENT_DIGITS[minute / 10];
+              display_bytes[9] = SEVEN_SEGMENT_DIGITS[minute % 10];
+            } else {
+              display_bytes[1] = 0x40; display_bytes[3] = 0x40;
+              display_bytes[7] = 0x40; display_bytes[9] = 0x40;
+            }
+          }
+          id(internal_i2c).write(HT16K33_ADDRESS, display_bytes, 11);
+
+  # Flash preset_code for preset_code_seconds, then revert to the clock.
+  # mode: restart so rapid toggles keep showing the latest code.
+  - id: show_preset_code
+    mode: restart
+    then:
+      - lambda: 'id(showing_preset) = true;'
+      - script.execute: render_display
+      - delay: ${preset_code_seconds}
+      - lambda: 'id(showing_preset) = false;'
+      - script.execute: render_display
+
+interval:
+  - interval: 1s
+    then:
+      - script.execute: render_display
+
+sensor:
+  # Ambient light -> also auto-dims the clock display
+  - platform: bh1750
+    id: ambient_light
+    name: "Ambient Light"
+    address: 0x23
+    update_interval: 5s
+    filters:
+      - sliding_window_moving_average:
+          window_size: 4
+          send_every: 2
+    on_value:
+      - lambda: |-
+          // Auto-dim the 7-seg. Eyes respond to light roughly logarithmically,
+          // so the map is log-in-lux rather than linear - a linear map spends
+          // almost its whole range on daylight and leaves the whole dim end
+          // pinned at one level.
+          //
+          // Tuned DARK on purpose (this thing lives 60cm from a face at 3am):
+          //   below display_lux_dark lux the display sits at the hardware floor,
+          //   and display_dim_gamma > 1 holds the curve down through the middle
+          //   so an ordinary lamp-lit room is still only ~level 5, not 9.
+          //
+          // NOTE ON THE FLOOR: HT16K33 level 0 is 1/16 duty and is as dim as
+          // this chip goes. If it's STILL too bright at night the only remedy
+          // is blanking digits - the brightness register has nothing lower.
+          float lux = x;
+          if (!(lux >= 0.0f)) lux = 0.0f;               // nan/negative guard
+
+          const float lux_dark   = ${display_lux_dark};
+          const float lux_bright = ${display_lux_bright};
+          const float level_min  = ${display_level_min};
+          const float level_max  = ${display_level_max};
+
+          float target;
+          if (lux <= lux_dark) {
+            target = level_min;
+          } else if (lux >= lux_bright) {
+            target = level_max;
+          } else {
+            // Normalised position between the two anchors, in log space.
+            float t = logf(lux / lux_dark) / logf(lux_bright / lux_dark);
+            target = level_min + (level_max - level_min) * powf(t, ${display_dim_gamma}f);
+          }
+
+          // Slew toward the target instead of snapping. The BH1750's moving
+          // average already kills sample jitter; this stops a visible step when
+          // you walk past the sensor or the room light crosses a boundary.
+          static float smoothed = -1.0f;
+          if (smoothed < 0.0f) smoothed = target;       // first reading: jump
+          smoothed += (target - smoothed) * 0.35f;
+
+          int display_level = (int) lroundf(smoothed);
+          if (display_level < 0)  display_level = 0;
+          if (display_level > 15) display_level = 15;
+          id(display_brightness) = display_level;
+          // render_display only pushes the brightness register when the value
+          // actually changes, so calling this every reading is cheap.

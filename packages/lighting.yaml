@@ -1,0 +1,339 @@
+# =====================================================================
+# CRESCENT LIGHT - SK6812 strip, presets, Circadian Sunrise, alarm, touch pad
+#
+# Owns everything about the light: the strip, the preset dispatcher (Crescent
+# Preset select), the sunrise effect + its duration/hold numbers, the alarm
+# datetime that fires the sunrise, and the capacitive touch pad that cycles
+# presets.
+#
+# Defines ids: sunrise_done, light_preset, light_preset_last, cycle_light_preset,
+#   turn_off_light, crescent, light_preset_select, sunrise_duration, sunrise_hold,
+#   alarm_time, alarm_enabled, preset_touch.
+# Consumes (display): preset_code + showing_preset globals and show_preset_code.
+# =====================================================================
+globals:
+  # Set true by the Circadian Sunrise effect once it has held at full for the
+  # configured hold time; the 1s interval below acts on it and turns off.
+  - id: sunrise_done
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  # Which LIGHT preset is active: 0 = Off/On, 1 = Sunrise[timed],
+  # 2 = Nightlight[static], 3 = Morning[static]. Applied by the Crescent Preset select.
+  - id: light_preset
+    type: int
+    restore_value: yes
+    initial_value: '0'
+  # Last non-off value so turning the light back on restores what was showing.
+  - id: light_preset_last
+    type: int
+    restore_value: yes
+    initial_value: '1'
+
+script:
+  # LIGHT preset controls. The "Crescent Preset" SELECT is the single dispatcher
+  # (applies the light + sets the display code). Physical/alarm triggers just
+  # drive that select via select.set.
+
+  # Single tap: advance among the ON presets (1..light_preset_count), then hand
+  # off to the select. Off is reached by a long-press (turn_off_light).
+  - id: cycle_light_preset
+    then:
+      - lambda: |-
+          int current = id(light_preset);
+          // From Off, restore the last preset; otherwise advance 1..N.
+          id(light_preset) = (current < 1) ? id(light_preset_last)
+                                           : (current % ${light_preset_count}) + 1;
+      - select.set:
+          id: light_preset_select
+          option: !lambda |-
+            switch (id(light_preset)) {
+              case 2: return std::string("Nightlight");
+              case 3: return std::string("Morning Light");
+              default: return std::string("(Dynamic) Sunrise");
+            }
+
+  # Long-press (touch): lights off.
+  - id: turn_off_light
+    then:
+      - select.set:
+          id: light_preset_select
+          option: "Off"
+
+interval:
+  # Deferred Circadian Sunrise auto-off (safe: not called from inside the effect)
+  - interval: 1s
+    then:
+      - if:
+          condition:
+            lambda: 'return id(sunrise_done);'
+          then:
+            - light.turn_off: crescent
+            - lambda: 'id(sunrise_done) = false;'
+
+# ---------------------------------------------------------------------
+# CAPACITIVE TOUCH - tap = next light preset, long-press = off
+# ESP32-S3 touch channels live on GPIO1..14, so D3 = GPIO4 (or D2 = GPIO3).
+# ---------------------------------------------------------------------
+esp32_touch:
+  setup_mode: false   # flip to true ONCE, watch the logs for this pad's raw
+                      # value untouched vs touched, then set threshold below.
+
+binary_sensor:
+  # Capacitive pad: tap = next light preset, long-press = lights off.
+  - platform: esp32_touch
+    name: "Preset Touch"
+    id: preset_touch
+    pin: ${touch_pin}          # see substitutions (D3 = GPIO4, D2 = GPIO3)
+    threshold: ${touch_threshold}   # ESP32-S3 raw threshold - CALIBRATE via setup_mode
+    filters:
+      - delayed_on: 40ms       # debounce the pad against noise
+    on_multi_click:
+      - timing:                # quick tap -> next preset
+          - ON for at most 0.8s
+          - OFF for at least 0.2s
+        then:
+          - script.execute: cycle_light_preset
+      - timing:                # hold ~1s -> lights off
+          - ON for at least 1s
+        then:
+          - script.execute: turn_off_light
+
+# Off + presets. Dynamic (animated/timed) presets are prefixed "(Dynamic)".
+# The Crescent Light entity is retained for custom colour / brightness.
+select:
+  - platform: template
+    name: "Crescent Preset"
+    id: light_preset_select
+    icon: "mdi:weather-sunset-up"
+    optimistic: true
+    restore_value: false          # start Off each boot; don't force the light on
+    initial_option: "Off"
+    options:
+      - "Off"
+      - "(Dynamic) Sunrise"
+      - "Nightlight"
+      - "Morning Light"
+    set_action:
+      - lambda: |-
+          std::string sel = x;
+          if (sel == "Off") {
+            id(light_preset) = 0;
+            id(crescent).turn_off().perform();
+            id(preset_code) = "OFF";
+          } else if (sel == "(Dynamic) Sunrise") {
+            id(light_preset) = 1;
+            auto call = id(crescent).turn_on();
+            call.set_effect("Circadian Sunrise");
+            call.perform();
+            id(preset_code) = "L1";
+          } else if (sel == "Nightlight") {
+            id(light_preset) = 2;
+            auto call = id(crescent).turn_on();
+            call.set_effect("None");
+            call.set_brightness(0.12f);
+            call.set_rgb(1.0f, 0.30f, 0.0f);
+            call.perform();
+            id(preset_code) = "L2";
+          } else if (sel == "Morning Light") {
+            id(light_preset) = 3;
+            auto call = id(crescent).turn_on();
+            call.set_effect("None");
+            call.set_brightness(${preset_max_brightness}f);   // capped for current budget
+            call.set_rgb(1.0f, 0.55f, 0.15f);
+            call.perform();
+            id(preset_code) = "L3";
+          }
+          // Remember the last ON preset so a later "turn back on" restores it.
+          if (id(light_preset) > 0) id(light_preset_last) = id(light_preset);
+      - script.execute: show_preset_code
+
+# ---------------------------------------------------------------------
+# SUNRISE WAKE - adjustable dawn duration (minutes)
+# 30 min default = the typical dawn-simulation protocol in the research.
+# Trigger the effect (duration) minutes before your target wake time.
+# ---------------------------------------------------------------------
+number:
+  - platform: template
+    name: "Sunrise Duration"
+    id: sunrise_duration
+    optimistic: true
+    restore_value: true
+    initial_value: ${sunrise_default_minutes}
+    min_value: 5
+    max_value: 90
+    step: 1
+    unit_of_measurement: "min"
+    mode: box
+
+  # How long to hold the full "state B" before auto-off. 0 = off immediately
+  # at full; e.g. 10 = stay bright 10 min after sunrise completes, then off.
+  - platform: template
+    name: "Sunrise Hold (auto-off)"
+    id: sunrise_hold
+    optimistic: true
+    restore_value: true
+    initial_value: ${sunrise_default_hold}
+    min_value: 0
+    max_value: 60
+    step: 1
+    unit_of_measurement: "min"
+    mode: box
+
+# ---------------------------------------------------------------------
+# ALARM - a TIMED-preset trigger. Fires the Sunrise at a set time of day,
+# gated by the "Alarm Enabled" switch. Add another timed preset by adding a
+# second datetime here whose on_time selects that preset.
+# ---------------------------------------------------------------------
+datetime:
+  - platform: template
+    name: "Alarm Time"
+    id: alarm_time
+    type: time
+    optimistic: true
+    restore_value: true
+    initial_value: "${alarm_default_time}"
+    on_time:
+      - if:
+          condition:
+            switch.is_on: alarm_enabled
+          then:
+            - select.set:
+                id: light_preset_select
+                option: "(Dynamic) Sunrise"
+
+switch:
+  # ---- ALARM enable (gates the Alarm Time on_time trigger) ----
+  - platform: template
+    name: "Alarm Enabled"
+    id: alarm_enabled
+    icon: "mdi:alarm"
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+
+# ---------------------------------------------------------------------
+# SK6812 CRESCENT - RMT driver, GRBW
+# NOTE: moved to GPIO1 (D0) because GPIO43 now belongs to I2S mic.
+# Verify D0/GPIO1 is exposed + unused on the Flex breakout pads.
+# ---------------------------------------------------------------------
+light:
+  - platform: esp32_rmt_led_strip
+    id: crescent
+    name: "Crescent Light"
+    chipset: SK6812
+    rgb_order: GRB
+    is_rgbw: true
+    pin: GPIO1
+    # Real build: half-circle crescent, 60 LED/m strip (16.7mm pitch).
+    # Row widths 160/158/151/139/119/88/20 mm -> 9/9/9/8/7/5/1 = 48 pixels.
+    num_leds: 48
+    # Hard current ceiling: caps max PWM to led_max_pct of full scale, so the
+    # strip physically can't exceed that current no matter what HA commands.
+    # Sized against the UPS 5V/5A rail with the amp at full tilt (see subs).
+    color_correct:            # block style: ${} can't live inside a [ ] flow list
+      - ${led_max_pct}
+      - ${led_max_pct}
+      - ${led_max_pct}
+      - ${led_max_pct}
+    gamma_correct: ${led_gamma}    # linear so low brightness still lights (see subs)
+    default_transition_length: 1s
+    effects:
+      - addressable_rainbow:
+      - addressable_color_wipe:
+      - pulse:
+      # Circadian Sunrise: keyframe-interpolated dawn simulation.
+      # Sun rises from the bottom row; color evolves deep-red -> amber ->
+      # blue-enriched cool white over an ADJUSTABLE duration (see the
+      # "Sunrise Duration" number). Holds the final keyframe when done.
+      - addressable_lambda:
+          name: "Circadian Sunrise"
+          update_interval: 100ms
+          lambda: |-
+            // ============ CONFIGURE FOR YOUR BUILD ============
+            // LEDs per row, DATA-LINE order, BOTTOM row first. Sum == num_leds.
+            // Half-circle crescent at 16.7mm pitch (60 LED/m); the flat side is
+            // down, so the widest row is row 0 and the single-pixel apex is last.
+            //   row 0: 160mm -> 9    row 4: 119mm -> 7
+            //   row 1: 158mm -> 9    row 5:  88mm -> 5
+            //   row 2: 151mm -> 9    row 6:  20mm -> 1
+            //   row 3: 139mm -> 8                    total 48
+            // If the strip is laid serpentine, every ODD row runs right-to-left.
+            // The sunrise only fills whole rows so that doesn't matter here, but
+            // it will for any effect with horizontal structure.
+            static const uint8_t leds_per_row[] = {9, 9, 9, 8, 7, 5, 1};
+            const uint8_t row_count = sizeof(leds_per_row) / sizeof(leds_per_row[0]);
+
+            // Dawn keyframes across normalized progress 0..1.
+            // Research-based path: dim deep-red (low circadian disruption) ->
+            // amber -> blue-enriched cool white (~480nm drives alertness).
+            const uint8_t keyframe_count = 5;
+            static const float   keyframe_progress[]   = {0.00f, 0.25f, 0.55f, 0.80f, 1.00f};
+            static const float   keyframe_sun_height[] = {0.05f, 0.30f, 0.60f, 0.85f, 1.00f};
+            static const float   keyframe_brightness[] = {0.02f, 0.12f, 0.35f, 0.65f, 1.00f};
+            static const uint8_t keyframe_red[]        = {255,   255,   255,   255,   150};
+            static const uint8_t keyframe_green[]      = { 20,    70,   130,   180,   200};
+            static const uint8_t keyframe_blue[]       = {  0,     5,    30,   110,   255};
+            static const uint8_t keyframe_white[]      = {  0,     0,    20,   110,   200};
+            // ==================================================
+
+            // How far through the sunrise are we? progress = elapsed / duration,
+            // clamped to 1.0 so it holds the final "wake" keyframe (state B).
+            float duration_minutes = id(sunrise_duration).state;
+            if (!(duration_minutes >= 0.1f)) duration_minutes = 30.0f;   // nan/0 guard
+            float hold_minutes = id(sunrise_hold).state;
+            if (!(hold_minutes >= 0.0f)) hold_minutes = 10.0f;           // nan guard
+
+            static uint32_t start_millis = 0;
+            if (initial_run) { start_millis = millis(); id(sunrise_done) = false; }
+            float elapsed_seconds = (millis() - start_millis) / 1000.0f;
+            float progress = elapsed_seconds / (duration_minutes * 60.0f);
+            if (progress > 1.0f) progress = 1.0f;
+
+            // Auto-off: after holding at full for hold_minutes, ask the 1s
+            // interval to switch the light off (safer than doing it in here).
+            if (elapsed_seconds >= (duration_minutes + hold_minutes) * 60.0f)
+              id(sunrise_done) = true;
+
+            // Find the keyframe pair surrounding 'progress' and how far we are
+            // between them (0..1), then interpolate the whole sky state.
+            uint8_t lower_keyframe = 0;
+            while (lower_keyframe < keyframe_count - 2 &&
+                   progress > keyframe_progress[lower_keyframe + 1])
+              lower_keyframe++;
+            uint8_t upper_keyframe = lower_keyframe + 1;
+            float segment_span = keyframe_progress[upper_keyframe] - keyframe_progress[lower_keyframe];
+            float blend = (segment_span > 0.0001f)
+                        ? (progress - keyframe_progress[lower_keyframe]) / segment_span
+                        : 0.0f;
+            if (blend < 0.0f) blend = 0.0f;
+            if (blend > 1.0f) blend = 1.0f;
+
+            auto interpolate = [blend](float from, float to) { return from + (to - from) * blend; };
+            float sun_height     = interpolate(keyframe_sun_height[lower_keyframe], keyframe_sun_height[upper_keyframe]);
+            float sky_brightness = interpolate(keyframe_brightness[lower_keyframe], keyframe_brightness[upper_keyframe]);
+            float sky_red        = interpolate(keyframe_red[lower_keyframe],   keyframe_red[upper_keyframe]);
+            float sky_green      = interpolate(keyframe_green[lower_keyframe], keyframe_green[upper_keyframe]);
+            float sky_blue       = interpolate(keyframe_blue[lower_keyframe],  keyframe_blue[upper_keyframe]);
+            float sky_white      = interpolate(keyframe_white[lower_keyframe], keyframe_white[upper_keyframe]);
+
+            // Paint: the lit "sun" fills from the bottom row upward with a soft
+            // glowing leading edge; the sky above the sun stays dark.
+            const float edge_softness = 0.15f;   // vertical width of the glowing edge
+            uint16_t led_index = 0;
+            for (uint8_t row = 0; row < row_count && led_index < it.size(); row++) {
+              float row_height = (row_count > 1) ? (float) row / (row_count - 1) : 0.0f;
+              float sun_above_row = sun_height - row_height;
+              float edge_glow;
+              if (sun_above_row <= 0.0f)               edge_glow = 0.0f;   // sun not here yet
+              else if (sun_above_row < edge_softness)  edge_glow = sun_above_row / edge_softness;
+              else                                     edge_glow = 1.0f;   // fully lit below sun
+              float level = sky_brightness * edge_glow * ${sunrise_max_brightness};  // current cap
+              uint8_t out_red   = (uint8_t)(sky_red   * level);
+              uint8_t out_green = (uint8_t)(sky_green * level);
+              uint8_t out_blue  = (uint8_t)(sky_blue  * level);
+              uint8_t out_white = (uint8_t)(sky_white * level);
+              for (uint8_t led_in_row = 0; led_in_row < leds_per_row[row] && led_index < it.size(); led_in_row++)
+                it[led_index++] = Color(out_red, out_green, out_blue, out_white);
+            }
+            // Any LEDs past the configured rows stay off.
+            for (; led_index < it.size(); led_index++) it[led_index] = Color(0, 0, 0, 0);
