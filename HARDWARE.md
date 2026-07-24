@@ -183,9 +183,12 @@ everything reconnected, drop toward 10 kHz.
 
 ## Optional / experimental
 
-- **IS31FL3731 charlieplex 9×16 matrix** (`0x74`): no native ESPHome support. A
-  commented block in `soundmachine.yaml` proves the hardware with a raw-I2C test
-  pattern. Real graphics on it would be a follow-on lambda project.
+- **IS31FL3731 charlieplex 16×9 matrix** (`0x74`, STEMMA QT / I2C): no native
+  ESPHome component, so `packages/matrix.yaml` drives it with raw-I2C register
+  writes. Pixel `(x,y)` → LED `x + y*16`; PWM byte at `0x24 + LED` (144 LEDs);
+  enable regs `0x00–0x11`; bank select via command reg `0xFD` (`0x00` = frame 0,
+  `0x0B` = function/config). A "Matrix: show 12:34" button renders a demo through
+  a 3×5 digit font — the scaffolding for real clock/graphics output.
 
 ---
 

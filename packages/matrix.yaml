@@ -1,0 +1,109 @@
+# =====================================================================
+# IS31FL3731 CHARLIEPLEX 16x9 MATRIX (I2C 0x74) - demo / bring-up
+#
+# There is NO native ESPHome component for the IS31FL3731, so this drives it
+# over the shared I2C bus with raw register writes (same approach as the amp/
+# clock init lambdas). It is a self-contained demo: a template button renders
+# "12:34" using a built-in 3x5 digit font, which both proves the wiring and is
+# the scaffolding a real clock/graphics renderer would build on.
+#
+# Chip model (from Adafruit's Adafruit_IS31FL3731 base 16x9 class):
+#   - pixel (x,y) -> LED number  = x + y*16   (x: 0..15 cols, y: 0..8 rows)
+#   - PWM byte for LED n         at register 0x24 + n   (144 LEDs, 0x24..0xB3)
+#   - LED on/off enable          registers 0x00..0x11   (18 bytes, 8 LEDs each)
+#   - blink enable               registers 0x12..0x23   (held off)
+#   - "command register" 0xFD selects the bank/page:
+#       0x00 = frame 0 (enable + PWM live here)
+#       0x0B = function register (config / picture-frame / shutdown)
+#   Function-bank registers: 0x00 config (0x00 = picture mode),
+#       0x01 picture-display-frame, 0x0A shutdown (0 = off, 1 = normal).
+#
+# Defines ids: matrix_render_demo (script), and the demo button.
+# Consumes: internal_i2c (main). Address is ${matrix_address} (main subs).
+# =====================================================================
+script:
+  # Initialise the driver (if needed) and paint "12:34" onto the matrix.
+  # Idempotent: re-running just repaints, so the button can be mashed safely.
+  - id: matrix_render_demo
+    then:
+      - lambda: |-
+          const uint8_t ADDR = ${matrix_address};
+
+          // --- tiny raw-register helper (reg + one value) ---
+          auto W = [&](uint8_t reg, uint8_t val) {
+            uint8_t b[2] = {reg, val};
+            id(internal_i2c).write(ADDR, b, 2);
+          };
+
+          // --- 3x5 digit font. Each digit is 5 rows; the low 3 bits of each
+          //     byte are the row pattern (bit2 = left column .. bit0 = right). ---
+          static const uint8_t FONT[10][5] = {
+            {0b111,0b101,0b101,0b101,0b111},  // 0
+            {0b010,0b110,0b010,0b010,0b111},  // 1
+            {0b111,0b001,0b111,0b100,0b111},  // 2
+            {0b111,0b001,0b111,0b001,0b111},  // 3
+            {0b101,0b101,0b111,0b001,0b001},  // 4
+            {0b111,0b100,0b111,0b001,0b111},  // 5
+            {0b111,0b100,0b111,0b101,0b111},  // 6
+            {0b111,0b001,0b001,0b001,0b001},  // 7
+            {0b111,0b101,0b111,0b101,0b111},  // 8
+            {0b111,0b101,0b111,0b001,0b111},  // 9
+          };
+
+          // Off-screen 16x9 framebuffer of PWM values, laid out as LED = x + y*16.
+          uint8_t fb[144];
+          memset(fb, 0, sizeof(fb));
+          const uint8_t ON = ${matrix_pwm_on};   // lit-pixel brightness (0..255)
+
+          auto set_px = [&](int x, int y) {
+            if (x >= 0 && x < 16 && y >= 0 && y < 9) fb[x + y * 16] = ON;
+          };
+          // Draw a digit's 3x5 glyph with its top-left at (dx, dy).
+          auto draw_digit = [&](int dx, int dy, int value) {
+            if (value < 0 || value > 9) return;
+            for (int row = 0; row < 5; row++) {
+              uint8_t bits = FONT[value][row];
+              for (int col = 0; col < 3; col++)
+                if (bits & (1 << (2 - col))) set_px(dx + col, dy + row);
+            }
+          };
+
+          // Layout of "12:34" across 16 cols, vertically centred (rows 2..6):
+          //   1: 0-2 | gap 3 | 2: 4-6 | colon 7 | gap 8 | 3: 9-11 | gap 12 | 4: 13-15
+          const int TOP = 2;               // top row of the 5-tall glyph band
+          draw_digit(0,  TOP, 1);
+          draw_digit(4,  TOP, 2);
+          set_px(7, TOP + 1);              // colon: two dots inside the band
+          set_px(7, TOP + 3);
+          draw_digit(9,  TOP, 3);
+          draw_digit(13, TOP, 4);
+
+          // --- power-on / mode init (function bank) ---
+          W(0xFD, 0x0B);                   // select function register bank
+          W(0x0A, 0x00);                   // shutdown
+          delay(10);
+          W(0x0A, 0x01);                   // normal operation
+          W(0x00, 0x00);                   // picture mode
+          W(0x01, 0x00);                   // display frame 0
+
+          // --- frame 0 bank: enable all LEDs, blink off ---
+          W(0xFD, 0x00);
+          for (uint8_t r = 0x00; r <= 0x11; r++) W(r, 0xFF);   // LED on/off = all on
+          for (uint8_t r = 0x12; r <= 0x23; r++) W(r, 0x00);   // blink = off
+
+          // --- push the 144-byte PWM framebuffer ---
+          // The chip auto-increments its internal address pointer within a page,
+          // so each burst is [start-reg, b0, b1, ...]. 16 bytes/burst -> 9 bursts.
+          for (int i = 0; i < 144; i += 16) {
+            uint8_t burst[1 + 16];
+            burst[0] = 0x24 + i;
+            for (int j = 0; j < 16; j++) burst[1 + j] = fb[i + j];
+            id(internal_i2c).write(ADDR, burst, sizeof(burst));
+          }
+
+button:
+  - platform: template
+    name: "Matrix: show 12:34"
+    icon: "mdi:clock-digital"
+    on_press:
+      - script.execute: matrix_render_demo

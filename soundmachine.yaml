@@ -55,6 +55,8 @@ substitutions:
   # ============ SINGLE PLACE FOR FLAGS & VALUES ============
   # Hardware
   ht16k33_address: "0x70"            # 7-seg clock display (I2C)
+  matrix_address: "0x74"             # IS31FL3731 charlieplex 16x9 matrix (I2C)
+  matrix_pwm_on: "40"                # lit-pixel PWM (0..255); 40 ~= comfortable
   touch_pin: GPIO4                   # capacitive preset pad (D3; D2 = GPIO3)
   touch_threshold: "700000"          # ESP32-S3 raw touch threshold - CALIBRATE
 
@@ -156,6 +158,7 @@ packages:
   lighting: !include packages/lighting.yaml
   display: !include packages/display.yaml
   battery: !include packages/battery.yaml
+  matrix: !include packages/matrix.yaml
 
 esphome:
   name: soundmachine
@@ -296,28 +299,9 @@ time:
           id: ds3231_time
 
 # =====================================================================
-# OPTIONAL / EXPERIMENTAL - IS31FL3731 charlieplex 9x16 matrix (0x74)
-# No native ESPHome support (verified). This block just proves the
-# hardware: init + all-pixels-dim test pattern via raw I2C, fired by a
-# button entity. Uncomment to experiment; real clock/graphics rendering
-# on it would be a follow-on lambda project.
+# IS31FL3731 charlieplex 16x9 matrix (0x74) now lives in
+# packages/matrix.yaml - it has no native ESPHome component, so it is driven
+# with raw-I2C register writes. A "Matrix: show 12:34" button renders a demo
+# via a built-in 3x5 font; that render script is the scaffolding for real
+# clock/graphics output.
 # =====================================================================
-# button:
-#   - platform: template
-#     name: "Charlieplex Test Pattern"
-#     on_press:
-#       - lambda: |-
-#           auto W = [&](uint8_t reg, uint8_t val) {
-#             uint8_t b[2] = {reg, val};
-#             id(internal_i2c).write(0x74, b, 2);
-#           };
-#           W(0xFD, 0x0B);          // function register bank
-#           W(0x0A, 0x00);          // shutdown
-#           delay(10);
-#           W(0x0A, 0x01);          // normal operation
-#           W(0x00, 0x00);          // picture mode
-#           W(0x01, 0x00);          // display frame 0
-#           W(0xFD, 0x00);          // frame 0 bank
-#           for (uint8_t r = 0x00; r <= 0x11; r++) W(r, 0xFF);  // enable all
-#           for (uint8_t r = 0x12; r <= 0x23; r++) W(r, 0x00);  // no blink
-#           for (uint16_t r = 0x24; r <= 0xB3; r++) W(r, 0x20); // dim PWM

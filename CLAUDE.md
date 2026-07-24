@@ -46,8 +46,8 @@ the `packages:` includes, and shared infrastructure (esphome/boot, esp32, wifi/
 api/ota, `i2c` bus, `external_components`, `time`). It is intentionally kept
 small; feature logic lives in packages.
 
-**Feature packages** in `packages/` — `audio`, `lighting`, `display`, `battery`
-— are each a self-contained slice. Every package file starts with a header
+**Feature packages** in `packages/` — `audio`, `lighting`, `display`, `battery`,
+`matrix` (optional IS31FL3731 charlieplex demo) — are each a self-contained slice. Every package file starts with a header
 documenting the ids it **defines** vs **consumes**. Read those headers before
 editing: after ESPHome merges all packages, **all ids are global**, so cross-
 package references (e.g. the Sound select setting the display's `preset_code`)
