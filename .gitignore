@@ -9,3 +9,4 @@ __pycache__/
 .esphome/
 secrets.yaml
 .venv/
+logs/
