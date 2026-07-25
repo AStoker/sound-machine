@@ -60,6 +60,8 @@ substitutions:
   matrix_panels: "1"                 # 1 = single (bring-up); 2 = dual side-by-side
   matrix_address: "0x74"             # panel 0 (left)
   matrix_address_2: "0x75"           # panel 1 (right); set 2nd board's ADDR jumper
+  matrix_panel_gap: "1"              # physical dead columns between panels (see
+                                     # packages/matrix.yaml "THE INTER-PANEL GAP")
   matrix_pwm_on: "40"                # lit-pixel PWM at full ambient (0..255)
   matrix_pwm_min: "3"                # lit-pixel PWM floor at darkest (bedside night)
   touch_pin: GPIO4                   # capacitive preset pad (D3; D2 = GPIO3)
@@ -161,26 +163,22 @@ substitutions:
 packages:
   audio: !include packages/audio.yaml
   lighting: !include packages/lighting.yaml
-  display: !include packages/display.yaml
   battery: !include packages/battery.yaml
+  # Display substrate (auto-dim + preset-code state + the 1s render tick). Always
+  # loaded; it drives whichever DISPLAY package is active below via render_display.
+  ambient: !include packages/ambient.yaml
+  # DISPLAY - load exactly ONE. The matrix is active; the HT16K33 7-seg is kept
+  # as a drop-in alternative (both define render_display, so never both at once).
   matrix: !include packages/matrix.yaml
+  # display: !include packages/display.yaml   # <- 7-seg: swap for `matrix` to use it
 
 esphome:
   name: soundmachine
   friendly_name: Sound Machine
   on_boot:
-    - priority: 600
-      then:
-        # ---- HT16K33 clock display init ----
-        - lambda: |-
-            // HT16K33 power-on sequence: each command is one I2C byte.
-            const uint8_t HT16K33_ADDRESS = ${ht16k33_address};
-            auto send_command = [](uint8_t address, uint8_t command) {
-              id(internal_i2c).write(address, &command, 1);
-            };
-            send_command(HT16K33_ADDRESS, 0x21);  // oscillator on
-            send_command(HT16K33_ADDRESS, 0x81);  // display on, no blink
-            send_command(HT16K33_ADDRESS, 0xE7);  // brightness mid (0xE0 | 0..15)
+    # NOTE: the HT16K33 7-seg power-on sequence used to live here; it moved into
+    # packages/display.yaml so it only runs when that display package is loaded.
+    # The active matrix display self-inits inside render_display.
     # ---- deferred noise resume ----
     # Runs LATE (priority -100) + a short delay so the mixer/speaker stack is
     # fully initialized before we start the noise generator (starting it during

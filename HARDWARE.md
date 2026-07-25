@@ -55,7 +55,7 @@ effect: widths 160/158/151/139/119/88/20 mm → **9 / 9 / 9 / 8 / 7 / 5 / 1 = 48
 
 | Block | Part | Notes |
 |-------|------|-------|
-| Clock | **Adafruit HT16K33 4-digit 7-segment** ([#1002](https://www.adafruit.com/product/1002)) | I2C `0x70`. Driven by **raw I2C writes** (init in `esphome:on_boot`, rendering in `packages/display.yaml`), not a stock ESPHome display platform. Auto-dims from the BH1750. |
+| Clock | **Adafruit HT16K33 4-digit 7-segment** ([#1002](https://www.adafruit.com/product/1002)) | I2C `0x70`. **Now an OPTIONAL alternative** to the matrix display — the matrix is the active clock (see Optional/experimental). Driven by **raw I2C writes** (init + rendering both in `packages/display.yaml`), not a stock ESPHome display platform. Auto-dims from the BH1750. Load `display` *or* `matrix`, never both. |
 
 **Power note (open item):** the HT16K33 is a 5V part on a shared 3.3V-logic I2C
 bus. Best practice is to power it from a **dedicated 3.3V LDO off the 5V rail**,
@@ -183,13 +183,16 @@ everything reconnected, drop toward 10 kHz.
 
 ## Optional / experimental
 
-- **IS31FL3731 charlieplex 16×9 matrix** (`0x74`, STEMMA QT / I2C): no native
-  ESPHome component, so `packages/matrix.yaml` drives it with raw-I2C register
-  writes. Pixel `(x,y)` → LED `x + y*16`; PWM byte at `0x24 + LED` (144 LEDs);
-  enable regs `0x00–0x11`; bank select via command reg `0xFD` (`0x00` = frame 0,
-  `0x0B` = function/config). It renders the live RTC clock (12h, blank leading
-  zero, solid colon) on a 1s interval, auto-dimmed with the 7-seg via the shared
-  `display_brightness`. A "Matrix: redraw" button forces a re-init after a glitch.
+- **IS31FL3731 charlieplex 16×9 matrix** (`0x74`, STEMMA QT / I2C): **now the
+  active clock display** (the HT16K33 7-seg is kept as a drop-in alternative —
+  see the Display section). No native ESPHome component, so `packages/matrix.yaml`
+  drives it with raw-I2C register writes. Pixel `(x,y)` → LED `x + y*16`; PWM byte
+  at `0x24 + LED` (144 LEDs); enable regs `0x00–0x11`; bank select via command
+  reg `0xFD` (`0x00` = frame 0, `0x0B` = function/config). It renders, in priority
+  order, a low-battery **"LO"** warning → transient **preset code** (S1–S3 / L1–L3
+  / OFF) → the live **RTC clock** (12h, blank leading zero, solid colon), driven
+  by the shared 1s tick in `ambient.yaml` and auto-dimmed via `display_brightness`.
+  A "Matrix: redraw" button forces a re-init after a glitch.
   - **Single vs dual:** the package tiles N panels side-by-side into one logical
     framebuffer (16·N wide × 9). `matrix_panels: "1"` brings up the left panel
     alone with a compact 3×5 font; `"2"` gives a 32×9 display with a 5×7 font for
@@ -197,6 +200,12 @@ everything reconnected, drop toward 10 kHz.
     `[16p … 16p+15]`. A second board needs its **ADDR jumper** moved off `0x74`
     (`0x75`/`0x76`/`0x77`) — set `matrix_address_2` to match. In single mode the
     second address is never touched, so an unwired 2nd board causes no I2C errors.
+  - **Inter-panel gap:** two panels butted together leave a physical ~1-pixel
+    dead column between them (`matrix_panel_gap`, default 1). The renderer lays
+    content out in *physical* columns (gap included) and maps back to logical
+    columns per draw, so the clock stays centred across the seam and 2-char codes
+    fall one-per-panel. Raise/lower `matrix_panel_gap` if your panels sit farther
+    apart or flush.
 
 ---
 

@@ -46,13 +46,23 @@ the `packages:` includes, and shared infrastructure (esphome/boot, esp32, wifi/
 api/ota, `i2c` bus, `external_components`, `time`). It is intentionally kept
 small; feature logic lives in packages.
 
-**Feature packages** in `packages/` — `audio`, `lighting`, `display`, `battery`,
-`matrix` (optional IS31FL3731 charlieplex demo) — are each a self-contained slice. Every package file starts with a header
-documenting the ids it **defines** vs **consumes**. Read those headers before
-editing: after ESPHome merges all packages, **all ids are global**, so cross-
-package references (e.g. the Sound select setting the display's `preset_code`)
-work but each id must be defined exactly once. Top-level list keys (`sensor:`,
-`binary_sensor:`, `script:`, `globals:`, etc.) concatenate across packages.
+**Feature packages** in `packages/` — `audio`, `lighting`, `battery`, `ambient`
+(the display substrate), plus **one** display package: `matrix` (IS31FL3731
+charlieplex, the active default) or `display` (HT16K33 7-seg, kept as a drop-in
+alternative) — are each a self-contained slice. Every package file starts with a
+header documenting the ids it **defines** vs **consumes**. Read those headers
+before editing: after ESPHome merges all packages, **all ids are global**, so
+cross-package references (e.g. the Sound select setting the display's
+`preset_code`) work but each id must be defined exactly once. Top-level list keys
+(`sensor:`, `binary_sensor:`, `script:`, `globals:`, etc.) concatenate across
+packages.
+
+**The display is pluggable.** `ambient.yaml` owns the display-agnostic layer —
+the BH1750 auto-dim (`display_brightness`), the `preset_code`/`showing_preset`
+state, `show_preset_code`, and the single 1s render tick — and calls a
+`render_display` script that the active *display* package provides. Load exactly
+one display package (`matrix` **or** `display`); both define `render_display`, so
+loading both collides. Swap them in the `packages:` block of `soundmachine.yaml`.
 
 **Custom C++ components** in `components/` (`noise_source`, `seesaw`, `tpa2016`)
 follow standard ESPHome layout (`__init__.py` codegen + `.h`/`.cpp`). `seesaw`
@@ -70,11 +80,17 @@ capacitive touch pad (light-preset cycle). See `HARDWARE.md` for the full map.
 > adding it is open work.
 
 Cross-file invariants worth knowing before changing behavior:
-- **Display is single-owner.** `render_display` (in `packages/display.yaml`) is
-  the ONLY writer of the 7-seg. It renders one of three things in priority
-  order: low-battery "LO" warning → transient preset code → clock. Preset
-  selects in other packages set `preset_code`/`showing_preset` and call
-  `show_preset_code`; they never write the display directly.
+- **Display is single-owner.** The active display package's `render_display`
+  (`packages/matrix.yaml` today, or `packages/display.yaml` for the 7-seg) is the
+  ONLY writer of the display. It renders one of three things in priority order:
+  low-battery "LO" warning → transient preset code → clock. Preset selects in
+  other packages set `preset_code`/`showing_preset` and call `show_preset_code`
+  (both in `ambient.yaml`); they never write the display directly.
+- **The matrix has a physical inter-panel gap.** Two tiled panels aren't
+  seamless — there's a ~1px dead column between them (`matrix_panel_gap`). The
+  matrix lays content out in *physical* columns that include the gap and maps
+  back to logical columns at draw time, so the clock stays centred across the
+  seam. Don't assume the two 16-wide panels are one contiguous 32-wide surface.
 - **The TPA2016 amp runs with its AGC OFF (compression 1:1) deliberately.** The
   XVF3800's acoustic echo canceller can only cancel a *linear* echo path, and an
   active compressor downstream of the DAC makes it time-varying. Do not enable

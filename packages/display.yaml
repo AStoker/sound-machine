@@ -1,41 +1,43 @@
 # =====================================================================
-# HT16K33 7-SEG CLOCK DISPLAY + auto-dim
+# HT16K33 7-SEG CLOCK DISPLAY  (optional / interchangeable display package)
 #
-# Owns the display: the single render script, its brightness state, and the
-# BH1750 ambient-light auto-dim that feeds it. render_display is the ONE writer
-# of the 7-seg; it shows (in priority order) a low-battery warning, a transient
-# preset code, or the clock.
+# This is ONE of the interchangeable "display" packages. It is NOT loaded in the
+# default build (the matrix is - see packages/matrix.yaml); it is kept here as a
+# self-contained drop-in so the 7-seg can be brought back by editing one line in
+# soundmachine.yaml's `packages:` block. Load EITHER this or the matrix, never
+# both (they both define render_display).
 #
-# Defines ids: display_brightness, display_brightness_last, preset_code,
-#   showing_preset, render_display, show_preset_code, ambient_light.
-# Consumes (from other packages / main): internal_i2c, ds3231_time (main),
-#   battery_low + battery_charging (battery), and preset_code / showing_preset
-#   are set by the Sound and Crescent Preset selects (audio, lighting).
-# The HT16K33 power-on sequence lives in the main config's esphome:on_boot.
+# It provides the display-agnostic contract that packages/ambient.yaml drives:
+#   render_display  - paints the display honouring, in priority order,
+#                     low-battery "LO" -> transient preset code -> clock.
+# The shared brightness (display_brightness), preset-code state
+# (preset_code / showing_preset), the 1s tick, and show_preset_code all live in
+# packages/ambient.yaml now, so this file is just the 7-seg renderer + its own
+# power-on sequence.
+#
+# Defines ids: render_display. Also brings up the HT16K33 on boot.
+# Consumes: internal_i2c + ds3231_time (main), display_brightness + preset_code
+#   + showing_preset (ambient), battery_low + battery_charging (battery).
 # =====================================================================
-globals:
-  - id: display_brightness
-    type: int
-    restore_value: no
-    initial_value: '9'      # sensible mid default until first lux read
-  - id: display_brightness_last
-    type: int
-    restore_value: no
-    initial_value: '-1'     # forces first write
-  # Transient display state: while showing_preset is true the 7-seg shows
-  # preset_code (e.g. "L1"/"S3") instead of the clock.
-  - id: preset_code
-    type: std::string
-    restore_value: no
-    initial_value: '""'
-  - id: showing_preset
-    type: bool
-    restore_value: no
-    initial_value: 'false'
+esphome:
+  on_boot:
+    # HT16K33 power-on sequence. Lives here (not in the main config) so it only
+    # runs when the 7-seg package is actually loaded - dropping the package drops
+    # the init, so nothing pokes a 0x70 that isn't on the bus.
+    - priority: 600
+      then:
+        - lambda: |-
+            const uint8_t HT16K33_ADDRESS = ${ht16k33_address};
+            auto send_command = [](uint8_t address, uint8_t command) {
+              id(internal_i2c).write(address, &command, 1);
+            };
+            send_command(HT16K33_ADDRESS, 0x21);  // oscillator on
+            send_command(HT16K33_ADDRESS, 0x81);  // display on, no blink
+            send_command(HT16K33_ADDRESS, 0xE7);  // brightness mid (0xE0 | 0..15)
 
 script:
   # Single owner of the 7-seg display: a low-battery warning, a preset code, or
-  # the clock. Called by the 1s interval AND on preset changes.
+  # the clock. Called by ambient.yaml's 1s interval AND on preset changes.
   - id: render_display
     then:
       - lambda: |-
@@ -104,78 +106,3 @@ script:
             }
           }
           id(internal_i2c).write(HT16K33_ADDRESS, display_bytes, 11);
-
-  # Flash preset_code for preset_code_seconds, then revert to the clock.
-  # mode: restart so rapid toggles keep showing the latest code.
-  - id: show_preset_code
-    mode: restart
-    then:
-      - lambda: 'id(showing_preset) = true;'
-      - script.execute: render_display
-      - delay: ${preset_code_seconds}
-      - lambda: 'id(showing_preset) = false;'
-      - script.execute: render_display
-
-interval:
-  - interval: 1s
-    then:
-      - script.execute: render_display
-
-sensor:
-  # Ambient light -> also auto-dims the clock display
-  - platform: bh1750
-    id: ambient_light
-    name: "Ambient Light"
-    address: 0x23
-    update_interval: 5s
-    filters:
-      - sliding_window_moving_average:
-          window_size: 4
-          send_every: 2
-    on_value:
-      - lambda: |-
-          // Auto-dim the 7-seg. Eyes respond to light roughly logarithmically,
-          // so the map is log-in-lux rather than linear - a linear map spends
-          // almost its whole range on daylight and leaves the whole dim end
-          // pinned at one level.
-          //
-          // Tuned DARK on purpose (this thing lives 60cm from a face at 3am):
-          //   below display_lux_dark lux the display sits at the hardware floor,
-          //   and display_dim_gamma > 1 holds the curve down through the middle
-          //   so an ordinary lamp-lit room is still only ~level 5, not 9.
-          //
-          // NOTE ON THE FLOOR: HT16K33 level 0 is 1/16 duty and is as dim as
-          // this chip goes. If it's STILL too bright at night the only remedy
-          // is blanking digits - the brightness register has nothing lower.
-          float lux = x;
-          if (!(lux >= 0.0f)) lux = 0.0f;               // nan/negative guard
-
-          const float lux_dark   = ${display_lux_dark};
-          const float lux_bright = ${display_lux_bright};
-          const float level_min  = ${display_level_min};
-          const float level_max  = ${display_level_max};
-
-          float target;
-          if (lux <= lux_dark) {
-            target = level_min;
-          } else if (lux >= lux_bright) {
-            target = level_max;
-          } else {
-            // Normalised position between the two anchors, in log space.
-            float t = logf(lux / lux_dark) / logf(lux_bright / lux_dark);
-            target = level_min + (level_max - level_min) * powf(t, ${display_dim_gamma}f);
-          }
-
-          // Slew toward the target instead of snapping. The BH1750's moving
-          // average already kills sample jitter; this stops a visible step when
-          // you walk past the sensor or the room light crosses a boundary.
-          static float smoothed = -1.0f;
-          if (smoothed < 0.0f) smoothed = target;       // first reading: jump
-          smoothed += (target - smoothed) * 0.35f;
-
-          int display_level = (int) lroundf(smoothed);
-          if (display_level < 0)  display_level = 0;
-          if (display_level > 15) display_level = 15;
-          id(display_brightness) = display_level;
-          // render_display only pushes the brightness register when the value
-          // actually changes, so calling this every reading is cheap.
