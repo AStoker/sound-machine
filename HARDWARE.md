@@ -23,7 +23,7 @@ For the **project story and goals**, see [`SOUNDMACHINE.md`](SOUNDMACHINE.md).
 | Voice / DSP front end | **ReSpeaker Flex, Linear 4-mic (XVF3800)** | 4-mic beamformer + acoustic echo canceller (AEC). The XIAO seats into it via **female headers (removable, not soldered)**. |
 | Codec | **AIC3104** (on the Flex) | I2C `0x18`. ESPHome `audio_dac` platform `aic3104`. |
 | Amplifier | **TPA2016D2** stereo Class-D | I2C `0x58`. One 4Ω speaker per channel. See "Amplifier notes" below. |
-| Speakers | 2× 4Ω drivers | Bridge-tied outputs (see wiring cautions). |
+| Speakers | 2× **Seeed Studio round enclosed, 4Ω 5W** drivers | Bridge-tied outputs (see wiring cautions). The 5W rating is pure headroom — the amp tops out ~2.5W/channel into 4Ω, so the drivers loaf and can't be overdriven. Impedance is unchanged from the original small drivers, so nothing about the amp tuning or power budget changes. |
 
 The XVF3800 was **DFU-flashed with the 48 kHz Home Assistant I2S firmware**; the
 whole audio pipeline runs at 48 kHz to match.
@@ -110,7 +110,7 @@ in the `battery_charging` sensor and drop the multiply filter.
 | Load | Worst-case draw |
 |------|-----------------|
 | 48× SK6812 RGBW, full all-channel white | ~2.9 A |
-| TPA2016 into 2× 4Ω at clipping | ~1.3 A |
+| TPA2016 into 2× 4Ω at clipping | ~1.3 A (set by the 4Ω load, not the 5W driver rating) |
 | Flex + XVF3800 + ESP32-S3 + sensors | ~0.5 A |
 
 The crescent is **hard-capped at 65% of full white** in firmware
