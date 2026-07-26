@@ -128,9 +128,13 @@ script:
 # gain first and it gets clamped - people end up with a silent amp this way.
 #
 # gain_db: the ceiling, not the operating point. Volume lives in the AIC3104
-#   upstream. 6 dB into 4-ohm drivers lands full-scale playback around 1W,
-#   plenty for bedside. Raise it only if 100% volume isn't loud enough; if you
-#   hear it clip before the knob maxes out, come back down.
+#   upstream. Was 6 dB (~1W full-scale); raised to 9 dB (~2W) because the mix
+#   was a touch quiet. That's near the PHYSICAL ceiling of a 5V / 4-ohm amp -
+#   the limiter parks at ~2.5W - so there isn't much more clean headroom here.
+#   Going much past 9 pushes normal peaks into the limiter, which distorts AND
+#   makes the DAC->speaker path non-linear again (the exact thing AGC-off was
+#   protecting for the XVF3800's AEC). If you hear it clip or "breathe" before
+#   the knob maxes out, come back down.
 # limiter_level: 9.0 dBV is the top of the range (~2.5W into 4 ohm), just under
 #   the clipping point at 5V. It should NEVER engage in normal use - it exists
 #   to stop a runaway signal, not to shape dynamics.
@@ -140,7 +144,7 @@ tpa2016:
   address: 0x58
   i2c_id: internal_i2c
   compression: "1:1"     # AGC OFF. Do not change without re-testing AEC.
-  gain_db: 6
+  gain_db: 9
   limiter: true
   limiter_level: 9.0
   noise_gate: false
@@ -233,6 +237,17 @@ select:
           }
           id(preset_code) = off ? std::string("OFF")
                                 : (std::string("S") + std::to_string(sound_number));
+      # Noise and media are mutually exclusive: turning ON a noise colour stops
+      # any playing media and syncs the Media Preset select to Off. publish_state
+      # (not select.set) so it doesn't re-enter the media set_action or flash a
+      # code - it just updates the shown state.
+      - if:
+          condition:
+            lambda: 'return x != "Off";'
+          then:
+            - media_player.repeat_off:
+            - media_player.stop:
+            - lambda: 'id(media_select).publish_state("Off");'
       - script.execute: show_preset_code
 
   # MEDIA PRESET: Off + playable tracks. Each track is either a file flashed
@@ -251,6 +266,19 @@ select:
       - "La La"
       # - "Rain (HA)"      # example URL-based track (see commented branch below)
     set_action:
+      # Noise and media are mutually exclusive: any real track (anything but
+      # "Off") stops the noise generator first and syncs the Sound select to Off.
+      # publish_state (not select.set) so it doesn't re-enter the Sound set_action
+      # or flash the "OFF" code. sound_option_last is left intact, so the knob can
+      # still restore the previous colour later.
+      - if:
+          condition:
+            lambda: 'return x != "Off";'
+          then:
+            - lambda: |-
+                if (id(booted)) id(noise).stop();
+                id(sound_option) = "Off";
+                id(sound_select).publish_state("Off");
       # ----- OFF: stop playback -----
       - if:
           condition:
