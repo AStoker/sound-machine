@@ -140,9 +140,10 @@ def sec_internals():
     o = [rect((D-BP_D)/2, fy(BP_T), BP_D, BP_T, "obj")]                  # plate
     o.append(rect(D - WALL - UPS_D, fy(BP_T + UPS_H),
                   UPS_D, UPS_H, "hid"))                                  # UPS
-    o.append(rect(D - WALL - AMP_D, fy(AMP_WALL_Y + AMP_H/2),
-                  AMP_D, AMP_H, "hid"))                                  # amp
-    o.append(rect(FLEX_BAY_D0, fy(BP_T + FLEX_BAY_H), FLEX_BAY_D, FLEX_BAY_H, "hid"))
+    o.append(rect(D - WALL - AMP_H, fy(AMP_WALL_Y + AMP_D/2),
+                  AMP_H, AMP_D, "hid"))                                  # amp, flush
+    o.append(rect(D - WALL - FLEX_D, fy(FLEX_WALL_Y + FLEX_H),
+                  FLEX_D, FLEX_H, "hid"))          # Flex, on the rear wall
     # a rear-wall lug, sectioned
     o.append(rect(D - WALL - LUG_L, fy(BP_T + LUG_H), LUG_L, LUG_H, "obj"))
     o.append(rect(D - WALL - LUG_L/2 - INSERT_D/2, fy(BP_T + 6), INSERT_D, 6, "hid"))
@@ -161,13 +162,14 @@ def sec_dims():
                     f"{dt(D - WALL - UPS_D - FM_Z0 - FM_DEPTH)}"))
     o.append(leader(D - WALL - UPS_D, fy(BP_T + UPS_H), 26, -22,
                     f"UPS 3S board {dt(UPS_W)} x {dt(UPS_H)}, STANDING"))
-    o.append(leader(D - WALL - AMP_D, fy(AMP_WALL_Y), -24, -18,
-                    "TPA2016 on the REAR WALL - no floor left", "end"))
+    o.append(leader(D - WALL - AMP_H, fy(AMP_WALL_Y), -24, 22,
+                    "TPA2016 FLUSH on the rear wall", "end"))
     o.append(leader(D - WALL - LUG_L, fy(BP_T + LUG_H), -26, 26,
                     f"wall LUG {dt(LUG_L)} x {dt(LUG_W)} x {dt(LUG_H)} - screw comes "
                     "up from below", "end"))
-    o.append(leader(FLEX_BAY_D0, fy(BP_T + FLEX_BAY_H), -20, -26,
-                    f"Flex bay {dt(FLEX_BAY_W)} x {dt(FLEX_BAY_D)} (envelope)", "end"))
+    o.append(leader(D - WALL - FLEX_D, fy(FLEX_WALL_Y + FLEX_H), -20, -20,
+                    f"ReSpeaker Flex {dt(FLEX_W)} x {dt(FLEX_H)} x {dt(FLEX_D)} (?), "
+                    "VERTICAL on the rear wall", "end"))
     return o
 
 
@@ -194,10 +196,9 @@ def bp_plan():
 
 def bp_dims():
     o = [dim_h(0, BP_W, -12, ext=0), dim_v(0, BP_D, -14, ext=0)]
-    o.append(leader(FLEX_BAY_X0 - WALL - BP_CLR,
-                    FLEX_BAY_D0 - WALL - BP_CLR, -16, -28,
-                    f"Flex bay {dt(FLEX_BAY_W)} x {dt(FLEX_BAY_D)} - board size "
-                    "not published, MEASURE", "end"))
+    o.append(txt(BP_W/2, BP_D + 32, "Flex and amp are NOT on the floor - both "
+                 "mount on the rear wall. The floor carries the UPS only.",
+                 "note", "middle"))
     o.append(leader(W/2 - WALL - BP_CLR, D - WALL - UPS_D - WALL - BP_CLR,
                     -30, -14, f"UPS 3S {dt(UPS_W)} x {dt(UPS_D)} footprint, board "
                     f"STANDS {dt(UPS_H)} tall", "end"))

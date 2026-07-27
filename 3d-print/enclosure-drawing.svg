@@ -33,267 +33,261 @@
 <g id="ASM-TOP" transform="translate(70,90)">
 <text class="lbl" x="0" y="-38" text-anchor="start">TOP</text>
 <g id="asm-top-dome">
-<path class="obj" d="M5,0 H215 A5,5 0 0 1 220,5 V59 A5,5 0 0 1 215,64 H5 A5,5 0 0 1 0,59 V5 A5,5 0 0 1 5,0 Z"/>
-<path class="hid" d="M5,2.5 H215 A2.5,2.5 0 0 1 217.5,5 V59 A2.5,2.5 0 0 1 215,61.5 H5 A2.5,2.5 0 0 1 2.5,59 V5 A2.5,2.5 0 0 1 5,2.5 Z"/>
-<circle class="hid" cx="110" cy="34" r="3.5"/>
-<circle class="phan" cx="110" cy="34" r="15"/>
-<circle class="obj" cx="133.1" cy="34" r="1.75"/>
-<path class="hid" d="M5.067,6 H21.067 A3,3 0 0 1 24.067,9 V43 A3,3 0 0 1 21.067,46 H5.067 A3,3 0 0 1 2.067,43 V9 A3,3 0 0 1 5.067,6 Z"/>
-<path class="hid" d="M198.933,6 H214.933 A3,3 0 0 1 217.933,9 V43 A3,3 0 0 1 214.933,46 H198.933 A3,3 0 0 1 195.933,43 V9 A3,3 0 0 1 198.933,6 Z"/>
-<rect class="obj" x="0" y="57.6" width="2.51" height="4.4"/>
-<rect class="obj" x="210.6" y="57.6" width="2.51" height="4.4"/>
-<line class="ctr" x1="110" y1="2" x2="110" y2="62"/>
+<path class="obj" d="M5,0 H235 A5,5 0 0 1 240,5 V59 A5,5 0 0 1 235,64 H5 A5,5 0 0 1 0,59 V5 A5,5 0 0 1 5,0 Z"/>
+<path class="hid" d="M5,2.5 H235 A2.5,2.5 0 0 1 237.5,5 V59 A2.5,2.5 0 0 1 235,61.5 H5 A2.5,2.5 0 0 1 2.5,59 V5 A2.5,2.5 0 0 1 5,2.5 Z"/>
+<circle class="hid" cx="120" cy="34" r="3.5"/>
+<circle class="phan" cx="120" cy="34" r="15"/>
+<circle class="obj" cx="143.1" cy="34" r="1.75"/>
+<path class="hid" d="M3.566,6 H19.566 A3,3 0 0 1 22.566,9 V43 A3,3 0 0 1 19.566,46 H3.566 A3,3 0 0 1 0.566,43 V9 A3,3 0 0 1 3.566,6 Z"/>
+<path class="hid" d="M220.434,6 H236.434 A3,3 0 0 1 239.434,9 V43 A3,3 0 0 1 236.434,46 H220.434 A3,3 0 0 1 217.434,43 V9 A3,3 0 0 1 220.434,6 Z"/>
+<rect class="obj" x="0" y="57.6" width="2.51" height="5.6"/>
+<rect class="obj" x="230.6" y="57.6" width="2.51" height="5.6"/>
+<line class="ctr" x1="120" y1="2" x2="120" y2="62"/>
 </g>
 <g id="asm-top-knob">
-<circle class="obj" cx="110" cy="34" r="17"/>
-<circle class="hid" cx="110" cy="34" r="3"/>
+<circle class="obj" cx="120" cy="34" r="17"/>
+<circle class="hid" cx="120" cy="34" r="3"/>
 </g>
 <g id="asm-top-front-plate">
-<path class="obj" d="M4,60 H216 A1,1 0 0 1 217,61 V63 A1,1 0 0 1 216,64 H4 A1,1 0 0 1 3,63 V61 A1,1 0 0 1 4,60 Z"/>
+<path class="obj" d="M4.6,60 H235.4 A1,1 0 0 1 236.4,61 V63 A1,1 0 0 1 235.4,64 H4.6 A1,1 0 0 1 3.6,63 V61 A1,1 0 0 1 4.6,60 Z"/>
 </g>
 <g id="asm-top-bottom-plate">
-<path class="hid" d="M5.3,2.8 H214.7 A2.5,2.5 0 0 1 217.2,5.3 V58.7 A2.5,2.5 0 0 1 214.7,61.2 H5.3 A2.5,2.5 0 0 1 2.8,58.7 V5.3 A2.5,2.5 0 0 1 5.3,2.8 Z"/>
+<path class="hid" d="M5.3,2.8 H234.7 A2.5,2.5 0 0 1 237.2,5.3 V58.7 A2.5,2.5 0 0 1 234.7,61.2 H5.3 A2.5,2.5 0 0 1 2.8,58.7 V5.3 A2.5,2.5 0 0 1 5.3,2.8 Z"/>
 </g>
 <g id="asm-top-internals">
-<rect class="hid" x="64.52" y="45.2" width="90.96" height="14.8"/>
-<rect class="hid" x="4" y="4" width="50" height="22"/>
-<rect class="hid" x="166" y="4" width="50" height="22"/>
-<rect class="hid" x="80" y="2.5" width="60" height="24"/>
-<rect class="hid" x="97.3" y="21.3" width="25.4" height="25.4"/>
-<rect class="hid" x="124.2" y="21.3" width="17.8" height="25.4"/>
+<rect class="hid" x="74.52" y="45.2" width="90.96" height="14.8"/>
+<rect class="hid" x="7.6" y="4" width="50" height="22"/>
+<rect class="hid" x="182.4" y="4" width="50" height="22"/>
+<rect class="hid" x="90" y="2.5" width="60" height="24"/>
+<rect class="hid" x="107.3" y="21.3" width="25.4" height="25.4"/>
+<rect class="hid" x="134.2" y="21.3" width="17.8" height="25.4"/>
 </g>
 <g id="asm-top-dims">
-<line class="ctr" x1="110" y1="-10" x2="110" y2="74"/>
-<line class="ctr" x1="-10" y1="34" x2="230" y2="34"/>
-<line class="ext" x1="0" y1="0" x2="0" y2="-32"/><line class="ext" x1="220" y1="0" x2="220" y2="-32"/><line class="dim" x1="0" y1="-30" x2="220" y2="-30" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="110" y="-31.4" text-anchor="middle">220</text>
+<line class="ctr" x1="120" y1="-10" x2="120" y2="74"/>
+<line class="ctr" x1="-10" y1="34" x2="250" y2="34"/>
+<line class="ext" x1="0" y1="0" x2="0" y2="-32"/><line class="ext" x1="240" y1="0" x2="240" y2="-32"/><line class="dim" x1="0" y1="-30" x2="240" y2="-30" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="120" y="-31.4" text-anchor="middle">240</text>
 <line class="ext" x1="0" y1="0" x2="-16" y2="0"/><line class="ext" x1="0" y1="64" x2="-16" y2="64"/><line class="dim" x1="-14" y1="0" x2="-14" y2="64" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="-15.4" y="32" text-anchor="middle" transform="rotate(-90 -15.4 32)">64</text>
-<line class="dim" x1="127" y1="34" x2="161" y2="-18" marker-start="url(#arw)"/><line class="dim" x1="161" y1="-18" x2="167" y2="-18"/><text class="dtx" x="168.2" y="-16.9" text-anchor="start">5  knob Ø34, bore Ø6 with 4.5 D-flat (?)</text>
-<line class="dim" x1="99.35" y1="44.65" x2="119.35" y2="70.65" marker-start="url(#arw)"/><line class="dim" x1="119.35" y1="70.65" x2="125.35" y2="70.65"/><text class="dtx" x="126.55" y="71.75" text-anchor="start">Ø30 flat boss on the crown, Ø7 shaft bore</text>
-<line class="ext" x1="206" y1="34" x2="234" y2="34"/><line class="ext" x1="206" y1="64" x2="234" y2="64"/><line class="dim" x1="232" y1="34" x2="232" y2="64" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="230.6" y="49" text-anchor="middle" transform="rotate(-90 230.6 49)">30</text>
-<line class="ext" x1="214" y1="60" x2="248" y2="60"/><line class="ext" x1="214" y1="64" x2="248" y2="64"/><line class="dim" x1="246" y1="53" x2="246" y2="60" marker-start="url(#arw)"/><line class="dim" x1="246" y1="64" x2="246" y2="71" marker-end="url(#arw)"/><line class="dim" x1="246" y1="60" x2="246" y2="64"/><text class="dtx" x="244.6" y="73" text-anchor="middle" transform="rotate(-90 244.6 73)">4</text>
-<line class="dim" x1="206.933" y1="6" x2="226.933" y2="-34" marker-start="url(#arw)"/><line class="dim" x1="226.933" y1="-34" x2="232.933" y2="-34"/><text class="dtx" x="234.133" y="-32.9" text-anchor="start">2x copper touch pad 40 x 22 on the inside face - one per shoulder</text>
-<line class="dim" x1="217.5" y1="60" x2="243.5" y2="16" marker-start="url(#arw)"/><line class="dim" x1="243.5" y1="16" x2="249.5" y2="16"/><text class="dtx" x="250.7" y="17.1" text-anchor="start">inset side groove 4.4 wide - front module slides UP</text>
-<line class="ctr" x1="133.1" y1="16.3" x2="133.1" y2="51.7"/>
-<line class="dim" x1="133.1" y1="32.25" x2="189.1" y2="-3.75" marker-start="url(#arw)"/><line class="dim" x1="189.1" y1="-3.75" x2="195.1" y2="-3.75"/><text class="dtx" x="196.3" y="-2.65" text-anchor="start">Ø3.5 ToF pinhole (VL53L0X, planned)</text>
-<line class="dim" x1="142" y1="46.7" x2="168" y2="78.7" marker-start="url(#arw)"/><line class="dim" x1="168" y1="78.7" x2="174" y2="78.7"/><text class="dtx" x="175.2" y="79.8" text-anchor="start">board 17.8 x 25.4 LONGWISE front-to-back (?)</text>
-<line class="ext" x1="110" y1="34" x2="110" y2="-22"/><line class="ext" x1="133.1" y1="34" x2="133.1" y2="-22"/><line class="dim" x1="110" y1="-20" x2="133.1" y2="-20" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="121.55" y="-21.4" text-anchor="middle">23.1</text>
+<line class="dim" x1="137" y1="34" x2="171" y2="-18" marker-start="url(#arw)"/><line class="dim" x1="171" y1="-18" x2="177" y2="-18"/><text class="dtx" x="178.2" y="-16.9" text-anchor="start">5  knob Ø34, bore Ø6 with 4.5 D-flat (?)</text>
+<line class="dim" x1="109.35" y1="44.65" x2="129.35" y2="70.65" marker-start="url(#arw)"/><line class="dim" x1="129.35" y1="70.65" x2="135.35" y2="70.65"/><text class="dtx" x="136.55" y="71.75" text-anchor="start">Ø30 flat boss on the crown, Ø7 shaft bore</text>
+<line class="ext" x1="226" y1="34" x2="254" y2="34"/><line class="ext" x1="226" y1="64" x2="254" y2="64"/><line class="dim" x1="252" y1="34" x2="252" y2="64" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="250.6" y="49" text-anchor="middle" transform="rotate(-90 250.6 49)">30</text>
+<line class="ext" x1="234" y1="60" x2="268" y2="60"/><line class="ext" x1="234" y1="64" x2="268" y2="64"/><line class="dim" x1="266" y1="53" x2="266" y2="60" marker-start="url(#arw)"/><line class="dim" x1="266" y1="64" x2="266" y2="71" marker-end="url(#arw)"/><line class="dim" x1="266" y1="60" x2="266" y2="64"/><text class="dtx" x="264.6" y="73" text-anchor="middle" transform="rotate(-90 264.6 73)">4</text>
+<line class="dim" x1="228.434" y1="6" x2="248.434" y2="-34" marker-start="url(#arw)"/><line class="dim" x1="248.434" y1="-34" x2="254.434" y2="-34"/><text class="dtx" x="255.634" y="-32.9" text-anchor="start">2x copper touch pad 40 x 22 on the inside face - one per shoulder</text>
+<line class="dim" x1="237.5" y1="60" x2="263.5" y2="16" marker-start="url(#arw)"/><line class="dim" x1="263.5" y1="16" x2="269.5" y2="16"/><text class="dtx" x="270.7" y="17.1" text-anchor="start">inset side groove 5.6 wide = module 4 + 2x cloth 0.6 + 0.4 clr</text>
+<line class="ctr" x1="143.1" y1="16.3" x2="143.1" y2="51.7"/>
+<line class="dim" x1="143.1" y1="32.25" x2="199.1" y2="-3.75" marker-start="url(#arw)"/><line class="dim" x1="199.1" y1="-3.75" x2="205.1" y2="-3.75"/><text class="dtx" x="206.3" y="-2.65" text-anchor="start">Ø3.5 ToF pinhole (VL53L0X, planned)</text>
+<line class="dim" x1="152" y1="46.7" x2="178" y2="78.7" marker-start="url(#arw)"/><line class="dim" x1="178" y1="78.7" x2="184" y2="78.7"/><text class="dtx" x="185.2" y="79.8" text-anchor="start">board 17.8 x 25.4 LONGWISE front-to-back (?)</text>
+<line class="ext" x1="120" y1="34" x2="120" y2="-22"/><line class="ext" x1="143.1" y1="34" x2="143.1" y2="-22"/><line class="dim" x1="120" y1="-20" x2="143.1" y2="-20" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="131.55" y="-21.4" text-anchor="middle">23.1</text>
 <line class="dim" x1="1.465" y1="1.465" x2="-12.535" y2="-8.535" marker-start="url(#arw)"/><line class="dim" x1="-12.535" y1="-8.535" x2="-18.535" y2="-8.535"/><text class="dtx" x="-19.735" y="-7.435" text-anchor="end">R5</text>
 <line class="dim" x1="2.5" y1="17.92" x2="-27.5" y2="-0.08" marker-start="url(#arw)"/><line class="dim" x1="-27.5" y1="-0.08" x2="-33.5" y2="-0.08"/><text class="dtx" x="-34.7" y="1.02" text-anchor="end">wall 2.5</text>
-<line class="dim" x1="80" y1="26.5" x2="70" y2="78.5" marker-start="url(#arw)"/><line class="dim" x1="70" y1="78.5" x2="64" y2="78.5"/><text class="dtx" x="62.8" y="79.6" text-anchor="end">UPS 3S pack 60 x 24, cells upright (?)</text>
+<line class="dim" x1="90" y1="26.5" x2="80" y2="78.5" marker-start="url(#arw)"/><line class="dim" x1="80" y1="78.5" x2="74" y2="78.5"/><text class="dtx" x="72.8" y="79.6" text-anchor="end">UPS 3S pack 60 x 24, cells upright (?)</text>
 </g>
 </g>
 <g id="ASM-FRONT" transform="translate(70,250)">
 <text class="lbl" x="0" y="-52" text-anchor="start">FRONT</text>
 <g id="asm-front-dome">
-<path class="obj" d="M0,164 V110 A110,110 0 0 1 220,110 V164 A6,6 0 0 1 214,170 H6 A6,6 0 0 1 0,164 Z"/>
-<path class="obj" d="M7.5,161.5 V110 A102.5,102.5 0 0 1 212.5,110 V161.5 A1,1 0 0 1 211.5,162.5 H8.5 A1,1 0 0 1 7.5,161.5 Z"/>
+<path class="obj" d="M0,174.6 V120 A120,120 0 0 1 240,120 V174.6 A6,6 0 0 1 234,180.6 H6 A6,6 0 0 1 0,174.6 Z"/>
+<path class="obj" d="M7.5,172.1 V120 A112.5,112.5 0 0 1 232.5,120 V172.1 A1,1 0 0 1 231.5,173.1 H8.5 A1,1 0 0 1 7.5,172.1 Z"/>
 </g>
 <g id="asm-front-knob">
-<path class="obj" d="M96,0 A17,12.761 0 1 1 124,0 Z"/>
-<line class="hid" x1="95" y1="0" x2="125" y2="0"/>
-<rect class="hid" x="107" y="-15" width="6" height="15"/>
+<path class="obj" d="M106,0 A17,12.761 0 1 1 134,0 Z"/>
+<line class="hid" x1="105" y1="0" x2="135" y2="0"/>
+<rect class="hid" x="117" y="-15" width="6" height="15"/>
 </g>
 <g id="asm-front-front-plate">
-<path class="hid" d="M3,164 V110 A107,107 0 0 1 217,110 V164 A3,3 0 0 1 214,167 H6 A3,3 0 0 1 3,164 Z"/>
-<path class="obj" d="M12,110 A98,98 0 0 1 208,110 Z"/>
-<path class="obj" d="M70,137.23 H150 A2,2 0 0 1 152,139.23 V158.23 A2,2 0 0 1 150,160.23 H70 A2,2 0 0 1 68,158.23 V139.23 A2,2 0 0 1 70,137.23 Z"/>
-<circle class="obj" cx="29" cy="138.5" r="20"/>
-<circle class="obj" cx="191" cy="138.5" r="20"/>
-<circle class="obj" cx="60.5" cy="124.46" r="1.25"/>
-<circle class="obj" cx="93.5" cy="124.46" r="1.25"/>
-<circle class="obj" cx="126.5" cy="124.46" r="1.25"/>
-<circle class="obj" cx="159.5" cy="124.46" r="1.25"/>
+<path class="hid" d="M3.6,174.6 V120 A116.4,116.4 0 0 1 236.4,120 V174.6 A2.4,2.4 0 0 1 234,177 H6 A2.4,2.4 0 0 1 3.6,174.6 Z"/>
+<path class="obj" d="M12,120 A108,108 0 0 1 228,120 Z"/>
+<path class="obj" d="M80,147.83 H160 A2,2 0 0 1 162,149.83 V168.83 A2,2 0 0 1 160,170.83 H80 A2,2 0 0 1 78,168.83 V149.83 A2,2 0 0 1 80,147.83 Z"/>
+<circle class="obj" cx="32.6" cy="150.1" r="20"/>
+<circle class="obj" cx="207.4" cy="150.1" r="20"/>
+<circle class="obj" cx="70.5" cy="135.06" r="1.25"/>
+<circle class="obj" cx="103.5" cy="135.06" r="1.25"/>
+<circle class="obj" cx="136.5" cy="135.06" r="1.25"/>
+<circle class="obj" cx="169.5" cy="135.06" r="1.25"/>
 </g>
 <g id="asm-front-crescent-leds">
-<circle class="led" cx="20.909" cy="110" r="2.6"/>
-<circle class="led" cx="38.727" cy="110" r="2.6"/>
-<circle class="led" cx="56.545" cy="110" r="2.6"/>
-<circle class="led" cx="74.364" cy="110" r="2.6"/>
-<circle class="led" cx="92.182" cy="110" r="2.6"/>
-<circle class="led" cx="110" cy="110" r="2.6"/>
-<circle class="led" cx="127.818" cy="110" r="2.6"/>
-<circle class="led" cx="145.636" cy="110" r="2.6"/>
-<circle class="led" cx="163.455" cy="110" r="2.6"/>
-<circle class="led" cx="181.273" cy="110" r="2.6"/>
-<circle class="led" cx="199.091" cy="110" r="2.6"/>
-<circle class="led" cx="22.212" cy="93.3" r="2.6"/>
-<circle class="led" cx="39.77" cy="93.3" r="2.6"/>
-<circle class="led" cx="57.327" cy="93.3" r="2.6"/>
-<circle class="led" cx="74.885" cy="93.3" r="2.6"/>
-<circle class="led" cx="92.442" cy="93.3" r="2.6"/>
-<circle class="led" cx="110" cy="93.3" r="2.6"/>
-<circle class="led" cx="127.558" cy="93.3" r="2.6"/>
-<circle class="led" cx="145.115" cy="93.3" r="2.6"/>
-<circle class="led" cx="162.673" cy="93.3" r="2.6"/>
-<circle class="led" cx="180.23" cy="93.3" r="2.6"/>
-<circle class="led" cx="197.788" cy="93.3" r="2.6"/>
-<circle class="led" cx="26.243" cy="76.6" r="2.6"/>
-<circle class="led" cx="42.994" cy="76.6" r="2.6"/>
-<circle class="led" cx="59.746" cy="76.6" r="2.6"/>
-<circle class="led" cx="76.497" cy="76.6" r="2.6"/>
-<circle class="led" cx="93.249" cy="76.6" r="2.6"/>
-<circle class="led" cx="110" cy="76.6" r="2.6"/>
-<circle class="led" cx="126.751" cy="76.6" r="2.6"/>
-<circle class="led" cx="143.503" cy="76.6" r="2.6"/>
-<circle class="led" cx="160.254" cy="76.6" r="2.6"/>
-<circle class="led" cx="177.006" cy="76.6" r="2.6"/>
-<circle class="led" cx="193.757" cy="76.6" r="2.6"/>
-<circle class="led" cx="34.197" cy="59.9" r="2.6"/>
-<circle class="led" cx="51.042" cy="59.9" r="2.6"/>
-<circle class="led" cx="67.887" cy="59.9" r="2.6"/>
-<circle class="led" cx="84.732" cy="59.9" r="2.6"/>
-<circle class="led" cx="101.577" cy="59.9" r="2.6"/>
-<circle class="led" cx="118.423" cy="59.9" r="2.6"/>
-<circle class="led" cx="135.268" cy="59.9" r="2.6"/>
-<circle class="led" cx="152.113" cy="59.9" r="2.6"/>
-<circle class="led" cx="168.958" cy="59.9" r="2.6"/>
-<circle class="led" cx="185.803" cy="59.9" r="2.6"/>
-<circle class="led" cx="47.257" cy="43.2" r="2.6"/>
-<circle class="led" cx="65.184" cy="43.2" r="2.6"/>
-<circle class="led" cx="83.11" cy="43.2" r="2.6"/>
-<circle class="led" cx="101.037" cy="43.2" r="2.6"/>
-<circle class="led" cx="118.963" cy="43.2" r="2.6"/>
-<circle class="led" cx="136.89" cy="43.2" r="2.6"/>
-<circle class="led" cx="154.816" cy="43.2" r="2.6"/>
-<circle class="led" cx="172.743" cy="43.2" r="2.6"/>
-<circle class="led" cx="67.25" cy="26.5" r="2.6"/>
-<circle class="led" cx="84.35" cy="26.5" r="2.6"/>
-<circle class="led" cx="101.45" cy="26.5" r="2.6"/>
-<circle class="led" cx="118.55" cy="26.5" r="2.6"/>
-<circle class="led" cx="135.65" cy="26.5" r="2.6"/>
-<circle class="led" cx="152.75" cy="26.5" r="2.6"/>
-<circle class="led" cx="110" cy="12" r="2.6"/>
+<circle class="led" cx="36.5" cy="120" r="2.6"/>
+<circle class="led" cx="53.2" cy="120" r="2.6"/>
+<circle class="led" cx="69.9" cy="120" r="2.6"/>
+<circle class="led" cx="86.6" cy="120" r="2.6"/>
+<circle class="led" cx="103.3" cy="120" r="2.6"/>
+<circle class="led" cx="120" cy="120" r="2.6"/>
+<circle class="led" cx="136.7" cy="120" r="2.6"/>
+<circle class="led" cx="153.4" cy="120" r="2.6"/>
+<circle class="led" cx="170.1" cy="120" r="2.6"/>
+<circle class="led" cx="186.8" cy="120" r="2.6"/>
+<circle class="led" cx="203.5" cy="120" r="2.6"/>
+<circle class="led" cx="36.5" cy="98.4" r="2.6"/>
+<circle class="led" cx="53.2" cy="98.4" r="2.6"/>
+<circle class="led" cx="69.9" cy="98.4" r="2.6"/>
+<circle class="led" cx="86.6" cy="98.4" r="2.6"/>
+<circle class="led" cx="103.3" cy="98.4" r="2.6"/>
+<circle class="led" cx="120" cy="98.4" r="2.6"/>
+<circle class="led" cx="136.7" cy="98.4" r="2.6"/>
+<circle class="led" cx="153.4" cy="98.4" r="2.6"/>
+<circle class="led" cx="170.1" cy="98.4" r="2.6"/>
+<circle class="led" cx="186.8" cy="98.4" r="2.6"/>
+<circle class="led" cx="203.5" cy="98.4" r="2.6"/>
+<circle class="led" cx="44.85" cy="76.8" r="2.6"/>
+<circle class="led" cx="61.55" cy="76.8" r="2.6"/>
+<circle class="led" cx="78.25" cy="76.8" r="2.6"/>
+<circle class="led" cx="94.95" cy="76.8" r="2.6"/>
+<circle class="led" cx="111.65" cy="76.8" r="2.6"/>
+<circle class="led" cx="128.35" cy="76.8" r="2.6"/>
+<circle class="led" cx="145.05" cy="76.8" r="2.6"/>
+<circle class="led" cx="161.75" cy="76.8" r="2.6"/>
+<circle class="led" cx="178.45" cy="76.8" r="2.6"/>
+<circle class="led" cx="195.15" cy="76.8" r="2.6"/>
+<circle class="led" cx="53.2" cy="55.2" r="2.6"/>
+<circle class="led" cx="69.9" cy="55.2" r="2.6"/>
+<circle class="led" cx="86.6" cy="55.2" r="2.6"/>
+<circle class="led" cx="103.3" cy="55.2" r="2.6"/>
+<circle class="led" cx="120" cy="55.2" r="2.6"/>
+<circle class="led" cx="136.7" cy="55.2" r="2.6"/>
+<circle class="led" cx="153.4" cy="55.2" r="2.6"/>
+<circle class="led" cx="170.1" cy="55.2" r="2.6"/>
+<circle class="led" cx="186.8" cy="55.2" r="2.6"/>
+<circle class="led" cx="78.25" cy="33.6" r="2.6"/>
+<circle class="led" cx="94.95" cy="33.6" r="2.6"/>
+<circle class="led" cx="111.65" cy="33.6" r="2.6"/>
+<circle class="led" cx="128.35" cy="33.6" r="2.6"/>
+<circle class="led" cx="145.05" cy="33.6" r="2.6"/>
+<circle class="led" cx="161.75" cy="33.6" r="2.6"/>
+<circle class="led" cx="120" cy="12" r="2.6"/>
 </g>
 <g id="asm-front-bottom-plate">
-<path class="obj" d="M4.3,166 H215.7 A1.5,1.5 0 0 1 217.2,167.5 V168.5 A1.5,1.5 0 0 1 215.7,170 H4.3 A1.5,1.5 0 0 1 2.8,168.5 V167.5 A1.5,1.5 0 0 1 4.3,166 Z"/>
+<path class="obj" d="M4.3,176.6 H235.7 A1.5,1.5 0 0 1 237.2,178.1 V179.1 A1.5,1.5 0 0 1 235.7,180.6 H4.3 A1.5,1.5 0 0 1 2.8,179.1 V178.1 A1.5,1.5 0 0 1 4.3,176.6 Z"/>
 </g>
 <g id="asm-front-internals">
-<path class="hid" d="M65.52,132.46 H154.48 A1,1 0 0 1 155.48,133.46 V164 A1,1 0 0 1 154.48,165 H65.52 A1,1 0 0 1 64.52,164 V133.46 A1,1 0 0 1 65.52,132.46 Z"/>
-<path class="hid" d="M6,116 H52 A2,2 0 0 1 54,118 V159 A2,2 0 0 1 52,161 H6 A2,2 0 0 1 4,159 V118 A2,2 0 0 1 6,116 Z"/>
-<path class="hid" d="M168,116 H214 A2,2 0 0 1 216,118 V159 A2,2 0 0 1 214,161 H168 A2,2 0 0 1 166,159 V118 A2,2 0 0 1 168,116 Z"/>
-<rect class="hid" x="55" y="118.46" width="110" height="12"/>
-<rect class="hid" x="80" y="73" width="60" height="93"/>
+<path class="hid" d="M75.52,143.06 H164.48 A1,1 0 0 1 165.48,144.06 V174.6 A1,1 0 0 1 164.48,175.6 H75.52 A1,1 0 0 1 74.52,174.6 V144.06 A1,1 0 0 1 75.52,143.06 Z"/>
+<path class="hid" d="M9.6,127.6 H55.6 A2,2 0 0 1 57.6,129.6 V170.6 A2,2 0 0 1 55.6,172.6 H9.6 A2,2 0 0 1 7.6,170.6 V129.6 A2,2 0 0 1 9.6,127.6 Z"/>
+<path class="hid" d="M184.4,127.6 H230.4 A2,2 0 0 1 232.4,129.6 V170.6 A2,2 0 0 1 230.4,172.6 H184.4 A2,2 0 0 1 182.4,170.6 V129.6 A2,2 0 0 1 184.4,127.6 Z"/>
+<rect class="hid" x="65" y="129.06" width="110" height="12"/>
+<rect class="hid" x="90" y="83.6" width="60" height="93"/>
 </g>
 <g id="asm-front-dims">
-<line class="ctr" x1="110" y1="-8" x2="110" y2="178"/>
-<line class="ctr" x1="-8" y1="138.5" x2="228" y2="138.5"/>
-<line class="ext" x1="0" y1="170" x2="0" y2="206"/><line class="ext" x1="220" y1="170" x2="220" y2="206"/><line class="dim" x1="0" y1="204" x2="220" y2="204" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="110" y="202.6" text-anchor="middle">220</text>
-<line class="ext" x1="3" y1="167" x2="3" y2="194"/><line class="ext" x1="217" y1="167" x2="217" y2="194"/><line class="dim" x1="3" y1="192" x2="217" y2="192" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="110" y="190.6" text-anchor="middle">214</text>
-<line class="ext" x1="0" y1="0" x2="-30" y2="0"/><line class="ext" x1="0" y1="170" x2="-30" y2="170"/><line class="dim" x1="-28" y1="0" x2="-28" y2="170" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="-29.4" y="85" text-anchor="middle" transform="rotate(-90 -29.4 85)">170</text>
-<line class="ext" x1="3" y1="3" x2="-21" y2="3"/><line class="ext" x1="3" y1="167" x2="-21" y2="167"/><line class="dim" x1="-19" y1="3" x2="-19" y2="167" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="-20.4" y="85" text-anchor="middle" transform="rotate(-90 -20.4 85)">164</text>
-<circle class="ctr" cx="110" cy="110" r="1.6"/>
-<line class="ctr" x1="-2" y1="110" x2="222" y2="110"/>
-<line class="dim" x1="187.77" y1="32.23" x2="217.77" y2="-11.77" marker-start="url(#arw)"/><line class="dim" x1="217.77" y1="-11.77" x2="223.77" y2="-11.77"/><text class="dtx" x="224.97" y="-10.67" text-anchor="start">R110 shell arc</text>
-<line class="dim" x1="159" y1="25.132" x2="213" y2="-4.868" marker-start="url(#arw)"/><line class="dim" x1="213" y1="-4.868" x2="219" y2="-4.868"/><text class="dtx" x="220.2" y="-3.768" text-anchor="start">R98 crescent - CONCENTRIC, 12 rim</text>
-<line class="ext" x1="12" y1="110" x2="12" y2="101"/><line class="ext" x1="208" y1="110" x2="208" y2="101"/><line class="dim" x1="12" y1="103" x2="208" y2="103" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="110" y="101.6" text-anchor="middle">196</text>
-<line class="ext" x1="208" y1="110" x2="234" y2="110"/><line class="ext" x1="208" y1="170" x2="234" y2="170"/><line class="dim" x1="232" y1="110" x2="232" y2="170" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="230.6" y="140" text-anchor="middle" transform="rotate(-90 230.6 140)">60</text>
-<line class="ext" x1="110" y1="12" x2="246" y2="12"/><line class="ext" x1="110" y1="170" x2="246" y2="170"/><line class="dim" x1="244" y1="12" x2="244" y2="170" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="242.6" y="91" text-anchor="middle" transform="rotate(-90 242.6 91)">158</text>
-<line class="ext" x1="68" y1="170" x2="68" y2="182"/><line class="ext" x1="152" y1="170" x2="152" y2="182"/><line class="dim" x1="68" y1="180" x2="152" y2="180" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="110" y="178.6" text-anchor="middle">84</text>
-<line class="dim" x1="152" y1="137.23" x2="230" y2="81.23" marker-start="url(#arw)"/><line class="dim" x1="230" y1="81.23" x2="236" y2="81.23"/><text class="dtx" x="237.2" y="82.33" text-anchor="start">clock aperture 84 x 23</text>
-<line class="dim" x1="155.48" y1="165" x2="231.48" y2="185" marker-start="url(#arw)"/><line class="dim" x1="231.48" y1="185" x2="237.48" y2="185"/><text class="dtx" x="238.68" y="186.1" text-anchor="start">tray pocket 91 x 32.5</text>
-<line class="ext" x1="68" y1="148.73" x2="-13" y2="148.73"/><line class="ext" x1="68" y1="170" x2="-13" y2="170"/><line class="dim" x1="-11" y1="148.73" x2="-11" y2="170" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="-12.4" y="159.365" text-anchor="middle" transform="rotate(-90 -12.4 159.365)">21.3</text>
-<line class="ctr" x1="47" y1="124.46" x2="173" y2="124.46"/>
-<line class="ext" x1="60.5" y1="124.46" x2="60.5" y2="114.46"/><line class="ext" x1="93.5" y1="124.46" x2="93.5" y2="114.46"/><line class="dim" x1="60.5" y1="116.46" x2="93.5" y2="116.46" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="77" y="115.06" text-anchor="middle">33</text>
-<line class="dim" x1="60.5" y1="124.46" x2="54.5" y2="225" marker-start="url(#arw)"/><line class="dim" x1="54.5" y1="225" x2="60.5" y2="225"/><text class="dtx" x="61.7" y="226.1" text-anchor="start">4x Ø2.5 mic port @ 33 - ReSpeaker Flex linear array (?)</text>
-<line class="ext" x1="165" y1="118.46" x2="258" y2="118.46"/><line class="ext" x1="165" y1="130.46" x2="258" y2="130.46"/><line class="dim" x1="256" y1="118.46" x2="256" y2="130.46" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="254.6" y="124.46" text-anchor="middle" transform="rotate(-90 254.6 124.46)">12 mic band</text>
-<line class="ext" x1="165" y1="116" x2="270" y2="116"/><line class="ext" x1="165" y1="130.46" x2="270" y2="130.46"/><line class="dim" x1="268" y1="109" x2="268" y2="116" marker-start="url(#arw)"/><line class="dim" x1="268" y1="130.46" x2="268" y2="137.46" marker-end="url(#arw)"/><line class="dim" x1="268" y1="116" x2="268" y2="130.46"/><text class="dtx" x="266.6" y="139.46" text-anchor="middle" transform="rotate(-90 266.6 139.46)">2</text>
-<line class="ext" x1="0" y1="170" x2="0" y2="182"/><line class="ext" x1="29" y1="170" x2="29" y2="182"/><line class="dim" x1="0" y1="180" x2="29" y2="180" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="14.5" y="178.6" text-anchor="middle">29</text>
-<line class="dim" x1="14.84" y1="152.66" x2="8.84" y2="234" marker-start="url(#arw)"/><line class="dim" x1="8.84" y1="234" x2="14.84" y2="234"/><text class="dtx" x="16.04" y="235.1" text-anchor="start">2x grille Ø40  (driver Ø50 ?)</text>
-<line class="ext" x1="54" y1="138.5" x2="54" y2="108"/><line class="ext" x1="64.52" y1="138.5" x2="64.52" y2="108"/><line class="dim" x1="47" y1="110" x2="54" y2="110" marker-start="url(#arw)"/><line class="dim" x1="64.52" y1="110" x2="71.52" y2="110" marker-end="url(#arw)"/><line class="dim" x1="54" y1="110" x2="64.52" y2="110"/><text class="dtx" x="73.02" y="111.2" text-anchor="start">10.5 clr</text>
-<line class="ctr" x1="110" y1="-28" x2="110" y2="6"/>
-<line class="dim" x1="127" y1="-7.239" x2="167" y2="-25.239" marker-start="url(#arw)"/><line class="dim" x1="167" y1="-25.239" x2="173" y2="-25.239"/><text class="dtx" x="174.2" y="-24.139" text-anchor="start">5  knob Ø34 x 20 pebble, Ø28 base flat</text>
-<line class="ext" x1="93" y1="-20" x2="81" y2="-20"/><line class="ext" x1="93" y1="0" x2="81" y2="0"/><line class="dim" x1="83" y1="-20" x2="83" y2="0" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="81.6" y="-10" text-anchor="middle" transform="rotate(-90 81.6 -10)">20</text>
-<line class="ext" x1="93" y1="-20" x2="-40" y2="-20"/><line class="ext" x1="93" y1="170" x2="-40" y2="170"/><line class="dim" x1="-38" y1="-20" x2="-38" y2="170" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="-39.4" y="75" text-anchor="middle" transform="rotate(-90 -39.4 75)">190 over knob</text>
-<line class="dim" x1="218.242" y1="168.242" x2="242.242" y2="180.242" marker-start="url(#arw)"/><line class="dim" x1="242.242" y1="180.242" x2="248.242" y2="180.242"/><text class="dtx" x="249.442" y="181.342" text-anchor="start">R6</text>
-<line class="dim" x1="212.5" y1="140" x2="244.5" y2="100" marker-start="url(#arw)"/><line class="dim" x1="244.5" y1="100" x2="250.5" y2="100"/><text class="dtx" x="251.7" y="101.1" text-anchor="start">lip 5 wide, facade 2 behind the rim</text>
-<line class="dim" x1="12.8" y1="168" x2="18.8" y2="216" marker-start="url(#arw)"/><line class="dim" x1="18.8" y1="216" x2="24.8" y2="216"/><text class="dtx" x="26" y="217.1" text-anchor="start">3  bottom plate 4 thk</text>
+<line class="ctr" x1="120" y1="-8" x2="120" y2="188.6"/>
+<line class="ctr" x1="-8" y1="150.1" x2="248" y2="150.1"/>
+<line class="ext" x1="0" y1="180.6" x2="0" y2="216.6"/><line class="ext" x1="240" y1="180.6" x2="240" y2="216.6"/><line class="dim" x1="0" y1="214.6" x2="240" y2="214.6" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="120" y="213.2" text-anchor="middle">240</text>
+<line class="ext" x1="3.6" y1="177" x2="3.6" y2="204.6"/><line class="ext" x1="236.4" y1="177" x2="236.4" y2="204.6"/><line class="dim" x1="3.6" y1="202.6" x2="236.4" y2="202.6" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="120" y="201.2" text-anchor="middle">232.8</text>
+<line class="ext" x1="0" y1="0" x2="-30" y2="0"/><line class="ext" x1="0" y1="180.6" x2="-30" y2="180.6"/><line class="dim" x1="-28" y1="0" x2="-28" y2="180.6" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="-29.4" y="90.3" text-anchor="middle" transform="rotate(-90 -29.4 90.3)">180.6</text>
+<line class="ext" x1="3.6" y1="3.6" x2="-21" y2="3.6"/><line class="ext" x1="3.6" y1="177" x2="-21" y2="177"/><line class="dim" x1="-19" y1="3.6" x2="-19" y2="177" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="-20.4" y="90.3" text-anchor="middle" transform="rotate(-90 -20.4 90.3)">173.4</text>
+<circle class="ctr" cx="120" cy="120" r="1.6"/>
+<line class="ctr" x1="-2" y1="120" x2="242" y2="120"/>
+<line class="dim" x1="204.84" y1="35.16" x2="234.84" y2="-8.84" marker-start="url(#arw)"/><line class="dim" x1="234.84" y1="-8.84" x2="240.84" y2="-8.84"/><text class="dtx" x="242.04" y="-7.74" text-anchor="start">R120 shell arc</text>
+<line class="dim" x1="174" y1="26.472" x2="228" y2="-3.528" marker-start="url(#arw)"/><line class="dim" x1="228" y1="-3.528" x2="234" y2="-3.528"/><text class="dtx" x="235.2" y="-2.428" text-anchor="start">R108 crescent - CONCENTRIC, 12 rim</text>
+<line class="ext" x1="12" y1="120" x2="12" y2="111"/><line class="ext" x1="228" y1="120" x2="228" y2="111"/><line class="dim" x1="12" y1="113" x2="228" y2="113" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="120" y="111.6" text-anchor="middle">216</text>
+<line class="ext" x1="228" y1="120" x2="254" y2="120"/><line class="ext" x1="228" y1="180.6" x2="254" y2="180.6"/><line class="dim" x1="252" y1="120" x2="252" y2="180.6" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="250.6" y="150.3" text-anchor="middle" transform="rotate(-90 250.6 150.3)">60.6</text>
+<line class="ext" x1="120" y1="12" x2="266" y2="12"/><line class="ext" x1="120" y1="180.6" x2="266" y2="180.6"/><line class="dim" x1="264" y1="12" x2="264" y2="180.6" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="262.6" y="96.3" text-anchor="middle" transform="rotate(-90 262.6 96.3)">168.6</text>
+<line class="ext" x1="78" y1="180.6" x2="78" y2="192.6"/><line class="ext" x1="162" y1="180.6" x2="162" y2="192.6"/><line class="dim" x1="78" y1="190.6" x2="162" y2="190.6" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="120" y="189.2" text-anchor="middle">84</text>
+<line class="dim" x1="162" y1="147.83" x2="240" y2="91.83" marker-start="url(#arw)"/><line class="dim" x1="240" y1="91.83" x2="246" y2="91.83"/><text class="dtx" x="247.2" y="92.93" text-anchor="start">clock aperture 84 x 23</text>
+<line class="dim" x1="165.48" y1="175.6" x2="241.48" y2="195.6" marker-start="url(#arw)"/><line class="dim" x1="241.48" y1="195.6" x2="247.48" y2="195.6"/><text class="dtx" x="248.68" y="196.7" text-anchor="start">tray pocket 91 x 32.5</text>
+<line class="ext" x1="78" y1="159.33" x2="-13" y2="159.33"/><line class="ext" x1="78" y1="180.6" x2="-13" y2="180.6"/><line class="dim" x1="-11" y1="159.33" x2="-11" y2="180.6" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="-12.4" y="169.965" text-anchor="middle" transform="rotate(-90 -12.4 169.965)">21.3</text>
+<line class="ctr" x1="57" y1="135.06" x2="183" y2="135.06"/>
+<line class="ext" x1="70.5" y1="135.06" x2="70.5" y2="125.06"/><line class="ext" x1="103.5" y1="135.06" x2="103.5" y2="125.06"/><line class="dim" x1="70.5" y1="127.06" x2="103.5" y2="127.06" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="87" y="125.66" text-anchor="middle">33</text>
+<line class="dim" x1="70.5" y1="135.06" x2="64.5" y2="235.6" marker-start="url(#arw)"/><line class="dim" x1="64.5" y1="235.6" x2="70.5" y2="235.6"/><text class="dtx" x="71.7" y="236.7" text-anchor="start">4x Ø2.5 mic port @ 33 - ReSpeaker Flex linear array (?)</text>
+<line class="ext" x1="175" y1="129.06" x2="278" y2="129.06"/><line class="ext" x1="175" y1="141.06" x2="278" y2="141.06"/><line class="dim" x1="276" y1="129.06" x2="276" y2="141.06" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="274.6" y="135.06" text-anchor="middle" transform="rotate(-90 274.6 135.06)">12 mic band</text>
+<line class="ext" x1="175" y1="127.6" x2="290" y2="127.6"/><line class="ext" x1="175" y1="141.06" x2="290" y2="141.06"/><line class="dim" x1="288" y1="120.6" x2="288" y2="127.6" marker-start="url(#arw)"/><line class="dim" x1="288" y1="141.06" x2="288" y2="148.06" marker-end="url(#arw)"/><line class="dim" x1="288" y1="127.6" x2="288" y2="141.06"/><text class="dtx" x="286.6" y="150.06" text-anchor="middle" transform="rotate(-90 286.6 150.06)">2</text>
+<line class="ext" x1="0" y1="180.6" x2="0" y2="192.6"/><line class="ext" x1="32.6" y1="180.6" x2="32.6" y2="192.6"/><line class="dim" x1="0" y1="190.6" x2="32.6" y2="190.6" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="16.3" y="189.2" text-anchor="middle">32.6</text>
+<line class="dim" x1="18.44" y1="164.26" x2="12.44" y2="244.6" marker-start="url(#arw)"/><line class="dim" x1="12.44" y1="244.6" x2="18.44" y2="244.6"/><text class="dtx" x="19.64" y="245.7" text-anchor="start">2x grille Ø40  (driver Ø50 ?)</text>
+<line class="ext" x1="57.6" y1="150.1" x2="57.6" y2="119.6"/><line class="ext" x1="74.52" y1="150.1" x2="74.52" y2="119.6"/><line class="dim" x1="50.6" y1="121.6" x2="57.6" y2="121.6" marker-start="url(#arw)"/><line class="dim" x1="74.52" y1="121.6" x2="81.52" y2="121.6" marker-end="url(#arw)"/><line class="dim" x1="57.6" y1="121.6" x2="74.52" y2="121.6"/><text class="dtx" x="83.02" y="122.8" text-anchor="start">16.9 clr</text>
+<line class="ctr" x1="120" y1="-28" x2="120" y2="6"/>
+<line class="dim" x1="137" y1="-7.239" x2="177" y2="-25.239" marker-start="url(#arw)"/><line class="dim" x1="177" y1="-25.239" x2="183" y2="-25.239"/><text class="dtx" x="184.2" y="-24.139" text-anchor="start">5  knob Ø34 x 20 pebble, Ø28 base flat</text>
+<line class="ext" x1="103" y1="-20" x2="91" y2="-20"/><line class="ext" x1="103" y1="0" x2="91" y2="0"/><line class="dim" x1="93" y1="-20" x2="93" y2="0" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="91.6" y="-10" text-anchor="middle" transform="rotate(-90 91.6 -10)">20</text>
+<line class="ext" x1="103" y1="-20" x2="-40" y2="-20"/><line class="ext" x1="103" y1="180.6" x2="-40" y2="180.6"/><line class="dim" x1="-38" y1="-20" x2="-38" y2="180.6" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="-39.4" y="80.3" text-anchor="middle" transform="rotate(-90 -39.4 80.3)">200.6 over knob</text>
+<line class="dim" x1="238.242" y1="178.842" x2="262.242" y2="190.842" marker-start="url(#arw)"/><line class="dim" x1="262.242" y1="190.842" x2="268.242" y2="190.842"/><text class="dtx" x="269.442" y="191.942" text-anchor="start">R6</text>
+<line class="dim" x1="232.5" y1="150.3" x2="264.5" y2="110.3" marker-start="url(#arw)"/><line class="dim" x1="264.5" y1="110.3" x2="270.5" y2="110.3"/><text class="dtx" x="271.7" y="111.4" text-anchor="start">lip 5 wide, facade 2 behind the rim</text>
+<line class="dim" x1="12.8" y1="178.6" x2="18.8" y2="226.6" marker-start="url(#arw)"/><line class="dim" x1="18.8" y1="226.6" x2="24.8" y2="226.6"/><text class="dtx" x="26" y="227.7" text-anchor="start">3  bottom plate 4 thk</text>
 </g>
 </g>
 <g id="ASM-REAR" transform="translate(620,555)">
 <text class="lbl" x="0" y="-30" text-anchor="start">REAR</text>
 <text class="note" x="0" y="-24" text-anchor="start">(mirrored from FRONT; placed out of projection to fit the sheet)</text>
 <g id="asm-rear-dome">
-<path class="obj" d="M0,164 V110 A110,110 0 0 1 220,110 V164 A6,6 0 0 1 214,170 H6 A6,6 0 0 1 0,164 Z"/>
-<path class="hid" d="M2.5,164 V110 A107.5,107.5 0 0 1 217.5,110 V164 A3.5,3.5 0 0 1 214,167.5 H6 A3.5,3.5 0 0 1 2.5,164 Z"/>
-<circle class="obj" cx="110" cy="70" r="2"/>
-<circle class="obj" cx="110" cy="156" r="5.5"/>
-<path class="obj" d="M91.25,50.75 H128.75 A1.25,1.25 0 0 1 130,52 V52 A1.25,1.25 0 0 1 128.75,53.25 H91.25 A1.25,1.25 0 0 1 90,52 V52 A1.25,1.25 0 0 1 91.25,50.75 Z"/>
-<path class="obj" d="M91.25,43.75 H128.75 A1.25,1.25 0 0 1 130,45 V45 A1.25,1.25 0 0 1 128.75,46.25 H91.25 A1.25,1.25 0 0 1 90,45 V45 A1.25,1.25 0 0 1 91.25,43.75 Z"/>
-<path class="obj" d="M91.25,36.75 H128.75 A1.25,1.25 0 0 1 130,38 V38 A1.25,1.25 0 0 1 128.75,39.25 H91.25 A1.25,1.25 0 0 1 90,38 V38 A1.25,1.25 0 0 1 91.25,36.75 Z"/>
-<path class="obj" d="M91.25,29.75 H128.75 A1.25,1.25 0 0 1 130,31 V31 A1.25,1.25 0 0 1 128.75,32.25 H91.25 A1.25,1.25 0 0 1 90,31 V31 A1.25,1.25 0 0 1 91.25,29.75 Z"/>
+<path class="obj" d="M0,174.6 V120 A120,120 0 0 1 240,120 V174.6 A6,6 0 0 1 234,180.6 H6 A6,6 0 0 1 0,174.6 Z"/>
+<path class="hid" d="M2.5,174.6 V120 A117.5,117.5 0 0 1 237.5,120 V174.6 A3.5,3.5 0 0 1 234,178.1 H6 A3.5,3.5 0 0 1 2.5,174.6 Z"/>
+<circle class="obj" cx="120" cy="80.6" r="2"/>
+<circle class="obj" cx="120" cy="166.6" r="5.5"/>
+<path class="obj" d="M101.25,61.35 H138.75 A1.25,1.25 0 0 1 140,62.6 V62.6 A1.25,1.25 0 0 1 138.75,63.85 H101.25 A1.25,1.25 0 0 1 100,62.6 V62.6 A1.25,1.25 0 0 1 101.25,61.35 Z"/>
+<path class="obj" d="M101.25,54.35 H138.75 A1.25,1.25 0 0 1 140,55.6 V55.6 A1.25,1.25 0 0 1 138.75,56.85 H101.25 A1.25,1.25 0 0 1 100,55.6 V55.6 A1.25,1.25 0 0 1 101.25,54.35 Z"/>
+<path class="obj" d="M101.25,47.35 H138.75 A1.25,1.25 0 0 1 140,48.6 V48.6 A1.25,1.25 0 0 1 138.75,49.85 H101.25 A1.25,1.25 0 0 1 100,48.6 V48.6 A1.25,1.25 0 0 1 101.25,47.35 Z"/>
+<path class="obj" d="M101.25,40.35 H138.75 A1.25,1.25 0 0 1 140,41.6 V41.6 A1.25,1.25 0 0 1 138.75,42.85 H101.25 A1.25,1.25 0 0 1 100,41.6 V41.6 A1.25,1.25 0 0 1 101.25,40.35 Z"/>
 </g>
 <g id="asm-rear-bottom-plate">
-<path class="obj" d="M4.3,166 H215.7 A1.5,1.5 0 0 1 217.2,167.5 V168.5 A1.5,1.5 0 0 1 215.7,170 H4.3 A1.5,1.5 0 0 1 2.8,168.5 V167.5 A1.5,1.5 0 0 1 4.3,166 Z"/>
+<path class="obj" d="M4.3,176.6 H235.7 A1.5,1.5 0 0 1 237.2,178.1 V179.1 A1.5,1.5 0 0 1 235.7,180.6 H4.3 A1.5,1.5 0 0 1 2.8,179.1 V178.1 A1.5,1.5 0 0 1 4.3,176.6 Z"/>
 </g>
 <g id="asm-rear-internals">
-<rect class="hid" x="80" y="73" width="60" height="93"/>
+<rect class="hid" x="90" y="83.6" width="60" height="93"/>
+<rect class="hid" x="77" y="23.6" width="86" height="54"/>
+<rect class="hid" x="30" y="130.6" width="26" height="20"/>
 </g>
 <g id="asm-rear-dims">
-<line class="ctr" x1="110" y1="-12" x2="110" y2="182"/>
-<line class="ext" x1="0" y1="170" x2="0" y2="194"/><line class="ext" x1="220" y1="170" x2="220" y2="194"/><line class="dim" x1="0" y1="192" x2="220" y2="192" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="110" y="190.6" text-anchor="middle">220</text>
-<line class="ext" x1="0" y1="0" x2="-22" y2="0"/><line class="ext" x1="0" y1="170" x2="-22" y2="170"/><line class="dim" x1="-20" y1="0" x2="-20" y2="170" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="-21.4" y="85" text-anchor="middle" transform="rotate(-90 -21.4 85)">170</text>
-<line class="ext" x1="115.5" y1="156" x2="236" y2="156"/><line class="ext" x1="115.5" y1="170" x2="236" y2="170"/><line class="dim" x1="234" y1="156" x2="234" y2="170" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="232.6" y="163" text-anchor="middle" transform="rotate(-90 232.6 163)">14</text>
-<line class="ext" x1="112" y1="70" x2="248" y2="70"/><line class="ext" x1="112" y1="170" x2="248" y2="170"/><line class="dim" x1="246" y1="70" x2="246" y2="170" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="244.6" y="120" text-anchor="middle" transform="rotate(-90 244.6 120)">100</text>
-<line class="ext" x1="130" y1="52" x2="260" y2="52"/><line class="ext" x1="130" y1="170" x2="260" y2="170"/><line class="dim" x1="258" y1="52" x2="258" y2="170" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="256.6" y="111" text-anchor="middle" transform="rotate(-90 256.6 111)">118</text>
-<line class="dim" x1="115.5" y1="156" x2="161.5" y2="182" marker-start="url(#arw)"/><line class="dim" x1="161.5" y1="182" x2="167.5" y2="182"/><text class="dtx" x="168.7" y="183.1" text-anchor="start">Ø11 DC barrel jack - UPS 3S charge in (?)</text>
-<line class="dim" x1="112" y1="70" x2="164" y2="84" marker-start="url(#arw)"/><line class="dim" x1="164" y1="84" x2="170" y2="84"/><text class="dtx" x="171.2" y="85.1" text-anchor="start">Ø4 light pipe - BH1750 lux</text>
-<line class="dim" x1="130" y1="31" x2="164" y2="1" marker-start="url(#arw)"/><line class="dim" x1="164" y1="1" x2="170" y2="1"/><text class="dtx" x="171.2" y="2.1" text-anchor="start">4x vent slot 40 x 2.5 @ 7</text>
-<line class="ext" x1="90" y1="52" x2="90" y2="64"/><line class="ext" x1="130" y1="52" x2="130" y2="64"/><line class="dim" x1="90" y1="62" x2="130" y2="62" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="110" y="60.6" text-anchor="middle">40</text>
-<line class="dim" x1="80" y1="119.5" x2="60" y2="139.5" marker-start="url(#arw)"/><line class="dim" x1="60" y1="139.5" x2="54" y2="139.5"/><text class="dtx" x="52.8" y="140.6" text-anchor="end">UPS 3S pack (jack lands here)</text>
-<text class="note" x="110" y="208" text-anchor="middle">all rear features CENTRED on the width</text>
+<line class="ctr" x1="120" y1="-12" x2="120" y2="192.6"/>
+<line class="ext" x1="0" y1="180.6" x2="0" y2="204.6"/><line class="ext" x1="240" y1="180.6" x2="240" y2="204.6"/><line class="dim" x1="0" y1="202.6" x2="240" y2="202.6" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="120" y="201.2" text-anchor="middle">240</text>
+<line class="ext" x1="0" y1="0" x2="-22" y2="0"/><line class="ext" x1="0" y1="180.6" x2="-22" y2="180.6"/><line class="dim" x1="-20" y1="0" x2="-20" y2="180.6" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="-21.4" y="90.3" text-anchor="middle" transform="rotate(-90 -21.4 90.3)">180.6</text>
+<line class="ext" x1="125.5" y1="166.6" x2="256" y2="166.6"/><line class="ext" x1="125.5" y1="180.6" x2="256" y2="180.6"/><line class="dim" x1="254" y1="166.6" x2="254" y2="180.6" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="252.6" y="173.6" text-anchor="middle" transform="rotate(-90 252.6 173.6)">14</text>
+<line class="ext" x1="122" y1="80.6" x2="268" y2="80.6"/><line class="ext" x1="122" y1="180.6" x2="268" y2="180.6"/><line class="dim" x1="266" y1="80.6" x2="266" y2="180.6" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="264.6" y="130.6" text-anchor="middle" transform="rotate(-90 264.6 130.6)">100</text>
+<line class="ext" x1="140" y1="62.6" x2="280" y2="62.6"/><line class="ext" x1="140" y1="180.6" x2="280" y2="180.6"/><line class="dim" x1="278" y1="62.6" x2="278" y2="180.6" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="276.6" y="121.6" text-anchor="middle" transform="rotate(-90 276.6 121.6)">118</text>
+<line class="dim" x1="125.5" y1="166.6" x2="171.5" y2="192.6" marker-start="url(#arw)"/><line class="dim" x1="171.5" y1="192.6" x2="177.5" y2="192.6"/><text class="dtx" x="178.7" y="193.7" text-anchor="start">Ø11 DC barrel jack - UPS 3S charge in (?)</text>
+<line class="dim" x1="122" y1="80.6" x2="174" y2="94.6" marker-start="url(#arw)"/><line class="dim" x1="174" y1="94.6" x2="180" y2="94.6"/><text class="dtx" x="181.2" y="95.7" text-anchor="start">Ø4 light pipe - BH1750 lux</text>
+<line class="dim" x1="140" y1="41.6" x2="174" y2="11.6" marker-start="url(#arw)"/><line class="dim" x1="174" y1="11.6" x2="180" y2="11.6"/><text class="dtx" x="181.2" y="12.7" text-anchor="start">4x vent slot 40 x 2.5 @ 7</text>
+<line class="ext" x1="100" y1="62.6" x2="100" y2="74.6"/><line class="ext" x1="140" y1="62.6" x2="140" y2="74.6"/><line class="dim" x1="100" y1="72.6" x2="140" y2="72.6" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="120" y="71.2" text-anchor="middle">40</text>
+<line class="dim" x1="90" y1="130.1" x2="68" y2="144.1" marker-start="url(#arw)"/><line class="dim" x1="68" y1="144.1" x2="62" y2="144.1"/><text class="dtx" x="60.8" y="145.2" text-anchor="end">UPS 3S 60 x 93, standing (jack lands here)</text>
+<line class="dim" x1="163" y1="23.6" x2="193" y2="1.6" marker-start="url(#arw)"/><line class="dim" x1="193" y1="1.6" x2="199" y2="1.6"/><text class="dtx" x="200.2" y="2.7" text-anchor="start">ReSpeaker Flex 86 x 54 (?) - VERTICAL on this wall, above the UPS</text>
+<line class="dim" x1="30" y1="140.6" x2="8" y2="166.6" marker-start="url(#arw)"/><line class="dim" x1="8" y1="166.6" x2="2" y2="166.6"/><text class="dtx" x="0.8" y="167.7" text-anchor="end">TPA2016 26 x 20 FLUSH on this wall</text>
+<text class="note" x="120" y="218.6" text-anchor="middle">all rear features CENTRED on the width</text>
 </g>
 </g>
 <g id="ASM-SIDE" transform="translate(430,250)">
 <text class="lbl" x="0" y="-52" text-anchor="start">RIGHT SIDE</text>
 <text class="note" x="0" y="-46" text-anchor="start">(front at left)</text>
 <g id="asm-side-dome">
-<path class="obj" d="M4,0 H60 A4,4 0 0 1 64,4 V166 A4,4 0 0 1 60,170 H4 A4,4 0 0 1 0,166 V4 A4,4 0 0 1 4,0 Z"/>
-<line class="hid" x1="4" y1="7.5" x2="4" y2="162.5"/>
+<path class="obj" d="M4,0 H60 A4,4 0 0 1 64,4 V176.6 A4,4 0 0 1 60,180.6 H4 A4,4 0 0 1 0,176.6 V4 A4,4 0 0 1 4,0 Z"/>
+<line class="hid" x1="4" y1="8.1" x2="4" y2="172.5"/>
 <line class="hid" x1="19" y1="0" x2="49" y2="0"/>
-<rect class="hid" x="61.5" y="68" width="2.5" height="4"/>
-<rect class="hid" x="61.5" y="150.5" width="2.5" height="11"/>
-<rect class="hid" x="61.5" y="50.75" width="2.5" height="2.5"/>
-<rect class="hid" x="61.5" y="43.75" width="2.5" height="2.5"/>
-<rect class="hid" x="61.5" y="36.75" width="2.5" height="2.5"/>
-<rect class="hid" x="61.5" y="29.75" width="2.5" height="2.5"/>
+<rect class="hid" x="61.5" y="78.6" width="2.5" height="4"/>
+<rect class="hid" x="61.5" y="161.1" width="2.5" height="11"/>
+<rect class="hid" x="61.5" y="61.35" width="2.5" height="2.5"/>
+<rect class="hid" x="61.5" y="54.35" width="2.5" height="2.5"/>
+<rect class="hid" x="61.5" y="47.35" width="2.5" height="2.5"/>
+<rect class="hid" x="61.5" y="40.35" width="2.5" height="2.5"/>
 </g>
 <g id="asm-side-knob">
 <path class="obj" d="M20,0 A17,12.761 0 1 1 48,0 Z"/>
 <rect class="hid" x="31" y="-15" width="6" height="15"/>
 </g>
 <g id="asm-side-front-plate">
-<path class="obj" d="M1,3 H3 A1,1 0 0 1 4,4 V166 A1,1 0 0 1 3,167 H1 A1,1 0 0 1 0,166 V4 A1,1 0 0 1 1,3 Z"/>
+<path class="obj" d="M1,3.6 H3 A1,1 0 0 1 4,4.6 V176 A1,1 0 0 1 3,177 H1 A1,1 0 0 1 0,176 V4.6 A1,1 0 0 1 1,3.6 Z"/>
 </g>
 <g id="asm-side-bottom-plate">
-<path class="obj" d="M3.8,166 H60.2 A1,1 0 0 1 61.2,167 V169 A1,1 0 0 1 60.2,170 H3.8 A1,1 0 0 1 2.8,169 V167 A1,1 0 0 1 3.8,166 Z"/>
+<path class="obj" d="M3.8,176.6 H60.2 A1,1 0 0 1 61.2,177.6 V179.6 A1,1 0 0 1 60.2,180.6 H3.8 A1,1 0 0 1 2.8,179.6 V177.6 A1,1 0 0 1 3.8,176.6 Z"/>
 </g>
 <g id="asm-side-internals">
-<rect class="hid" x="4" y="132.46" width="14.8" height="32.54"/>
-<rect class="hid" x="4" y="113.5" width="22" height="50"/>
-<rect class="hid" x="37.5" y="73" width="24" height="93"/>
-<line class="hid" x1="4" y1="110" x2="4" y2="12"/>
-<rect class="hid" x="4" y="118.46" width="4" height="12"/>
+<rect class="hid" x="4" y="143.06" width="14.8" height="32.54"/>
+<rect class="hid" x="4" y="125.1" width="22" height="50"/>
+<rect class="hid" x="37.5" y="83.6" width="24" height="93"/>
+<line class="hid" x1="4" y1="120" x2="4" y2="12"/>
+<rect class="hid" x="4" y="129.06" width="4" height="12"/>
 <rect class="hid" x="21.3" y="8.5" width="25.4" height="2"/>
 </g>
 <g id="asm-side-dims">
-<line class="ctr" x1="-10" y1="138.5" x2="74" y2="138.5"/>
+<line class="ctr" x1="-10" y1="150.1" x2="74" y2="150.1"/>
 <line class="ext" x1="0" y1="0" x2="0" y2="-32"/><line class="ext" x1="64" y1="0" x2="64" y2="-32"/><line class="dim" x1="0" y1="-30" x2="64" y2="-30" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="32" y="-31.4" text-anchor="middle">64</text>
-<line class="ext" x1="64" y1="0" x2="106" y2="0"/><line class="ext" x1="64" y1="170" x2="106" y2="170"/><line class="dim" x1="104" y1="0" x2="104" y2="170" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="102.6" y="85" text-anchor="middle" transform="rotate(-90 102.6 85)">170</text>
-<line class="ext" x1="0" y1="170" x2="0" y2="184"/><line class="ext" x1="4" y1="170" x2="4" y2="184"/><line class="dim" x1="-7" y1="182" x2="0" y2="182" marker-start="url(#arw)"/><line class="dim" x1="4" y1="182" x2="11" y2="182" marker-end="url(#arw)"/><line class="dim" x1="0" y1="182" x2="4" y2="182"/><text class="dtx" x="-8.5" y="183.2" text-anchor="end">4</text>
-<line class="ext" x1="2.8" y1="166" x2="-16" y2="166"/><line class="ext" x1="2.8" y1="170" x2="-16" y2="170"/><line class="dim" x1="-14" y1="159" x2="-14" y2="166" marker-start="url(#arw)"/><line class="dim" x1="-14" y1="170" x2="-14" y2="177" marker-end="url(#arw)"/><line class="dim" x1="-14" y1="166" x2="-14" y2="170"/><text class="dtx" x="-15.4" y="179" text-anchor="middle" transform="rotate(-90 -15.4 179)">4</text>
+<line class="ext" x1="64" y1="0" x2="106" y2="0"/><line class="ext" x1="64" y1="180.6" x2="106" y2="180.6"/><line class="dim" x1="104" y1="0" x2="104" y2="180.6" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="102.6" y="90.3" text-anchor="middle" transform="rotate(-90 102.6 90.3)">180.6</text>
+<line class="ext" x1="0" y1="180.6" x2="0" y2="194.6"/><line class="ext" x1="4" y1="180.6" x2="4" y2="194.6"/><line class="dim" x1="-7" y1="192.6" x2="0" y2="192.6" marker-start="url(#arw)"/><line class="dim" x1="4" y1="192.6" x2="11" y2="192.6" marker-end="url(#arw)"/><line class="dim" x1="0" y1="192.6" x2="4" y2="192.6"/><text class="dtx" x="-8.5" y="193.8" text-anchor="end">4</text>
+<line class="ext" x1="2.8" y1="176.6" x2="-16" y2="176.6"/><line class="ext" x1="2.8" y1="180.6" x2="-16" y2="180.6"/><line class="dim" x1="-14" y1="169.6" x2="-14" y2="176.6" marker-start="url(#arw)"/><line class="dim" x1="-14" y1="180.6" x2="-14" y2="187.6" marker-end="url(#arw)"/><line class="dim" x1="-14" y1="176.6" x2="-14" y2="180.6"/><text class="dtx" x="-15.4" y="189.6" text-anchor="middle" transform="rotate(-90 -15.4 189.6)">4</text>
 <line class="dim" x1="62.828" y1="1.172" x2="86.828" y2="-6.828" marker-start="url(#arw)"/><line class="dim" x1="86.828" y1="-6.828" x2="92.828" y2="-6.828"/><text class="dtx" x="94.028" y="-5.728" text-anchor="start">R4 edge break</text>
-<line class="dim" x1="26" y1="47" x2="4" y2="27" marker-start="url(#arw)"/><line class="dim" x1="4" y1="27" x2="-2" y2="27"/><text class="dtx" x="-3.2" y="28.1" text-anchor="end">copper touch pad (far + near shoulder)</text>
-<line class="dim" x1="6" y1="125" x2="-14" y2="155" marker-start="url(#arw)"/><line class="dim" x1="-14" y1="155" x2="-20" y2="155"/><text class="dtx" x="-21.2" y="156.1" text-anchor="end">side groove, 57 of straight travel</text>
-<line class="dim" x1="64" y1="31" x2="88" y2="21" marker-start="url(#arw)"/><line class="dim" x1="88" y1="21" x2="94" y2="21"/><text class="dtx" x="95.2" y="22.1" text-anchor="start">rear wall: vents, lux, barrel jack</text>
-<line class="dim" x1="64" y1="70" x2="88" y2="76" marker-start="url(#arw)"/><line class="dim" x1="88" y1="76" x2="94" y2="76"/><text class="dtx" x="95.2" y="77.1" text-anchor="start">- all centred, see REAR view</text>
-<line class="dim" x1="18.8" y1="165" x2="4.8" y2="217" marker-start="url(#arw)"/><line class="dim" x1="4.8" y1="217" x2="-1.2" y2="217"/><text class="dtx" x="-2.4" y="218.1" text-anchor="end">4  matrix tray, depth 14.8</text>
-<line class="ext" x1="4" y1="165" x2="4" y2="174"/><line class="ext" x1="18.8" y1="165" x2="18.8" y2="174"/><line class="dim" x1="4" y1="172" x2="18.8" y2="172" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="11.4" y="170.6" text-anchor="middle">14.8</text>
-<line class="ext" x1="61.5" y1="73" x2="88" y2="73"/><line class="ext" x1="61.5" y1="166" x2="88" y2="166"/><line class="dim" x1="86" y1="73" x2="86" y2="166" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="84.6" y="119.5" text-anchor="middle" transform="rotate(-90 84.6 119.5)">93</text>
+<line class="dim" x1="26" y1="57.6" x2="4" y2="37.6" marker-start="url(#arw)"/><line class="dim" x1="4" y1="37.6" x2="-2" y2="37.6"/><text class="dtx" x="-3.2" y="38.7" text-anchor="end">copper touch pad (far + near shoulder)</text>
+<line class="dim" x1="6" y1="135.15" x2="-14" y2="165.15" marker-start="url(#arw)"/><line class="dim" x1="-14" y1="165.15" x2="-20" y2="165.15"/><text class="dtx" x="-21.2" y="166.25" text-anchor="end">side groove, 57 of straight travel</text>
+<line class="dim" x1="64" y1="41.6" x2="88" y2="31.6" marker-start="url(#arw)"/><line class="dim" x1="88" y1="31.6" x2="94" y2="31.6"/><text class="dtx" x="95.2" y="32.7" text-anchor="start">rear wall: vents, lux, barrel jack</text>
+<line class="dim" x1="64" y1="80.6" x2="88" y2="86.6" marker-start="url(#arw)"/><line class="dim" x1="88" y1="86.6" x2="94" y2="86.6"/><text class="dtx" x="95.2" y="87.7" text-anchor="start">- all centred, see REAR view</text>
+<line class="dim" x1="18.8" y1="175.6" x2="4.8" y2="227.6" marker-start="url(#arw)"/><line class="dim" x1="4.8" y1="227.6" x2="-1.2" y2="227.6"/><text class="dtx" x="-2.4" y="228.7" text-anchor="end">4  matrix tray, depth 14.8</text>
+<line class="ext" x1="4" y1="175.6" x2="4" y2="184.6"/><line class="ext" x1="18.8" y1="175.6" x2="18.8" y2="184.6"/><line class="dim" x1="4" y1="182.6" x2="18.8" y2="182.6" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="11.4" y="181.2" text-anchor="middle">14.8</text>
+<line class="ext" x1="61.5" y1="83.6" x2="88" y2="83.6"/><line class="ext" x1="61.5" y1="176.6" x2="88" y2="176.6"/><line class="dim" x1="86" y1="83.6" x2="86" y2="176.6" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="84.6" y="130.1" text-anchor="middle" transform="rotate(-90 84.6 130.1)">93</text>
 <line class="ctr" x1="34" y1="-26" x2="34" y2="6"/>
 <line class="ext" x1="0" y1="0" x2="0" y2="-27"/><line class="ext" x1="34" y1="0" x2="34" y2="-27"/><line class="dim" x1="0" y1="-25" x2="34" y2="-25" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="17" y="-26.4" text-anchor="middle">34</text>
 <line class="dim" x1="51" y1="-11" x2="81" y2="-17" marker-start="url(#arw)"/><line class="dim" x1="81" y1="-17" x2="87" y2="-17"/><text class="dtx" x="88.2" y="-15.9" text-anchor="start">5  knob</text>
-<text class="note" x="32" y="200" text-anchor="middle">flat top - the crown is a cylinder,</text>
-<text class="note" x="32" y="205" text-anchor="middle">so it only curves in FRONT</text>
+<text class="note" x="32" y="210.6" text-anchor="middle">flat top - the crown is a cylinder,</text>
+<text class="note" x="32" y="215.6" text-anchor="middle">so it only curves in FRONT</text>
 </g>
 </g>
 </g>
@@ -302,119 +296,119 @@
 <g id="EXP-TOP" transform="translate(660,90)">
 <text class="lbl" x="0" y="-38" text-anchor="start">TOP</text>
 <g id="exp-top-dome">
-<path class="obj" d="M5,0 H215 A5,5 0 0 1 220,5 V59 A5,5 0 0 1 215,64 H5 A5,5 0 0 1 0,59 V5 A5,5 0 0 1 5,0 Z"/>
-<path class="hid" d="M5,2.5 H215 A2.5,2.5 0 0 1 217.5,5 V59 A2.5,2.5 0 0 1 215,61.5 H5 A2.5,2.5 0 0 1 2.5,59 V5 A2.5,2.5 0 0 1 5,2.5 Z"/>
-<circle class="hid" cx="110" cy="34" r="3.5"/>
-<circle class="phan" cx="110" cy="34" r="15"/>
-<circle class="obj" cx="133.1" cy="34" r="1.75"/>
-<path class="hid" d="M5.067,6 H21.067 A3,3 0 0 1 24.067,9 V43 A3,3 0 0 1 21.067,46 H5.067 A3,3 0 0 1 2.067,43 V9 A3,3 0 0 1 5.067,6 Z"/>
-<path class="hid" d="M198.933,6 H214.933 A3,3 0 0 1 217.933,9 V43 A3,3 0 0 1 214.933,46 H198.933 A3,3 0 0 1 195.933,43 V9 A3,3 0 0 1 198.933,6 Z"/>
-<rect class="obj" x="0" y="57.6" width="2.51" height="4.4"/>
-<rect class="obj" x="210.6" y="57.6" width="2.51" height="4.4"/>
-<line class="ctr" x1="110" y1="2" x2="110" y2="62"/>
+<path class="obj" d="M5,0 H235 A5,5 0 0 1 240,5 V59 A5,5 0 0 1 235,64 H5 A5,5 0 0 1 0,59 V5 A5,5 0 0 1 5,0 Z"/>
+<path class="hid" d="M5,2.5 H235 A2.5,2.5 0 0 1 237.5,5 V59 A2.5,2.5 0 0 1 235,61.5 H5 A2.5,2.5 0 0 1 2.5,59 V5 A2.5,2.5 0 0 1 5,2.5 Z"/>
+<circle class="hid" cx="120" cy="34" r="3.5"/>
+<circle class="phan" cx="120" cy="34" r="15"/>
+<circle class="obj" cx="143.1" cy="34" r="1.75"/>
+<path class="hid" d="M3.566,6 H19.566 A3,3 0 0 1 22.566,9 V43 A3,3 0 0 1 19.566,46 H3.566 A3,3 0 0 1 0.566,43 V9 A3,3 0 0 1 3.566,6 Z"/>
+<path class="hid" d="M220.434,6 H236.434 A3,3 0 0 1 239.434,9 V43 A3,3 0 0 1 236.434,46 H220.434 A3,3 0 0 1 217.434,43 V9 A3,3 0 0 1 220.434,6 Z"/>
+<rect class="obj" x="0" y="57.6" width="2.51" height="5.6"/>
+<rect class="obj" x="230.6" y="57.6" width="2.51" height="5.6"/>
+<line class="ctr" x1="120" y1="2" x2="120" y2="62"/>
 </g>
 <g id="exp-top-knob">
-<circle class="obj" cx="110" cy="34" r="17"/>
+<circle class="obj" cx="120" cy="34" r="17"/>
 </g>
 <g id="exp-top-matrix-tray">
-<rect class="obj" x="64.52" y="77.2" width="90.96" height="14.8"/>
+<rect class="obj" x="74.52" y="77.2" width="90.96" height="14.8"/>
 </g>
 <g id="exp-top-front-plate">
-<path class="obj" d="M4,100 H216 A1,1 0 0 1 217,101 V103 A1,1 0 0 1 216,104 H4 A1,1 0 0 1 3,103 V101 A1,1 0 0 1 4,100 Z"/>
+<path class="obj" d="M4.6,100 H235.4 A1,1 0 0 1 236.4,101 V103 A1,1 0 0 1 235.4,104 H4.6 A1,1 0 0 1 3.6,103 V101 A1,1 0 0 1 4.6,100 Z"/>
 </g>
 <g id="exp-top-bottom-plate">
-<path class="hid" d="M5.3,2.8 H214.7 A2.5,2.5 0 0 1 217.2,5.3 V58.7 A2.5,2.5 0 0 1 214.7,61.2 H5.3 A2.5,2.5 0 0 1 2.8,58.7 V5.3 A2.5,2.5 0 0 1 5.3,2.8 Z"/>
+<path class="hid" d="M5.3,2.8 H234.7 A2.5,2.5 0 0 1 237.2,5.3 V58.7 A2.5,2.5 0 0 1 234.7,61.2 H5.3 A2.5,2.5 0 0 1 2.8,58.7 V5.3 A2.5,2.5 0 0 1 5.3,2.8 Z"/>
 </g>
 <g id="exp-top-trajectory">
-<line class="traj" x1="11" y1="60" x2="11" y2="100"/>
-<line class="traj" x1="209" y1="60" x2="209" y2="100"/>
-<line class="traj" x1="110" y1="45.2" x2="110" y2="77.2"/>
-<line class="dim" x1="238" y1="60" x2="238" y2="100" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="236.6" y="80" text-anchor="middle" transform="rotate(-90 236.6 80)">explode 40</text>
+<line class="traj" x1="11.6" y1="60" x2="11.6" y2="100"/>
+<line class="traj" x1="228.4" y1="60" x2="228.4" y2="100"/>
+<line class="traj" x1="120" y1="45.2" x2="120" y2="77.2"/>
+<line class="dim" x1="258" y1="60" x2="258" y2="100" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="256.6" y="80" text-anchor="middle" transform="rotate(-90 256.6 80)">explode 40</text>
 </g>
 <g id="exp-top-balloons">
-<line class="dim" x1="171.6" y1="5.5" x2="246" y2="-14" marker-start="url(#arw)"/><circle class="bal" cx="246" cy="-14" r="4.6"/><text class="balt" x="246" y="-12.4" text-anchor="middle">1</text>
-<line class="dim" x1="122.07" y1="21.93" x2="246" y2="-1" marker-start="url(#arw)"/><circle class="bal" cx="246" cy="-1" r="4.6"/><text class="balt" x="246" y="0.6" text-anchor="middle">5</text>
-<line class="dim" x1="176" y1="102" x2="246" y2="110" marker-start="url(#arw)"/><circle class="bal" cx="246" cy="110" r="4.6"/><text class="balt" x="246" y="111.6" text-anchor="middle">2</text>
-<line class="dim" x1="70.52" y1="84.6" x2="-24" y2="78" marker-start="url(#arw)"/><circle class="bal" cx="-24" cy="78" r="4.6"/><text class="balt" x="-24" y="79.6" text-anchor="middle">4</text>
+<line class="dim" x1="187.2" y1="5.5" x2="266" y2="-14" marker-start="url(#arw)"/><circle class="bal" cx="266" cy="-14" r="4.6"/><text class="balt" x="266" y="-12.4" text-anchor="middle">1</text>
+<line class="dim" x1="132.07" y1="21.93" x2="266" y2="-1" marker-start="url(#arw)"/><circle class="bal" cx="266" cy="-1" r="4.6"/><text class="balt" x="266" y="0.6" text-anchor="middle">5</text>
+<line class="dim" x1="192" y1="102" x2="266" y2="110" marker-start="url(#arw)"/><circle class="bal" cx="266" cy="110" r="4.6"/><text class="balt" x="266" y="111.6" text-anchor="middle">2</text>
+<line class="dim" x1="80.52" y1="84.6" x2="-24" y2="78" marker-start="url(#arw)"/><circle class="bal" cx="-24" cy="78" r="4.6"/><text class="balt" x="-24" y="79.6" text-anchor="middle">4</text>
 </g>
 </g>
 <g id="EXP-FRONT" transform="translate(660,270)">
 <text class="lbl" x="0" y="-62" text-anchor="start">FRONT</text>
 <g id="exp-front-dome">
-<path class="obj" d="M0,164 V110 A110,110 0 0 1 220,110 V164 A6,6 0 0 1 214,170 H6 A6,6 0 0 1 0,164 Z"/>
-<path class="obj" d="M7.5,161.5 V110 A102.5,102.5 0 0 1 212.5,110 V161.5 A1,1 0 0 1 211.5,162.5 H8.5 A1,1 0 0 1 7.5,161.5 Z"/>
+<path class="obj" d="M0,174.6 V120 A120,120 0 0 1 240,120 V174.6 A6,6 0 0 1 234,180.6 H6 A6,6 0 0 1 0,174.6 Z"/>
+<path class="obj" d="M7.5,172.1 V120 A112.5,112.5 0 0 1 232.5,120 V172.1 A1,1 0 0 1 231.5,173.1 H8.5 A1,1 0 0 1 7.5,172.1 Z"/>
 </g>
 <g id="exp-front-knob">
-<path class="obj" d="M96,-20 A17,12.761 0 1 1 124,-20 Z"/>
+<path class="obj" d="M106,-20 A17,12.761 0 1 1 134,-20 Z"/>
 </g>
 <g id="exp-front-front-plate">
-<path class="hid" d="M3,164 V110 A107,107 0 0 1 217,110 V164 A3,3 0 0 1 214,167 H6 A3,3 0 0 1 3,164 Z"/>
-<path class="obj" d="M12,110 A98,98 0 0 1 208,110 Z"/>
-<path class="obj" d="M70,137.23 H150 A2,2 0 0 1 152,139.23 V158.23 A2,2 0 0 1 150,160.23 H70 A2,2 0 0 1 68,158.23 V139.23 A2,2 0 0 1 70,137.23 Z"/>
-<circle class="obj" cx="29" cy="138.5" r="20"/>
-<circle class="obj" cx="191" cy="138.5" r="20"/>
-<circle class="obj" cx="60.5" cy="124.46" r="1.25"/>
-<circle class="obj" cx="93.5" cy="124.46" r="1.25"/>
-<circle class="obj" cx="126.5" cy="124.46" r="1.25"/>
-<circle class="obj" cx="159.5" cy="124.46" r="1.25"/>
+<path class="hid" d="M3.6,174.6 V120 A116.4,116.4 0 0 1 236.4,120 V174.6 A2.4,2.4 0 0 1 234,177 H6 A2.4,2.4 0 0 1 3.6,174.6 Z"/>
+<path class="obj" d="M12,120 A108,108 0 0 1 228,120 Z"/>
+<path class="obj" d="M80,147.83 H160 A2,2 0 0 1 162,149.83 V168.83 A2,2 0 0 1 160,170.83 H80 A2,2 0 0 1 78,168.83 V149.83 A2,2 0 0 1 80,147.83 Z"/>
+<circle class="obj" cx="32.6" cy="150.1" r="20"/>
+<circle class="obj" cx="207.4" cy="150.1" r="20"/>
+<circle class="obj" cx="70.5" cy="135.06" r="1.25"/>
+<circle class="obj" cx="103.5" cy="135.06" r="1.25"/>
+<circle class="obj" cx="136.5" cy="135.06" r="1.25"/>
+<circle class="obj" cx="169.5" cy="135.06" r="1.25"/>
 </g>
 <g id="exp-front-bottom-plate">
-<path class="obj" d="M4.3,204 H215.7 A1.5,1.5 0 0 1 217.2,205.5 V206.5 A1.5,1.5 0 0 1 215.7,208 H4.3 A1.5,1.5 0 0 1 2.8,206.5 V205.5 A1.5,1.5 0 0 1 4.3,204 Z"/>
+<path class="obj" d="M4.3,214.6 H235.7 A1.5,1.5 0 0 1 237.2,216.1 V217.1 A1.5,1.5 0 0 1 235.7,218.6 H4.3 A1.5,1.5 0 0 1 2.8,217.1 V216.1 A1.5,1.5 0 0 1 4.3,214.6 Z"/>
 </g>
 <g id="exp-front-trajectory">
-<line class="traj" x1="12.8" y1="170" x2="12.8" y2="208"/>
-<line class="traj" x1="207.2" y1="170" x2="207.2" y2="208"/>
-<line class="traj" x1="110" y1="-20" x2="110" y2="4"/>
-<line class="dim" x1="-18" y1="170" x2="-18" y2="208" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="-19.4" y="189" text-anchor="middle" transform="rotate(-90 -19.4 189)">drop 38</text>
-<text class="note" x="110" y="224" text-anchor="middle">front plate + tray separate along Z - see TOP / SIDE</text>
+<line class="traj" x1="12.8" y1="180.6" x2="12.8" y2="218.6"/>
+<line class="traj" x1="227.2" y1="180.6" x2="227.2" y2="218.6"/>
+<line class="traj" x1="120" y1="-20" x2="120" y2="4"/>
+<line class="dim" x1="-18" y1="180.6" x2="-18" y2="218.6" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="-19.4" y="199.6" text-anchor="middle" transform="rotate(-90 -19.4 199.6)">drop 38</text>
+<text class="note" x="120" y="234.6" text-anchor="middle">front plate + tray separate along Z - see TOP / SIDE</text>
 </g>
 <g id="exp-front-balloons">
-<line class="dim" x1="93" y1="-30" x2="-26" y2="-24" marker-start="url(#arw)"/><circle class="bal" cx="-26" cy="-24" r="4.6"/><text class="balt" x="-26" y="-22.4" text-anchor="middle">5</text>
-<line class="dim" x1="1.5" y1="125" x2="-26" y2="113" marker-start="url(#arw)"/><circle class="bal" cx="-26" cy="113" r="4.6"/><text class="balt" x="-26" y="114.6" text-anchor="middle">1</text>
-<line class="dim" x1="25.72" y1="86" x2="-26" y2="70" marker-start="url(#arw)"/><circle class="bal" cx="-26" cy="70" r="4.6"/><text class="balt" x="-26" y="71.6" text-anchor="middle">2</text>
-<line class="dim" x1="20.8" y1="210" x2="-26" y2="212" marker-start="url(#arw)"/><circle class="bal" cx="-26" cy="212" r="4.6"/><text class="balt" x="-26" y="213.6" text-anchor="middle">3</text>
+<line class="dim" x1="103" y1="-30" x2="-26" y2="-24" marker-start="url(#arw)"/><circle class="bal" cx="-26" cy="-24" r="4.6"/><text class="balt" x="-26" y="-22.4" text-anchor="middle">5</text>
+<line class="dim" x1="1.8" y1="135.15" x2="-26" y2="123.03" marker-start="url(#arw)"/><circle class="bal" cx="-26" cy="123.03" r="4.6"/><text class="balt" x="-26" y="124.63" text-anchor="middle">1</text>
+<line class="dim" x1="27.12" y1="96" x2="-26" y2="80" marker-start="url(#arw)"/><circle class="bal" cx="-26" cy="80" r="4.6"/><text class="balt" x="-26" y="81.6" text-anchor="middle">2</text>
+<line class="dim" x1="20.8" y1="220.6" x2="-26" y2="222.6" marker-start="url(#arw)"/><circle class="bal" cx="-26" cy="222.6" r="4.6"/><text class="balt" x="-26" y="224.2" text-anchor="middle">3</text>
 </g>
 </g>
-<g id="EXP-SIDE" transform="translate(950,270)">
+<g id="EXP-SIDE" transform="translate(970,270)">
 <text class="lbl" x="0" y="-62" text-anchor="start">RIGHT SIDE</text>
 <g id="exp-side-dome">
-<path class="obj" d="M4,0 H60 A4,4 0 0 1 64,4 V166 A4,4 0 0 1 60,170 H4 A4,4 0 0 1 0,166 V4 A4,4 0 0 1 4,0 Z"/>
-<line class="hid" x1="4" y1="7.5" x2="4" y2="162.5"/>
+<path class="obj" d="M4,0 H60 A4,4 0 0 1 64,4 V176.6 A4,4 0 0 1 60,180.6 H4 A4,4 0 0 1 0,176.6 V4 A4,4 0 0 1 4,0 Z"/>
+<line class="hid" x1="4" y1="8.1" x2="4" y2="172.5"/>
 <line class="hid" x1="19" y1="0" x2="49" y2="0"/>
-<rect class="hid" x="61.5" y="68" width="2.5" height="4"/>
-<rect class="hid" x="61.5" y="150.5" width="2.5" height="11"/>
-<rect class="hid" x="61.5" y="50.75" width="2.5" height="2.5"/>
-<rect class="hid" x="61.5" y="43.75" width="2.5" height="2.5"/>
-<rect class="hid" x="61.5" y="36.75" width="2.5" height="2.5"/>
-<rect class="hid" x="61.5" y="29.75" width="2.5" height="2.5"/>
+<rect class="hid" x="61.5" y="78.6" width="2.5" height="4"/>
+<rect class="hid" x="61.5" y="161.1" width="2.5" height="11"/>
+<rect class="hid" x="61.5" y="61.35" width="2.5" height="2.5"/>
+<rect class="hid" x="61.5" y="54.35" width="2.5" height="2.5"/>
+<rect class="hid" x="61.5" y="47.35" width="2.5" height="2.5"/>
+<rect class="hid" x="61.5" y="40.35" width="2.5" height="2.5"/>
 </g>
 <g id="exp-side-knob">
 <path class="obj" d="M20,-20 A17,12.761 0 1 1 48,-20 Z"/>
 </g>
 <g id="exp-side-front-plate">
-<path class="obj" d="M-39,3 H-37 A1,1 0 0 1 -36,4 V166 A1,1 0 0 1 -37,167 H-39 A1,1 0 0 1 -40,166 V4 A1,1 0 0 1 -39,3 Z"/>
+<path class="obj" d="M-39,3.6 H-37 A1,1 0 0 1 -36,4.6 V176 A1,1 0 0 1 -37,177 H-39 A1,1 0 0 1 -40,176 V4.6 A1,1 0 0 1 -39,3.6 Z"/>
 </g>
 <g id="exp-side-matrix-tray">
-<rect class="obj" x="-20" y="132.46" width="14.8" height="32.54"/>
+<rect class="obj" x="-20" y="143.06" width="14.8" height="32.54"/>
 </g>
 <g id="exp-side-bottom-plate">
-<path class="obj" d="M3.8,204 H60.2 A1,1 0 0 1 61.2,205 V207 A1,1 0 0 1 60.2,208 H3.8 A1,1 0 0 1 2.8,207 V205 A1,1 0 0 1 3.8,204 Z"/>
+<path class="obj" d="M3.8,214.6 H60.2 A1,1 0 0 1 61.2,215.6 V217.6 A1,1 0 0 1 60.2,218.6 H3.8 A1,1 0 0 1 2.8,217.6 V215.6 A1,1 0 0 1 3.8,214.6 Z"/>
 </g>
 <g id="exp-side-trajectory">
-<line class="traj" x1="-40" y1="116" x2="6" y2="116"/>
-<line class="traj" x1="-20" y1="148.73" x2="6" y2="148.73"/>
-<line class="traj" x1="8.8" y1="170" x2="8.8" y2="208"/>
-<line class="traj" x1="55.2" y1="170" x2="55.2" y2="208"/>
+<line class="traj" x1="-40" y1="126.06" x2="6" y2="126.06"/>
+<line class="traj" x1="-20" y1="159.33" x2="6" y2="159.33"/>
+<line class="traj" x1="8.8" y1="180.6" x2="8.8" y2="218.6"/>
+<line class="traj" x1="55.2" y1="180.6" x2="55.2" y2="218.6"/>
 <line class="traj" x1="34" y1="-20" x2="34" y2="4"/>
 <line class="dim" x1="-40" y1="-50" x2="0" y2="-50" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="-20" y="-51.4" text-anchor="middle">explode 40</text>
-<line class="dim" x1="82" y1="170" x2="82" y2="208" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="80.6" y="189" text-anchor="middle" transform="rotate(-90 80.6 189)">drop 38</text>
+<line class="dim" x1="82" y1="180.6" x2="82" y2="218.6" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="80.6" y="199.6" text-anchor="middle" transform="rotate(-90 80.6 199.6)">drop 38</text>
 </g>
 <g id="exp-side-balloons">
 <line class="dim" x1="51" y1="-30" x2="82" y2="-26" marker-start="url(#arw)"/><circle class="bal" cx="82" cy="-26" r="4.6"/><text class="balt" x="82" y="-24.4" text-anchor="middle">5</text>
-<line class="dim" x1="58" y1="86" x2="82" y2="107" marker-start="url(#arw)"/><circle class="bal" cx="82" cy="107" r="4.6"/><text class="balt" x="82" y="108.6" text-anchor="middle">1</text>
-<line class="dim" x1="-38" y1="95" x2="-60" y2="80" marker-start="url(#arw)"/><circle class="bal" cx="-60" cy="80" r="4.6"/><text class="balt" x="-60" y="81.6" text-anchor="middle">2</text>
-<line class="dim" x1="43.68" y1="210" x2="82" y2="214" marker-start="url(#arw)"/><circle class="bal" cx="82" cy="214" r="4.6"/><text class="balt" x="82" y="215.6" text-anchor="middle">3</text>
-<line class="dim" x1="-12.6" y1="148.73" x2="-60" y2="174.73" marker-start="url(#arw)"/><circle class="bal" cx="-60" cy="174.73" r="4.6"/><text class="balt" x="-60" y="176.33" text-anchor="middle">4</text>
+<line class="dim" x1="58" y1="95.76" x2="82" y2="116.97" marker-start="url(#arw)"/><circle class="bal" cx="82" cy="116.97" r="4.6"/><text class="balt" x="82" y="118.57" text-anchor="middle">1</text>
+<line class="dim" x1="-38" y1="104.85" x2="-60" y2="89.7" marker-start="url(#arw)"/><circle class="bal" cx="-60" cy="89.7" r="4.6"/><text class="balt" x="-60" y="91.3" text-anchor="middle">2</text>
+<line class="dim" x1="43.68" y1="220.6" x2="82" y2="224.6" marker-start="url(#arw)"/><circle class="bal" cx="82" cy="224.6" r="4.6"/><text class="balt" x="82" y="226.2" text-anchor="middle">3</text>
+<line class="dim" x1="-12.6" y1="159.33" x2="-60" y2="185.33" marker-start="url(#arw)"/><circle class="bal" cx="-60" cy="185.33" r="4.6"/><text class="balt" x="-60" y="186.93" text-anchor="middle">4</text>
 </g>
 </g>
 </g>
@@ -422,18 +416,18 @@
 <text class="note" x="0" y="0" text-anchor="start">(parts key: see the LEGEND box)</text>
 <text class="lbl" x="0" y="6.6" text-anchor="start">NOTES</text>
 <text class="note" x="0" y="13.2" text-anchor="start">a   Third-angle projection, mm, 1:1. (?) marks an unconfirmed value - measure it before you commit geometry.</text>
-<text class="note" x="0" y="17.9" text-anchor="start">b   THE FORM IS DRIVEN BY THE CRESCENT. The shell arc R110 and the LED crescent R98 are CONCENTRIC about</text>
-<text class="note" x="0" y="22.6" text-anchor="start">    (110, 60), giving a constant 12 mm rim - 9 of it on the front plate. The arc radius is W/2, so</text>
-<text class="note" x="0" y="27.3" text-anchor="start">    the rim is set by W alone: rim = W/2 - 98. Widen the body and the rim widens with it.</text>
+<text class="note" x="0" y="17.9" text-anchor="start">b   THE FORM IS DRIVEN BY THE CRESCENT. The shell arc R120 and the LED crescent R108 are CONCENTRIC about</text>
+<text class="note" x="0" y="22.6" text-anchor="start">    (120, 60.6), giving a constant 12 mm rim - 8.4 of it on the front plate. The arc radius is W/2, so</text>
+<text class="note" x="0" y="27.3" text-anchor="start">    the rim is set by W alone: rim = W/2 - 108. Widen the body and the rim widens with it.</text>
 <text class="note" x="0" y="32" text-anchor="start">c   The crown is a CYLINDER, not a sphere - it curves in FRONT only. SIDE is a flat-topped box with an R4 edge break.</text>
-<text class="note" x="0" y="36.7" text-anchor="start">d   W AND H ARE BOTH DERIVED, NOT CHOSEN. Bottom-up: floor 4 | tray 5-37.5 and speakers 9-54 side by side |</text>
-<text class="note" x="0" y="41.4" text-anchor="start">    mic array 39.5-51.5 spanning above them | crescent from 60. W is then set by the SPEAKER BODY: it has to fit</text>
-<text class="note" x="0" y="46.1" text-anchor="start">    between the plate edge and the 91 tray, so W = 2 x (edge + clr + 50 + clr + half-tray) = 220.</text>
-<text class="note" x="0" y="50.8" text-anchor="start">e   >>> WIDENING ALSO HEIGHTENS. The arc radius IS W/2, so H = W/2 + 60 = 170. Every +2 mm of width buys +1 mm of height.</text>
+<text class="note" x="0" y="36.7" text-anchor="start">d   W AND H ARE BOTH DERIVED, NOT CHOSEN. Bottom-up: floor 4 | tray 5-37.5 and speakers 8-53 side by side |</text>
+<text class="note" x="0" y="41.4" text-anchor="start">    mic array 39.5-51.5 spanning above them | crescent from 60.6. W is then set by the SPEAKER BODY: it has to fit</text>
+<text class="note" x="0" y="46.1" text-anchor="start">    between the plate edge and the 91 tray, so W = 2 x (edge + clr + 50 + clr + half-tray) = 240.</text>
+<text class="note" x="0" y="50.8" text-anchor="start">e   >>> WIDENING ALSO HEIGHTENS. The arc radius IS W/2, so H = W/2 + 60.6 = 180.6. Every +2 mm of width buys +1 mm of height.</text>
 <text class="note" x="0" y="55.5" text-anchor="start">    The 110 array is WIDER than the 91 tray, so it cannot sit between the speakers - it spans above the whole cluster.</text>
-<text class="note" x="0" y="60.2" text-anchor="start">    That is the cheaper arrangement: outboard would need W = 220 and a 30 mm rim; above gives W = 220 and a 12 mm rim for 3.5 mm more height.</text>
-<text class="note" x="0" y="64.9" text-anchor="start">f   Speakers are Seeed Mono Enclosed 4R 5W: a SEALED BOX 50 x 45 x 22, not a bare cone. They clear the tray by 10.5 mm and</text>
-<text class="note" x="0" y="69.6" text-anchor="start">    the crescent by 2 mm and the mic array by 1 mm. A wider body grows W and H together.</text>
+<text class="note" x="0" y="60.2" text-anchor="start">    That is the cheaper arrangement: outboard would need W = 220 and a 30 mm rim; above gives W = 240 and a 12 mm rim for 3.5 mm more height.</text>
+<text class="note" x="0" y="64.9" text-anchor="start">f   Speakers are Seeed Mono Enclosed 4R 5W: a SEALED BOX 50 x 45 x 22, not a bare cone. They clear the tray by 16.9 mm and</text>
+<text class="note" x="0" y="69.6" text-anchor="start">    the crescent by 4.6 mm and the mic array by 4.4 mm. A wider body grows W and H together.</text>
 <text class="note" x="0" y="74.3" text-anchor="start">g   UPS 3S BOARD STANDS VERTICALLY. It is a 60 x 93 board and 93 will not lie down in a 59 interior, so the</text>
 <text class="note" x="0" y="79" text-anchor="start">    whole board stands against the rear wall, 24 deep (?). That also puts its 12.6 V barrel jack on the wall that has the cutout.</text>
 <text class="note" x="0" y="83.7" text-anchor="start">h   Clock zone eats 18.8 of the 64 depth (plate 4 + tray 14.8); ReSpeaker Flex + XIAO sit in the remaining 18.7 mm.</text>
@@ -444,7 +438,7 @@
 <text class="note" x="0" y="107.2" text-anchor="start">k   ToF sits on the crown beside the knob, board turned LONGWISE front-to-back so its 17.8 edge clears the 25.4 encoder</text>
 <text class="note" x="0" y="111.9" text-anchor="start">    board by 1.5 mm. Pinhole lands 6.1 mm right of the knob's widest point. Confirm where the chip sits on YOUR breakout -</text>
 <text class="note" x="0" y="116.6" text-anchor="start">    the drawing assumes it is centred on the board.</text>
-<text class="note" x="0" y="121.3" text-anchor="start">l   Front plate seats into a rebate in the dome lip (4.5 wide, 3 reveal all round).</text>
+<text class="note" x="0" y="121.3" text-anchor="start">l   Front plate seats into a rebate in the dome lip (4.5 wide, 3.6 reveal all round).</text>
 </g>
 <g id="PARTS-LEGEND" transform="translate(330,560)">
 <rect class="tb" x="0" y="0" width="200.2" height="59"/>
@@ -477,7 +471,7 @@
 <text class="note" x="6" y="34" text-anchor="start">PROJECTION   third angle</text>
 <text class="note" x="6" y="41" text-anchor="start">UNITS   mm        SCALE   1:1</text>
 <text class="note" x="125" y="34" text-anchor="start">ENVELOPE</text>
-<text class="note" x="125" y="41" text-anchor="start">220 W x 64 D x 170 H</text>
+<text class="note" x="125" y="41" text-anchor="start">240 W x 64 D x 180.6 H</text>
 <text class="note" x="6" y="56" text-anchor="start">PROJECT   Sound Machine (Faux Hatch)</text>
 <text class="note" x="125" y="56" text-anchor="start">CAD   Fusion 360</text>
 <text class="note" x="6" y="74" text-anchor="start">GENERATED BY   3d-print/gen_drawing.py</text>

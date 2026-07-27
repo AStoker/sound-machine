@@ -43,21 +43,25 @@ reach the XIAO's own USB-C. This is an accepted tradeoff.
 Row layout (bottom row first, flat side down), used by the Circadian Sunrise
 effect: widths 160/158/151/139/119/88/20 mm → **9 / 9 / 9 / 8 / 7 / 5 / 1 = 48**.
 
-> ### ⚠️ The crescent grew — this is an open firmware change
-> The crescent **scales with the enclosure** so the concentric rim stays at
-> 12 mm. At the current 220 mm body the radius is **R98, not R80**, which makes
-> it **58 px, not 48**:
+> ### ⚠️ Same 48 pixels, new row layout
+> **48 px is fixed** — it is the strip you have. But the crescent **scales with
+> the enclosure** so the concentric rim stays at 12 mm, and at the current 240 mm
+> body the radius is **R108, not R80**. The same 48 pixels therefore have to be
+> re-distributed over a bigger arc:
 >
-> | | R80 (as built) | R98 (drawing set) |
+> | | R80 (as built) | R108 (drawing set) |
 > |---|---|---|
-> | rows, bottom-first | 160/158/151/139/119/88/20 | 196/193/184/168/143/103/0 |
-> | counts | 9/9/9/8/7/5/1 = **48** | 11/11/11/10/8/6/1 = **58** |
-> | draw at the 65% cap | ~1.9 A | ~2.3 A |
+> | rows, chord widths | 160/158/151/139/119/88/20 | 216/212/198/173/130/0 |
+> | counts | 9/9/9/8/7/5/1 = 48 | 11/11/10/9/6/1 = 48 |
+> | strip run per row | ~84% of the chord | ~77% of the chord |
 >
-> `packages/lighting.yaml` still says 48 px with the old row layout. It needs
-> updating to match whatever radius the enclosure lands on — and the power
-> budget below moves with it (~4.1 A of 5 A, up from ~3.7 A).
-> `gen_drawing.py` prints the current row table on every run.
+> Power is unchanged (~1.9 A at the 65% cap) because the pixel count is.
+> The cost is **density**: the strip spreads thinner, so the outer edge of the
+> diffuser runs dimmer than it does today. Shrink the crescent — accepting a
+> bigger rim — if that matters. `gen_drawing.py` prints the current table.
+>
+> `packages/lighting.yaml` still carries the R80 row layout, so the Circadian
+> Sunrise effect needs re-mapping to whichever radius the enclosure lands on.
 
 > **History / drift:** earlier design notes referenced a **144 LED/m** strip and
 > an **XL6009 boost converter** for the LED rail. The current build is **60 LED/m,
@@ -126,14 +130,14 @@ in the `battery_charging` sensor and drop the multiply filter.
 
 | Load | Worst-case draw |
 |------|-----------------|
-| SK6812 RGBW crescent, full all-channel white | ~2.9 A at 48 px; **~3.5 A at 58 px** |
+| 48× SK6812 RGBW, full all-channel white | ~2.9 A |
 | TPA2016 into 2× 4Ω at clipping | ~1.3 A (set by the 4Ω load, not the 5W driver rating) |
 | Flex + XVF3800 + ESP32-S3 + sensors | ~0.5 A |
 
 The crescent is **hard-capped at 65% of full white** in firmware
-(`led_max_pct`, applied via `color_correct`) → ~1.9 A for the strip at 48 px and
-~3.7 A total. **At the drawing set's 58 px that becomes ~2.3 A and ~4.1 A total**
-— still inside the 5 A budget, but the headroom is thinner. This is a physical PWM ceiling, not just a UI limit,
+(`led_max_pct`, applied via `color_correct`) → ~1.9 A for the strip, ~3.7 A
+total of the 5 A budget. Unchanged by the enclosure work: the pixel count stays
+at 48 however the crescent is reshaped. This is a physical PWM ceiling, not just a UI limit,
 and it also keeps the sealed dome from overheating.
 
 ---
@@ -248,7 +252,7 @@ everything reconnected, drop toward 10 kHz.
 
 ## Enclosure (context)
 
-Main body **~220×64×170 mm**. Form: a letter **"D" lying on its long flat side,
+Main body **~240×64×181 mm**. Form: a letter **"D" lying on its long flat side,
 extruded along the depth** — flat bottom, straight sides, semicircular top of
 radius `W/2`, **concentric with the LED crescent**. The crown is therefore a
 *cylinder*, not a sphere: it curves in front view and is flat in side view. Front
@@ -260,8 +264,8 @@ Access is via a bottom slide-in plate. CAD in Fusion 360.
 > of the 110 mm mic array: `W = 2 × (edge + clr + 50 + clr + 55) = 220`. The arc
 > radius *is* `W/2`, so `H = W/2 + CRES_Y`: **every 2 mm of width adds 1 mm of
 > height**. The crescent then follows the body (`R = W/2 − 12`) so the rim stays
-> constant. A narrower speaker shrinks everything: a 40 mm body gives
-> 200×64×160 with an R88 crescent.
+> constant, and its 48 pixels are re-laid over the new radius. A narrower speaker
+> shrinks everything: a 40 mm body gives 202×64×162 with an R89 crescent.
 
 Parts: **dome** (open front + open bottom) · **front module** · **bottom plate** ·
 the **matrix tray** sub-assembly (`3d-print/matrix-tray.stl`) · a printed
@@ -271,7 +275,10 @@ The **front module is one printed part**: facade + diffuser pocket + diffusion
 cavity + matrix pocket + speaker seats + mic channel. The diffuser itself stays a
 separate Glowforge-cut opal acrylic that drops into a pocket from behind. It
 **slides up** into grooves in the dome and is trapped by the bottom plate — no
-fastener touches the facade.
+fastener touches the facade. The module is **wrapped in acoustically transparent
+cloth**, so the groove is sized for cloth + module + cloth (5.6 mm for a 4 mm
+module) and the module's own outline is shrunk by one cloth thickness so the
+wrapped assembly still slides.
 
 The **bottom plate is the chassis**. Fixing is **6× wall lugs**: pads that
 project inward off the dome wall with a blind heat-set hole, so the screw comes
@@ -286,10 +293,10 @@ Mounting inside:
 | Part | Where | How |
 |---|---|---|
 | UPS 3S | rear wall, centred | Board **stands vertically**; M3 through its own mounting holes into posts/brackets rising from the bottom plate. Its barrel jack lines up with the rear cutout. |
-| ReSpeaker Flex core | floor bay left of the UPS | M3 posts on the bottom plate. The bay is an **envelope (~52 × 31)**, not a fitted pocket, because Seeed doesn't publish the core board size. |
+| ReSpeaker Flex core | **rear wall, above the UPS** | Mounted **vertically**, flat against the wall. About a credit card (~86 × 54) and ~19 mm deep where the XIAO sits. The rear wall is reachable the moment the front module is out, and this keeps the floor clear. |
 | Linear-4 mic array | front module | 2× M3 into the mic channel behind the ports, with a gasket land per port. |
-| TPA2016 | rear wall above the UPS | No floor left, and the speaker leads are shortest from there. |
-| Speakers | front module | Seated in raised rings on the back of the facade, 4× fixings each. |
+| TPA2016 | **rear wall, flush, beside the UPS** | Not a side wall: the sides are only vertical *below* the springing line and the speaker boxes own all of that; above it the sides are the curved crown, no good for a flat board. |
+| Speakers | front module | Seated in raised rings on the back of the facade, 4× fixings each. The **seat ring**, not just the body, has to sit inside the module outline — that is part of what sets the width. |
 
 See sheet 2 of the drawing set for the joint, the fixings and the clearances.
 

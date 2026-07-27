@@ -29,7 +29,7 @@ BW, BH_, GAPX, GAPY = 96.0, 30.0, 122.0, 56.0     # device box grid
 # front module. Keeping it in this order is what keeps the cable short.
 #   (label, address, where it lives, status)
 CHAIN = [
-    ("DS3231 RTC",      "0x68", "Flex bay, on the floor",   "live"),
+    ("DS3231 RTC",      "0x68", "rear wall, by the Flex",   "live"),
     ("INA219",          "0x41?", "on the UPS 3S board",     "addr unconfirmed"),
     ("TPA2016 amp",     "0x58", "rear wall, above the UPS", "live"),
     ("BH1750 lux",      "0x23", "rear wall, light pipe",    "live"),

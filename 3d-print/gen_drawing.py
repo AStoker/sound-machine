@@ -150,7 +150,7 @@ def top_dome():
                       TOUCH_PAD_W, TOUCH_PAD_L, "hid", 3))
     for gx in (WALL, W - WALL - FP_T - SLOT_CLR):   # front-module side groove
         o.append(rect(gx - WALL, D - LIP_T - FP_T - SLOT_CLR,
-                      WALL + 0.01, FP_T + SLOT_CLR, "obj"))
+                      WALL + 0.01, SLOT_W, "obj"))
     # crown ridge line: the top is a cylinder, highest along x = W/2
     o.append(cl_v(W/2, 2, D - 2))
     return o
@@ -194,7 +194,8 @@ def top_dims():
     o.append(leader(touch_x()[1], D - TOUCH_DEPTH - TOUCH_PAD_L/2, 20, -40,
                     f"2x copper touch pad {dt(TOUCH_PAD_L)} x {dt(TOUCH_PAD_W)} on the inside face - one per shoulder"))
     o.append(leader(W - WALL, D - LIP_T - FP_T/2, 26, -44,
-                    f"inset side groove {dt(FP_T + SLOT_CLR)} wide - front module slides UP"))
+                    f"inset side groove {dt(SLOT_W)} wide = module {dt(FP_T)} + 2x cloth "
+                    f"{dt(CLOTH_T)} + {dt(SLOT_CLR)} clr"))
     # ToF, alongside the knob
     o.append(cl_v(TOF_X, D-TOF_Y-TOF_PCB_D/2 - 5, D-TOF_Y+TOF_PCB_D/2 + 5))
     o.append(leader(TOF_X, D-TOF_Y-TOF_HOLE_D/2, 56, -36,
@@ -252,7 +253,10 @@ def rear_dome():
 
 
 def rear_internals():
-    return [rect(W/2 - UPS_W/2, fy(BP_T + UPS_H), UPS_W, UPS_H, "hid")]
+    """What is mounted ON the rear wall, seen through it."""
+    return [rect(W/2 - UPS_W/2, fy(BP_T + UPS_H), UPS_W, UPS_H, "hid"),
+            rect(W/2 - FLEX_W/2, fy(FLEX_WALL_Y + FLEX_H), FLEX_W, FLEX_H, "hid"),
+            rect(AMP_WALL_X - AMP_W/2, fy(AMP_WALL_Y + AMP_D/2), AMP_W, AMP_D, "hid")]
 
 
 def rear_dims():
@@ -271,8 +275,14 @@ def rear_dims():
                     f"{VENT_N}x vent slot {dt(VENT_W)} x {dt(VENT_HH)} @ {dt(VENT_P)}"))
     o.append(dim_h(W/2 - VENT_W/2, W/2 + VENT_W/2, fy(vent_y(0)) + 10, dt(VENT_W),
                    ext=fy(vent_y(0))))
-    o.append(leader(W/2 - UPS_W/2, fy(BP_T + UPS_H/2), -20, 20,
-                    "UPS 3S pack (jack lands here)", "end"))
+    o.append(leader(W/2 - UPS_W/2, fy(BP_T + UPS_H/2), -22, 14,
+                    f"UPS 3S {dt(UPS_W)} x {dt(UPS_H)}, standing (jack lands here)",
+                    "end"))
+    o.append(leader(W/2 + FLEX_W/2, fy(FLEX_WALL_Y + FLEX_H), 30, -22,
+                    f"ReSpeaker Flex {dt(FLEX_W)} x {dt(FLEX_H)} (?) - VERTICAL on "
+                    "this wall, above the UPS"))
+    o.append(leader(AMP_WALL_X - AMP_W/2, fy(AMP_WALL_Y), -22, 26,
+                    f"TPA2016 {dt(AMP_W)} x {dt(AMP_D)} FLUSH on this wall", "end"))
     o.append(txt(W/2, H + 38, "all rear features CENTRED on the width",
                  "note", "middle"))
     return o
@@ -644,16 +654,21 @@ if __name__ == "__main__":
           + f"   (mic {dt(W_FROM_SPK)} vs tray {dt(W_FROM_TRAY)})")
     print(f"rim          {dt(ARCH_R - CRES_R)} mm, held constant -- the crescent "
           f"scales with the body (arc R{dt(ARCH_R)}, crescent R{dt(CRES_R)})")
-    print(f"\nCRESCENT IS NOW {crescent_px()} PX, not 48 -- FIRMWARE CHANGE.")
-    print("  rows bottom-first (width mm, count):")
-    print("   ", ", ".join(f"{w:.0f}/{c}" for w, c in crescent_rows()))
-    _amp = 2.9 * 0.65 * crescent_px() / 48
-    print(f"  crescent draw at the 65% cap: ~{_amp:.2f} A "
-          f"(was ~1.9 A at 48 px) -> total ~{_amp + 1.3 + 0.5:.2f} A of 5 A")
+    print(f"\nCRESCENT  R{dt(CRES_R)}, {crescent_px()} px (fixed) -- NEW ROW LAYOUT "
+          "for packages/lighting.yaml:")
+    print("   row   chord    px   strip run   fill")
+    for w, c, run in crescent_rows():
+        fill = f"{100*run/w:.0f}%" if w else "  -"
+        print(f"        {w:6.1f}   {c:3d}   {run:7.1f}     {fill}")
+    print(f"  as-built R80 filled ~84% of each chord; at R{dt(CRES_R)} the same 48 "
+          "pixels fill ~77%, so the outer")
+    print("  edge of the diffuser runs dimmer. Shrink the crescent (bigger rim) if "
+          "that matters.")
     print(f"\nWIDTH<->HEIGHT COUPLING: H = W/2 + {dt(CRES_Y)}. Every +2 on W is +1 on H.")
     for bw in (40.0, 45.0, 50.0, 55.0):
-        w = 2 * math.ceil(max(2*(REVEAL + SPK_CLR + bw + SPK_CLR + MIC_PCB_W/2),
-                              2*(REVEAL + 2*SPK_CLR + bw + TRAY_W/2)) / 2)
+        _base = REVEAL + SPK_CLR + SPK_RING_W + bw + SPK_RING_W + SPK_MIC_GAP
+        w = 2 * math.ceil(max(2*(_base + MIC_PCB_W/2),
+                              2*(_base + TRAY_W/2)) / 2)
         print(f"  if the body were {bw:5.1f} wide -> W {w:6.1f} -> "
               f"H {w/2 + CRES_Y:6.1f}   crescent R{w/2 - RIM_MIN:5.1f}")
     print("\nALL CLEAR" if not bad else f"\n*** {len(bad)} COLLISION(S) ***")

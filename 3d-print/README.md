@@ -147,21 +147,26 @@ extra width adds 1 mm of height. The **50 mm speaker body** is what sets W:
 
 | If the speaker body were | W | H | Crescent R |
 |---|---|---|---|
-| 40 wide | 200 | 160 | R88 |
-| 45 wide | 210 | 165 | R93 |
-| **50 wide (actual)** | **220** | **170** | **R98** |
-| 55 wide | 230 | 175 | R103 |
+| 40 wide | 220 | 170.6 | R98 |
+| 45 wide | 230 | 175.6 | R103 |
+| **50 wide (actual)** | **240** | **180.6** | **R108** |
+| 55 wide | 250 | 185.6 | R113 |
 
-The **crescent scales with the body** (`R = W/2 − 12`) so the concentric rim stays
-at 12 mm however wide the parts push things. That keeps the look fixed — but it
-changes the pixel count, which is a **firmware change**: at R98 the crescent is
-**58 px, not 48**, and draws ~2.3 A instead of ~1.9 A at the 65% cap.
-`gen_drawing.py` prints the new row table every run.
+The **crescent scales with the body** (`R = W/2 − 12`) so the rim stays at 12 mm
+however wide the parts push things. **The pixel count does not** — 48 px is the
+strip you have, so the row layout is re-solved for each radius. At R108 that is
+11/11/10/9/6/1, and the strip fills ~77% of each chord versus ~84% at the
+as-built R80: same power, thinner spread, dimmer outer edge. `gen_drawing.py`
+prints the table every run.
 
-The **110 mm mic array sits 2 mm above the matrix tray** — one tight cluster —
-and the speaker boxes flank the whole thing. Putting the array above the
-speakers instead would save width but waste facade height, which is the trade
-this layout deliberately refuses.
+Width is set by what sits side by side on the facade:
+`edge | clr | seat ring | 50 body | seat ring | gap | half the 110 array`. The
+**seat ring counts** — an early version had the ring hanging off the edge of the
+module. The **110 mm array sits 2 mm above the matrix tray**, one tight cluster,
+with the speaker boxes flanking the whole thing.
+
+The module is **wrapped in cloth**, so the groove takes cloth + module + cloth
+(5.6 for a 4 mm module) and the module outline shrinks by one cloth thickness.
 
 ## Clearance check
 
@@ -282,6 +287,8 @@ front-to-back** so its 17.8 mm edge clears the 25.4 mm encoder breakout.
 | **The speaker body sizes the box** | 50 × 45 × 22 sealed boxes, not bare cones. The 50 mm width sets W, which sets H. |
 | **The mic array spans above the cluster** | At 110 mm it is wider than the 91 mm tray, so it cannot sit between the speakers. |
 | **The UPS board must stand up** | It is 60 × 93; 93 mm will not lie down in a 59 mm interior. Standing also aligns its barrel jack with the rear cutout. |
+| **The floor carries only the UPS** | Flex and amp both mount on the *rear wall* — the Flex vertically above the UPS, the amp flush beside it. The sides are only vertical below the springing, and the speakers own all of that. |
+| **Bottom-row pixels were burying themselves** | The crescent baseline is a row *centre*, so it has to clear the speaker seats by the LED radius as well as the gap. |
 | **Fixings are wall lugs, and asymmetric** | The floor is fully spoken for. No lug fits on the front edge at all — the plate's front edge is captured by the ledge and the module instead. |
 | **Charge is a barrel jack** | 12.6 V 2 A, not USB-C. The only USB-C is the XIAO's internal flashing port. |
 

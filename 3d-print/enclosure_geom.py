@@ -52,16 +52,23 @@ R_SIDE_B  = 4.0                  # SIDE view edge break, bottom
 # Front-to-back through the joint:  lip (LIP_T) | plate (FP_T) | rib (RIB_T)
 FP_T      = 4.0      # front module baffle thickness. 4, NOT 3: two Ø40 drivers
                      #   on an unsupported 3 mm plate will flex and buzz.
-FP_CLR    = 0.5      # sliding clearance, plate edge to dome inner wall
+FP_CLR    = 0.5      # sliding clearance, module edge to dome inner wall
+# The whole front module is WRAPPED in acoustically transparent cloth, so the
+# cloth goes through the groove with it and around the edge. Everything the
+# module has to fit through grows by a layer of cloth on each face, and the
+# module's own outline has to shrink by one layer so the wrapped assembly still
+# clears the wall.
+CLOTH_T   = 0.6      # (?) grille cloth, per layer -- MEASURE your cloth
 LIP_W     = 5.0      # dome lip, radial -- how much it covers the plate edge
 LIP_T     = 2.0      # dome lip thickness (sets how deep the facade is recessed)
 RIB_T     = 2.5      # retaining rib behind the plate
 RIB_W     = 5.0      # retaining rib, radial
-SLOT_CLR  = 0.4      # groove width clearance (groove = FP_T + SLOT_CLR)
+SLOT_CLR  = 0.4      # groove width clearance
+SLOT_W    = FP_T + 2*CLOTH_T + SLOT_CLR   # groove: cloth | module | cloth
 BP_T      = 4.0      # bottom plate thickness
 BP_CLR    = 0.30     # bottom plate clearance per side
 SEAT_W    = 3.0      # continuous ledge the bottom plate lands on
-REVEAL    = WALL + FP_CLR          # plate outline inset (kept for the profiles)
+REVEAL    = WALL + FP_CLR + CLOTH_T   # module outline inset, cloth included
 LIP       = LIP_W - FP_CLR         # plate edge engaged under the lip
 
 # ---- matrix tray (exact, from gen_tray.py -- do not edit) -----------------
@@ -74,6 +81,9 @@ TRAY_D         = 14.80        # FACE_T+PCB_T+STACK_GAP+BP_T+LIP_RUN+RAMP_RUN+1
 # fixed -- but it changes the LED COUNT, which is a firmware change: see
 # crescent_rows() and the run summary.
 LED_PITCH = 16.7     # SK6812 60 LED/m
+CRES_PX   = 48       # FIXED -- this is the strip you have. The crescent
+                     #   RADIUS scales with the body, so the row layout has
+                     #   to be re-solved to spend exactly 48 pixels on it.
 LED_D     = 5.2      # SK6812 package, drawn indicatively
 CLK_W     = 84.0     # clock aperture (LED span 81.3 + margin)
 CLK_H     = 23.0     #   "        "   (LED span 20.3 + margin)
@@ -86,7 +96,7 @@ SPK_GRILLE = 40.0    # (?) open cone diameter, inside the 45 body height
 SPK_FIX    = 4       # (?) body mounting holes -- "built-in mounting holes"
 SPK_FIX_W  = 44.0    # (?) hole pitch across the 50 body -- MEASURE
 SPK_FIX_H  = 39.0    # (?) hole pitch up the 45 body    -- MEASURE
-SPK_RING_W = 4.0     # raised baffle seat around each speaker body
+SPK_RING_W = 3.0     # raised baffle seat around each speaker body
 # ---- ReSpeaker Flex linear 4-mic array, in the band above the clock -------
 MIC_N      = 4
 MIC_PITCH  = 33.0    # reSpeaker Flex Linear-4: 33 mm spacing -- Seeed wiki
@@ -102,7 +112,9 @@ MIC_FIX    = 2       # 2x M3 mounting holes on the linear array -- Seeed wiki
 # sets W. Assembled bottom-up so nothing can silently overlap.
 TRAY_GAP  = 1.0      # tray bottom clearance over the bottom plate
 SPK_CLR   = 1.0      # clearance around a driver
-GAP_MIC   = 2.0      # mic strip clears the tray below it
+GAP_MIC   = 2.0      # mic array clears the tray below it -- keep SMALL,
+                     #   the tight matrix+mic cluster is the whole layout
+SPK_MIC_GAP = 4.0    # gap between a speaker seat and the mic array
 GAP_CRES  = 2.0      # crescent baseline clears the mic strip
 
 FLOOR_Y  = BP_T                              # top face of the bottom plate
@@ -118,13 +130,19 @@ SPK_SEAT_Y0 = FLOOR_Y + SPK_CLR
 SPK_Y0      = SPK_SEAT_Y0 + SPK_RING_W
 SPK_Y1      = SPK_Y0 + SPK_BODY_H
 SPK_SEAT_Y1 = SPK_Y1 + SPK_RING_W
-CRES_Y   = max(MIC_Y1, SPK_SEAT_Y1) + GAP_CRES
+# CRES_Y is the LED ROW CENTRE, so the bottom row hangs LED_D/2 below it.
+# Without that term the bottom row of pixels buries itself in the speaker
+# seats -- which is exactly what "losing the bottom pixels" looks like.
+CRES_Y   = max(MIC_Y1, SPK_SEAT_Y1) + GAP_CRES + LED_D/2
 ARCH_Y   = CRES_Y                            # concentric: same centre
 
 # W: plate edge | clr | speaker body | clr | mic array ... mirrored.
 # The 110 array is wider than the 91 tray, so the array sets the middle.
-W_FROM_SPK  = 2 * (REVEAL + SPK_CLR + SPK_BODY_W + SPK_CLR + MIC_PCB_W/2)
-W_FROM_TRAY = 2 * (REVEAL + 2*SPK_CLR + SPK_BODY_W + TRAY_W/2)
+# edge | clr | seat ring | body | seat ring | gap | half the mic array
+W_FROM_SPK  = 2 * (REVEAL + SPK_CLR + SPK_RING_W + SPK_BODY_W + SPK_RING_W
+                   + SPK_MIC_GAP + MIC_PCB_W/2)
+W_FROM_TRAY = 2 * (REVEAL + SPK_CLR + SPK_RING_W + SPK_BODY_W + SPK_RING_W
+                   + SPK_MIC_GAP + TRAY_W/2)
 W        = 2 * math.ceil(max(W_FROM_SPK, W_FROM_TRAY) / 2)   # <<< DERIVED width
 ARCH_R   = W/2                               # arc radius = half the width
 CRES_R   = ARCH_R - RIM_MIN                  # <<< crescent follows the body
@@ -132,12 +150,13 @@ H        = ARCH_Y + ARCH_R                   # <<< DERIVED height
 
 CLK_Y    = (TRAY_Y0 + TRAY_Y1) / 2
 MIC_Y    = (MIC_Y0 + MIC_Y1) / 2
-SPK_X    = REVEAL + SPK_CLR + SPK_BODY_W/2   # body centre, in from each end
+SPK_X    = REVEAL + SPK_CLR + SPK_RING_W + SPK_BODY_W/2   # body centre
 SPK_Y    = (SPK_Y0 + SPK_Y1) / 2
 
 # Clearances the stack cannot enforce (all checked at the bottom of the run):
 CLR_SPK_TRAY = (W/2 - TRAY_W/2) - (SPK_X + SPK_BODY_W/2)     # body -> tray
-CLR_SPK_MIC  = (W/2 - MIC_PCB_W/2) - (SPK_X + SPK_BODY_W/2)  # body -> mic array
+CLR_SPK_MIC  = (W/2 - MIC_PCB_W/2) - (SPK_X + SPK_BODY_W/2 + SPK_RING_W)
+CLR_SPK_EDGE = (SPK_X - SPK_BODY_W/2 - SPK_RING_W) - REVEAL  # seat -> edge
 CLR_SPK_CRES = CRES_Y - SPK_SEAT_Y1                          # seat -> crescent
 SPK_W_MAX    = W/2 - MIC_PCB_W/2 - REVEAL - 2*SPK_CLR        # widest body
 
@@ -254,34 +273,31 @@ LUG_H       = 9.0                    # thickness, above the bottom plate face
 # middle. It does not need any -- the plate's front edge is captured between
 # the seating ledge and the front module's bottom edge.
 _LX = WALL + LUG_L/2
-SCREWS = [(_LX,     34.0), (W - _LX,     34.0),   # left / right wall, forward
-          (_LX,     54.0), (W - _LX,     54.0),   # left / right wall, rear
-          (45.0,  D - WALL - LUG_L/2),            # rear wall, outboard of UPS
-          (W - 45.0, D - WALL - LUG_L/2)]
+SCREWS = [(_LX,     36.0), (W - _LX,     36.0),   # side walls, behind the speakers
+          (_LX,     54.0), (W - _LX,     54.0),   # side walls, rear
+          (55.0,  D - WALL - LUG_L/2),            # rear wall, outboard of the UPS
+          (W - 55.0, D - WALL - LUG_L/2)]
 
-# ---- what the bottom plate carries -----------------------------------------
+# ---- what goes where inside --------------------------------------------------
 # Waveshare UPS Module 3S: a 60 x 93 board with the three 18650 holders on it,
 # charged from a 12.6 V 2 A barrel jack. 93 mm will NOT lie down in a 59 mm
 # interior, so the whole board STANDS VERTICALLY against the rear wall -- which
 # also puts its barrel jack on the wall that has the cutout.
 UPS_W, UPS_D, UPS_H = 60.0, 24.0, 93.0   # 60x93 board; 24 deep = board + cells (?)
 UPS_BACK            = 0.0                # stands hard against the rear wall
-UPS_BRACKET_W       = 8.0                # printed bracket each side, off the floor
-# The Flex core board mounts flat on the floor in the bay LEFT of the standing
-# UPS, on M3 posts. Seeed does not publish the core board size, so this is an
-# ENVELOPE, not a part: measure the board and check it fits.
-FLEX_BAY_X0 = WALL + LUG_L + 2.0                 # clear of the wall lugs
-FLEX_BAY_X1 = W/2 - UPS_W/2 - 2.0                # clear of the UPS
-FLEX_BAY_D0 = FP_T + SPK_BODY_D + 2.0            # clear of the speaker bodies
-FLEX_BAY_D1 = D - WALL - 2.0
-FLEX_BAY_W  = FLEX_BAY_X1 - FLEX_BAY_X0
-FLEX_BAY_D  = FLEX_BAY_D1 - FLEX_BAY_D0
-FLEX_BAY_H  = 22.0                               # headroom under the front module
-FLEX_POST_D = 6.0                                # M3 post OD on the bottom plate
-# The TPA2016 does NOT go on the floor. It mounts on the REAR WALL above the
-# UPS, where the speaker leads are shortest.
-AMP_W, AMP_D, AMP_H = 26.0, 20.0, 8.0            # (?) TPA2016 breakout
-AMP_WALL_Y = UPS_H + 14.0                        # on the rear wall, above the pack
+
+# The ReSpeaker Flex core is about a credit card, ~19 deep where the XIAO sits.
+# It mounts VERTICALLY on the inside of the REAR WALL, above the UPS: that face
+# is reachable the moment the front module is out, and it keeps the floor clear.
+FLEX_W, FLEX_H, FLEX_D = 86.0, 54.0, 19.0    # (?) credit-card-ish -- MEASURE
+FLEX_WALL_Y            = 103.0               # bottom edge, above the UPS
+
+# The TPA2016 mounts FLUSH on the rear wall beside the UPS. Not a side wall:
+# the sides are only vertical below the springing line, and the speaker boxes
+# own all of that. Above the springing the sides are the curved crown, which is
+# no good for a flat board.
+AMP_W, AMP_D, AMP_H = 26.0, 20.0, 8.0        # (?) TPA2016 breakout
+AMP_WALL_X, AMP_WALL_Y = 43.0, 40.0          # centre on the rear wall
 
 # ---- explode offsets (drawing only) ---------------------------------------
 EX_PLATE, EX_TRAY, EX_BOTTOM, EX_KNOB = 40.0, 18.0, 38.0, 20.0
@@ -322,7 +338,6 @@ def floor_items():
         ("matrix tray", W/2 - TRAY_W/2, W/2 + TRAY_W/2, FP_T, FP_T + TRAY_D),
         ("UPS 3S (upright)", W/2 - UPS_W/2, W/2 + UPS_W/2,
          D - WALL - UPS_D, D - WALL),
-        ("Flex bay", FLEX_BAY_X0, FLEX_BAY_X1, FLEX_BAY_D0, FLEX_BAY_D1),
     ]
 
 
@@ -398,32 +413,67 @@ def knob_bore(cx, base_y):
 
 
 def crescent_rows():
-    """LED rows for the DERIVED crescent radius: chord width and LED count per
-    row, bottom-first, at the SK6812 60 LED/m pitch. This replaces the fixed
-    9/9/9/8/7/5/1 = 48 layout from HARDWARE.md -- scaling the crescent scales
-    the pixel count, which is a firmware change."""
-    rows, y = [], 0.0
-    while y < CRES_R:
-        half = (CRES_R**2 - y**2) ** 0.5
-        wide = 2*half
-        cnt = max(int(wide // LED_PITCH), 1)
-        rows.append((wide, cnt))
-        y += LED_PITCH
-    rows.append((0.0, 1))                      # the apex pixel
+    """Lay exactly CRES_PX pixels onto the derived crescent radius.
+
+    The strip pitch is fixed at LED_PITCH, so the only free variables are how
+    many ROWS to use and how many pixels to put in each. Pick the fewest rows
+    that could hold 48 at full chord (keeps each row as wide as possible), then
+    trim proportionally to land on exactly 48.
+
+    Returns (chord_width, count, strip_run) per row, bottom-first.
+    """
+    n_rows, pitch, cap = None, None, None
+    for n in range(4, 14):
+        p_ = CRES_R / (n - 1)
+        caps = []
+        for i in range(n):
+            y = i * p_
+            chord = 2 * max(CRES_R**2 - y**2, 0.0) ** 0.5
+            caps.append(1 if i == n - 1 else max(int(chord // LED_PITCH), 1))
+        if sum(caps) >= CRES_PX:
+            n_rows, pitch, cap = n, p_, caps
+            break
+    if n_rows is None:                       # radius too small for 48 -- fill it
+        n_rows, pitch = 7, CRES_R / 6
+        cap = [max(int(2 * max(CRES_R**2 - (i*pitch)**2, 0.0) ** 0.5 // LED_PITCH), 1)
+               for i in range(n_rows)]
+
+    # proportional trim to exactly CRES_PX, largest-remainder, apex stays at 1
+    total = sum(cap)
+    scale = CRES_PX / total
+    exact = [c * scale for c in cap]
+    cnt = [max(int(e), 1) for e in exact]
+    cnt[-1] = 1
+    short = CRES_PX - sum(cnt)
+    order = sorted(range(n_rows - 1), key=lambda i: exact[i] - cnt[i], reverse=True)
+    k = 0
+    while short > 0:
+        i = order[k % len(order)]
+        if cnt[i] < cap[i]:
+            cnt[i] += 1
+            short -= 1
+        k += 1
+        if k > 400:
+            break
+    rows = []
+    for i in range(n_rows):
+        y = i * pitch
+        chord = 2 * max(CRES_R**2 - y**2, 0.0) ** 0.5
+        rows.append((chord, cnt[i], max(cnt[i] - 1, 0) * LED_PITCH))
     return rows
 
 
 def crescent_px():
-    return sum(c for _, c in crescent_rows())
+    return sum(c for _, c, _ in crescent_rows())
 
 
 def crescent_leds():
     """The LED positions, laid out on the crescent (indicative)."""
     o = []
-    for w, k in crescent_rows():
+    for w, k, run in crescent_rows():
         ry = (CRES_R**2 - (w/2)**2) ** 0.5
         for i in range(k):
-            x = W/2 - w/2 + (i + 0.5) * (w / k) if k > 1 else W/2
+            x = W/2 - run/2 + i * LED_PITCH if k > 1 else W/2
             o.append(circ(x, fy(CRES_Y + ry), LED_D, "led"))
     return o
 
