@@ -41,7 +41,9 @@ reach the XIAO's own USB-C. This is an accepted tradeoff.
 | Crescent strip | **SK6812 GRBW**, 60 LED/m (16.7 mm pitch) | **48 pixels as built** (R80); the drawing set scales this — see the box below. Arranged as a half-circle crescent. Data on **GPIO1 / D0**. Driven by ESPHome `esp32_rmt_led_strip` (chipset SK6812, `rgb_order: GRB`, `is_rgbw: true`). |
 
 Row layout (bottom row first, flat side down), used by the Circadian Sunrise
-effect: widths 160/158/151/139/119/88/20 mm → **9 / 9 / 9 / 8 / 7 / 5 / 1 = 48**.
+effect, laid on the R108 diffuser arc with each row inset by the LED radius so
+no pixel body overhangs the diffusion box:
+chords 216/211/198/174/134/47 mm → **11 / 11 / 10 / 9 / 6 / 1 = 48**.
 
 > ### ⚠️ Same 48 pixels, new row layout
 > **48 px is fixed** — it is the strip you have. But the crescent **scales with
@@ -51,7 +53,7 @@ effect: widths 160/158/151/139/119/88/20 mm → **9 / 9 / 9 / 8 / 7 / 5 / 1 = 48
 >
 > | | R80 (as built) | R108 (drawing set) |
 > |---|---|---|
-> | rows, chord widths | 160/158/151/139/119/88/20 | 216/212/198/173/130/0 |
+> | rows, chord widths | 160/158/151/139/119/88/20 | 216/211/198/174/134/47 |
 > | counts | 9/9/9/8/7/5/1 = 48 | 11/11/10/9/6/1 = 48 |
 > | strip run per row | ~84% of the chord | ~77% of the chord |
 >
@@ -60,8 +62,8 @@ effect: widths 160/158/151/139/119/88/20 mm → **9 / 9 / 9 / 8 / 7 / 5 / 1 = 48
 > diffuser runs dimmer than it does today. Shrink the crescent — accepting a
 > bigger rim — if that matters. `gen_drawing.py` prints the current table.
 >
-> `packages/lighting.yaml` still carries the R80 row layout, so the Circadian
-> Sunrise effect needs re-mapping to whichever radius the enclosure lands on.
+> `packages/lighting.yaml` now carries the **R108** row layout (11/11/10/9/6/1),
+> matching the drawing set; re-map it again if the enclosure radius changes.
 
 > **History / drift:** earlier design notes referenced a **144 LED/m** strip and
 > an **XL6009 boost converter** for the LED rail. The current build is **60 LED/m,

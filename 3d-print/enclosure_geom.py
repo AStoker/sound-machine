@@ -412,31 +412,54 @@ def knob_bore(cx, base_y):
                  KNOB_BORE_D, KNOB_BORE_H, "hid")]
 
 
+# The LED has a physical body (LED_D), so a pixel's CENTRE cannot sit on the
+# crescent arc or on the flat baseline -- half the package would hang outside
+# the diffusion box. Every row centre is therefore inset by the LED radius:
+# baseline row at y = LED_D/2 (body resting on the floor), apex row at
+# y = CRES_R - LED_D/2 (body touching the arc), and each row's outer pixel kept
+# LED_D/2 clear of the chord. Without this inset the bottom row and the apex
+# pixel both overhang the box by LED_D/2.
+def _crescent_row_ys(n_rows):
+    """n_rows LED-row CENTRE heights above the baseline, body-inset both ends."""
+    y0, y1 = LED_D / 2, CRES_R - LED_D / 2
+    if n_rows == 1:
+        return [y0]
+    return [y0 + i * (y1 - y0) / (n_rows - 1) for i in range(n_rows)]
+
+
+def _crescent_row_cap(y, apex=False):
+    """Most pixels that fit in the row at height y, keeping the outer pixel
+    LED_D/2 clear of the arc (so the whole body stays inside the box)."""
+    if apex:
+        return 1
+    usable = 2 * (max(CRES_R**2 - y**2, 0.0) ** 0.5 - LED_D / 2)
+    return max(int(usable // LED_PITCH) + 1, 1)
+
+
 def crescent_rows():
     """Lay exactly CRES_PX pixels onto the derived crescent radius.
 
     The strip pitch is fixed at LED_PITCH, so the only free variables are how
     many ROWS to use and how many pixels to put in each. Pick the fewest rows
-    that could hold 48 at full chord (keeps each row as wide as possible), then
-    trim proportionally to land on exactly 48.
+    that could hold 48 while keeping every pixel BODY inside the diffusion box
+    (see the inset note above), then trim proportionally to land on exactly 48.
 
-    Returns (chord_width, count, strip_run) per row, bottom-first.
+    Returns (chord_width, count, strip_run) per row, bottom-first. chord_width
+    is the true geometric chord at the (inset) row centre, so crescent_leds()
+    recovers the same row height from it.
     """
-    n_rows, pitch, cap = None, None, None
+    n_rows, ys, cap = None, None, None
     for n in range(4, 14):
-        p_ = CRES_R / (n - 1)
-        caps = []
-        for i in range(n):
-            y = i * p_
-            chord = 2 * max(CRES_R**2 - y**2, 0.0) ** 0.5
-            caps.append(1 if i == n - 1 else max(int(chord // LED_PITCH), 1))
+        yy = _crescent_row_ys(n)
+        caps = [_crescent_row_cap(y, apex=(i == n - 1)) for i, y in enumerate(yy)]
         if sum(caps) >= CRES_PX:
-            n_rows, pitch, cap = n, p_, caps
+            n_rows, ys, cap = n, yy, caps
             break
     if n_rows is None:                       # radius too small for 48 -- fill it
-        n_rows, pitch = 7, CRES_R / 6
-        cap = [max(int(2 * max(CRES_R**2 - (i*pitch)**2, 0.0) ** 0.5 // LED_PITCH), 1)
-               for i in range(n_rows)]
+        n_rows = 7
+        ys = _crescent_row_ys(n_rows)
+        cap = [_crescent_row_cap(y, apex=(i == n_rows - 1))
+               for i, y in enumerate(ys)]
 
     # proportional trim to exactly CRES_PX, largest-remainder, apex stays at 1
     total = sum(cap)
@@ -457,8 +480,7 @@ def crescent_rows():
             break
     rows = []
     for i in range(n_rows):
-        y = i * pitch
-        chord = 2 * max(CRES_R**2 - y**2, 0.0) ** 0.5
+        chord = 2 * max(CRES_R**2 - ys[i]**2, 0.0) ** 0.5
         rows.append((chord, cnt[i], max(cnt[i] - 1, 0) * LED_PITCH))
     return rows
 
