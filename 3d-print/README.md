@@ -1,85 +1,76 @@
-# Dual CharliePlex matrix front plate
+# Dual CharliePlex matrix snap-in tray
 
-A light-isolating front plate for **two butted Adafruit IS31FL3731 16×9
-CharliePlex LED matrices**. One circular aperture per LED (288 total) plus the
-matrix's 2 diagonal M2 holes per board. Two files, same geometry:
+`matrix-tray.stl` — a mount that holds **two butted Adafruit IS31FL3731 16×9
+CharliePlex matrices *and* their two driver backpacks** as one solid unit, with
+a **flat front face** (for mounting flush against cloth) and all retention on
+the back. No screws, no heat-set inserts — it snaps together.
 
-- **`matrix-front-plate.stl`** — ready to import straight into OrcaSlicer. Use
-  this. Validated watertight, 2-manifold, correctly oriented (genus 288 = all
-  288 through-holes closed cleanly), 29 380 triangles.
-- **`matrix-front-plate.svg`** — the flattened profile, if you'd rather use
-  OrcaSlicer's SVG tool and set the height yourself.
+Generated with `manifold3d`; validated **watertight, 2-manifold, genus-288**
+(the 288 light windows) — imports into OrcaSlicer with no repair.
 
-Geometry is taken from Adafruit's EAGLE **CharliePlex Grid** `.brd` — the LED
-matrix module itself, not the driver breakout
-([Adafruit-IS31FL3731-CharliePlex-LED-Breakout-PCB](https://github.com/adafruit/Adafruit-IS31FL3731-CharliePlex-LED-Breakout-PCB)),
-so it fits the real matrix, not an estimate.
+Board geometry is from Adafruit's EAGLE files (LED matrix + STEMMA backpack), so
+outlines, LED positions, and hole positions are exact, not estimated.
 
-## Board facts (per matrix)
+## How it holds together
 
-| Item | Value |
-|---|---|
-| PCB outline | 43.18 × 27.94 mm, 2.54 mm corner radius |
-| Mounting holes | **Ø2.0 mm, only 2 (diagonal)** — top-left + bottom-right, inset 1.905 mm from edges |
-| LED array | 16 × 9 on **2.54 mm (0.1") pitch**; cols x 2.413–40.513, rows y 3.683–24.003 (EAGLE frame) |
+Stack, front → back: `cloth │ front face │ matrices │ gap │ backpacks │`
 
-The Ø2.0 holes take **M2** screws (an M2.5 shaft won't pass). The plate is
-**92.36 × 33.94 × 4 mm**.
+- **Flat front:** 1.5 mm face (`FACE_T`) with one Ø2.0 light window per LED
+  (288 total). The matrices sit right behind it, LEDs pointing into the windows.
+  Kept thin on purpose — a deep face turns each window into a light pipe and
+  kills off-axis visibility (Ø2.0 × 1.5 mm ≈ ±34° half-angle). Raise toward
+  ~2 mm for more per-LED isolation / a stiffer face.
+- **Matrices:** *located* (not retained) by **4 plain alignment posts** through
+  each matrix's two diagonal Ø2.0 holes — the only holes that line up. The posts
+  have a small chamfered lead-in tip and **no barb** (barbs are hard to print
+  cleanly on FDM). The matrices are held forward by the clamped stack, not by
+  the posts.
+- **The gap** between matrix and backpack is set by *your own* inter-board
+  header pins — the tray just spans it (parameter `STACK_GAP`).
+- **Backpacks:** retained by **4 cantilever snap fingers** on the long walls.
+  Each finger tip is a **triangular hook**: a shallow lead-in ramp the board
+  rides over, then a 45° retaining facet that clicks behind the backpack's back
+  face and pulls the whole stack forward against the front. 45° keeps the
+  overhang FDM-printable; the angled facet gives more hold-down than a round bump.
+- **Wires:** notches in both end walls, **18 mm wide to clear both STEMMA QT
+  ports** on each backpack.
 
-Two boards **butted edge-to-edge** → board pitch 43.18 mm. The LED gap across
-the seam is **5.08 mm (2 pitches)** — this is physical, not a design choice
-(board edge margins can't overlap).
+Everything is captured between the flat front and the rear snaps, so the stack
+can't fall apart and the wires aren't stressed.
 
-## OrcaSlicer workflow (STL)
+## Print & assemble
 
-1. **File → Import → Import STL** → `matrix-front-plate.stl` (or drag it in).
-2. It arrives at true size in mm (92.36 × 33.94 × 4). Place it flat, slice,
-   print. The 4 mm thickness is the depth of each round LED "tunnel" that
-   isolates one LED from its neighbours. No repair step needed.
+1. Import `matrix-tray.stl` into OrcaSlicer. Print **front-face-down** on the
+   bed — gives the smoothest flat face against the cloth, and the posts/fingers
+   print upward with no supports.
+2. Push each **matrix** in from the back until its two holes snap onto the
+   posts and it seats against the front face.
+3. Push each **backpack** in until the snap fingers click behind it.
 
-Prefer to set the height yourself? Use the **SVG** tool → **Load SVG** →
-`matrix-front-plate.svg`, extrude to 4 mm, solid. The SVG is one flattened
-filled path (holes wound opposite the outline) so it imports as a real face.
+## ⚠️ Measure these before printing (top of `gen_tray.py`)
 
-Because the plate is one thickness, there is **no counterbore** — use
-flat/countersunk M2 screws, or pan-head screws sitting slightly proud, or
-recess them from behind with standoffs.
+The design is exact for the boards, but three things depend on *your* build:
 
-## Tunables (edit `gen_plate.py`, re-run)
+| Param | Default | What to check |
+|---|---|---|
+| `STACK_GAP` | 5.0 mm | **The important one.** Clear gap between matrix back and backpack front (your header-pin height). If this is wrong the snaps won't clamp. |
+| `PCB_T` / `BP_T` | 1.6 mm | PCB thicknesses (calipers). |
+| `LED_D` | 2.0 mm | Window Ø. Must clear the LED package so the matrix seats flat — measure an LED; enlarge if they don't nest into the tunnels. |
 
-- `LED_DIA` (1.8 mm) — aperture size. Web between apertures = `PITCH − LED_DIA`
-  = 0.74 mm at default. Drop to ~1.6 mm for thicker walls, raise toward 2.2 mm
-  for more light / thinner walls.
-- `PAD` (3 mm) plate border, `PLATE_R` (3 mm) corner radius.
-- `BOARD_PITCH` (43.18 mm) — increase to add an air gap between boards.
-- `SCREW_DIA` (2.4 mm) — clearance hole for a different fastener.
+Also confirm: **two backpacks** (one per matrix)? And which wall the connectors
+exit — I notched both ends; tell me if a side wall needs a slot instead.
 
-## Caveats
-
-- **Only 2 holes per board.** The matrix module has just the top-left and
-  bottom-right mounting holes (diagonal). With both boards butted, that's 4
-  screws total holding the pair. If the long unsupported middle bows, add a
-  clip or standoff at the seam — there's no PCB hole there to use.
-- **M2, not M2.5.** Driven by the module's Ø2.0 holes. Keep M2.5 only if you
-  plan to drill the PCB holes out to 2.5 mm first.
-- **Printability.** Ø1.8 holes with 0.74 mm webs, 4 mm deep, over ~38×20 mm ×2:
-  fine on resin; on FDM use a 0.4 mm nozzle, 0.12 mm layers, and expect the
-  webs to be 1–2 perimeters. Bump `LED_DIA` down slightly if webs come out weak.
-- **Merged corners.** Each mounting hole sits so close to its nearest corner
-  LED (centres 1.9–2.1 mm apart) that the two openings **overlap**. Rather than
-  leave a hairline wall, the generator fuses each screw hole with that one
-  corner LED into a single figure-8 opening (4 places). The corner LED still
-  shines and the screw still passes — that corner LED just isn't individually
-  walled from the screw hole.
+Snap features can't be simulated for fit — **test-print one corner** (or the
+whole thing) and tune if needed: `LIP_REACH` (how far the hook grabs),
+`RAMP_RUN` (insertion ease), `FINGER_W`/`SLOT_W` (finger stiffness). The matrix
+posts are `POST_D` (loosen if they bind in the Ø2.0 holes).
 
 ## Regenerating
 
-The SVG needs only Python 3. The STL also needs `mapbox_earcut` + `numpy`:
-
 ```sh
 python3 -m venv venv
-venv/bin/pip install mapbox_earcut numpy
-venv/bin/python gen_plate.py     # writes both .stl and .svg
+venv/bin/pip install manifold3d trimesh matplotlib scipy
+venv/bin/python gen_tray.py       # writes matrix-tray.stl (+ section preview)
 ```
 
-Plain `python3 gen_plate.py` (no earcut) still writes the SVG and skips the STL.
+All dimensions are parameters at the top of `gen_tray.py`.
