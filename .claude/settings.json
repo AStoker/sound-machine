@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(rsvg-convert -b white -z 1.3 enclosure-drawing.svg -o __TRACKED_VAR__/dwg.png)",
+      "Bash(rsvg-convert -b white -z 1.55 enclosure-drawing.svg -o __TRACKED_VAR__/dwg.png)",
+      "Bash(rsvg-convert -b white -z 1.5 enclosure-drawing.svg -o __TRACKED_VAR__/dwg.png)",
+      "Bash(rsvg-convert -b white -z 3 --left=1850 --top=1650 --width=1750 --height=1200 enclosure-drawing.svg -o __TRACKED_VAR__/rear.png)",
+      "Bash(rsvg-convert -b white -z 4.5 __TRACKED_VAR__/rear.svg -o __TRACKED_VAR__/rear.png)",
+      "Bash(python3 -c ' *)",
+      "Bash(grep -n \"^# ---------------------------------------------------------------------------$\\\\|^# --------------------------------------------------------------- primitives\\\\|^# -------------------------------------------------------------- dimensions\\\\|^# ============================================================== FRONT VIEW\\\\|^# ---- derived\\\\|^# derived\" gen_drawing.py)",
+      "Bash(python3 \"/private/tmp/claude-502/-Users-andrew-Documents-Claude-Sound-Machine/4581791d-3fc3-448d-b164-adb3c6feee06/scratchpad/split.py\")",
+      "Bash(rsvg-convert -b white -z 2 enclosure-drawing.svg -o /dev/null)",
+      "Bash(rsvg-convert -b white -z 1 enclosure-drawing.svg -o __TRACKED_VAR__/s1.png)",
+      "Bash(python3 gen_internals.py)",
+      "Bash(rsvg-convert -b white -z 1.5 enclosure-internals.svg -o __TRACKED_VAR__/s2.png)"
+    ]
+  }
+}

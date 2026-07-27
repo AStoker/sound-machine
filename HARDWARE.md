@@ -20,10 +20,10 @@ For the **project story and goals**, see [`SOUNDMACHINE.md`](SOUNDMACHINE.md).
 | Block | Part | Notes |
 |-------|------|-------|
 | MCU | **Seeed XIAO ESP32-S3** (seats into the ReSpeaker Flex) | ESP-IDF framework, octal PSRAM @ 80MHz. `board: esp32-s3-devkitc-1`, `flash_size: 8MB` (16MB only if using the "Plus" variant). A **standard (non-Plus) XIAO ESP32-S3 is a functional drop-in** — only D0, D4/D5, D6–D9 are used, so no rear castellated pads are required. |
-| Voice / DSP front end | **ReSpeaker Flex, Linear 4-mic (XVF3800)** | 4-mic beamformer + acoustic echo canceller (AEC). The XIAO seats into it via **female headers (removable, not soldered)**. |
+| Voice / DSP front end | **ReSpeaker Flex, Linear 4-mic (XVF3800)** | 4-mic beamformer + acoustic echo canceller (AEC). Split architecture: a core board plus a separate **linear-4 array board, 110 mm long with 33 mm mic spacing** (2× M3 mounting holes), joined by a 200 mm 24-pin FPC ribbon. The XIAO seats into the core board via **female headers (removable, not soldered)**. **Core board dimensions are not published** — measure them; the enclosure reserves a bay rather than assuming a size. |
 | Codec | **AIC3104** (on the Flex) | I2C `0x18`. ESPHome `audio_dac` platform `aic3104`. |
 | Amplifier | **TPA2016D2** stereo Class-D | I2C `0x58`. One 4Ω speaker per channel. See "Amplifier notes" below. |
-| Speakers | 2× **Seeed Studio round enclosed, 4Ω 5W** drivers | Bridge-tied outputs (see wiring cautions). The 5W rating is pure headroom — the amp tops out ~2.5W/channel into 4Ω, so the drivers loaf and can't be overdriven. Impedance is unchanged from the original small drivers, so nothing about the amp tuning or power budget changes. |
+| Speakers | 2× **Seeed Mono Enclosed Speaker 4Ω 5W** (SS114993346) | **50 × 45 × 22 mm sealed box** — a square-bodied enclosure, not a bare round driver. Bridge-tied outputs (see wiring cautions). The 5W rating is pure headroom — the amp tops out ~2.5W/channel into 4Ω, so the drivers loaf and can't be overdriven. **The 50 mm body width is what sets the enclosure width** — see the drawing set. |
 
 The XVF3800 was **DFU-flashed with the 48 kHz Home Assistant I2S firmware**; the
 whole audio pipeline runs at 48 kHz to match.
@@ -38,10 +38,26 @@ reach the XIAO's own USB-C. This is an accepted tradeoff.
 
 | Block | Part | Notes |
 |-------|------|-------|
-| Crescent strip | **SK6812 GRBW**, 60 LED/m (16.7 mm pitch) | **48 pixels** arranged as a half-circle crescent. Data on **GPIO1 / D0**. Driven by ESPHome `esp32_rmt_led_strip` (chipset SK6812, `rgb_order: GRB`, `is_rgbw: true`). |
+| Crescent strip | **SK6812 GRBW**, 60 LED/m (16.7 mm pitch) | **48 pixels as built** (R80); the drawing set scales this — see the box below. Arranged as a half-circle crescent. Data on **GPIO1 / D0**. Driven by ESPHome `esp32_rmt_led_strip` (chipset SK6812, `rgb_order: GRB`, `is_rgbw: true`). |
 
 Row layout (bottom row first, flat side down), used by the Circadian Sunrise
 effect: widths 160/158/151/139/119/88/20 mm → **9 / 9 / 9 / 8 / 7 / 5 / 1 = 48**.
+
+> ### ⚠️ The crescent grew — this is an open firmware change
+> The crescent **scales with the enclosure** so the concentric rim stays at
+> 12 mm. At the current 220 mm body the radius is **R98, not R80**, which makes
+> it **58 px, not 48**:
+>
+> | | R80 (as built) | R98 (drawing set) |
+> |---|---|---|
+> | rows, bottom-first | 160/158/151/139/119/88/20 | 196/193/184/168/143/103/0 |
+> | counts | 9/9/9/8/7/5/1 = **48** | 11/11/11/10/8/6/1 = **58** |
+> | draw at the 65% cap | ~1.9 A | ~2.3 A |
+>
+> `packages/lighting.yaml` still says 48 px with the old row layout. It needs
+> updating to match whatever radius the enclosure lands on — and the power
+> budget below moves with it (~4.1 A of 5 A, up from ~3.7 A).
+> `gen_drawing.py` prints the current row table on every run.
 
 > **History / drift:** earlier design notes referenced a **144 LED/m** strip and
 > an **XL6009 boost converter** for the LED rail. The current build is **60 LED/m,
@@ -68,10 +84,10 @@ as-built wiring matches this.
 
 | Sensor | Part | Address | Status |
 |--------|------|---------|--------|
-| Ambient light | **BH1750** | `0x23` | **Implemented** — feeds display auto-dim (`packages/display.yaml`). Mounted rear, behind a light pipe. |
+| Ambient light | **BH1750** | `0x23` | **Implemented** — feeds display auto-dim (`packages/display.yaml`). Mounted rear, behind a light pipe **centred in the back wall** (see the enclosure drawing). |
 | Rotary encoder | **Adafruit seesaw rotary encoder** | `0x36` | **Implemented** — volume knob + push (tap/hold) via the vendored `seesaw` component. |
 | Real-time clock | **DS3231** (driven as `ds1307`) | `0x68` | **Implemented** — battery-backed time source; HA syncs it when connected. |
-| Time-of-flight | **VL53L0X** | `0x29` | **Planned, NOT yet in firmware.** Part of the build — intended for touchless wake (distance in inches). Only a logger line references it today; no `vl53l0x:` sensor exists yet. |
+| Time-of-flight | **VL53L0X** | `0x29` | **Planned, NOT yet in firmware.** Part of the build — intended for touchless wake (distance in inches). Only a logger line references it today; no `vl53l0x:` sensor exists yet. Mounts on the **crown, just right of the volume knob**, board turned longwise front-to-back to clear the encoder breakout — see the enclosure drawing. |
 
 > The BH1750, seesaw and DS3231 are live in the config. The **VL53L0X is on the
 > bus plan and in the address map but has no ESPHome entity yet** — adding it is
@@ -83,7 +99,8 @@ as-built wiring matches this.
 
 | Block | Part | Notes |
 |-------|------|-------|
-| Pack / UPS | **Waveshare UPS Module 3S** (3× 18650 in series) | Provides the **5V / 5A** rail. Runs charge + discharge simultaneously (true UPS). |
+| Pack / UPS | **Waveshare UPS Module 3S** (3× 18650 in series) | **60 × 93 mm board**, M3 mounting holes, cells in holders on the board. Provides the **5V / 5A** rail; runs charge + discharge simultaneously (true UPS). **93 mm will not lie down in a 59 mm interior, so the board STANDS VERTICALLY against the rear wall** (~24 mm deep — confirm with cells fitted). That also puts its barrel jack on the wall that has the cutout. |
+| Charge input | **DC barrel jack** on the UPS board, **12.6 V 2 A** | **Not USB-C.** The only USB-C on the build is the XIAO's own flashing port, which is internal (see the flashing caveat above). The enclosure therefore needs a barrel-jack cutout in the rear wall, not a USB opening. Jack body clearance and its height on the board are **UNCONFIRMED** — measure the as-built. |
 | Monitor | **INA219** (assumed) | I2C — **address is an UNCONFIRMED placeholder** (`ups_i2c_address`, currently `0x41`). Waveshare boards usually carry an INA219 at `0x40–0x43`; if readings are nonsense the part may be an **INA226** (swap `platform: ina219` → `ina226` in `packages/battery.yaml`). |
 | Shunt | series shunt on the UPS board | **UNCONFIRMED** (`ups_shunt_ohms`, currently `0.01 Ω`). If reported current is ~10× off, this value is why. |
 
@@ -109,13 +126,14 @@ in the `battery_charging` sensor and drop the multiply filter.
 
 | Load | Worst-case draw |
 |------|-----------------|
-| 48× SK6812 RGBW, full all-channel white | ~2.9 A |
+| SK6812 RGBW crescent, full all-channel white | ~2.9 A at 48 px; **~3.5 A at 58 px** |
 | TPA2016 into 2× 4Ω at clipping | ~1.3 A (set by the 4Ω load, not the 5W driver rating) |
 | Flex + XVF3800 + ESP32-S3 + sensors | ~0.5 A |
 
 The crescent is **hard-capped at 65% of full white** in firmware
-(`led_max_pct`, applied via `color_correct`) → ~1.9 A for the strip, ~3.7 A
-total of the 5 A budget. This is a physical PWM ceiling, not just a UI limit,
+(`led_max_pct`, applied via `color_correct`) → ~1.9 A for the strip at 48 px and
+~3.7 A total. **At the drawing set's 58 px that becomes ~2.3 A and ~4.1 A total**
+— still inside the 5 A budget, but the headroom is thinner. This is a physical PWM ceiling, not just a UI limit,
 and it also keeps the sealed dome from overheating.
 
 ---
@@ -134,15 +152,34 @@ bus**, so no extra GPIO is consumed per peripheral.
 | GPIO5 | D4 | **I2C SDA** | shared bus (all sensors, display, codec, amp, XVF3800) |
 | GPIO6 | D5 | **I2C SCL** | shared bus |
 | GPIO1 | D0 | SK6812 crescent data | LED strip |
-| GPIO4 | D3 | Capacitive preset touch pad | ESP32-S3 native touch (`esp32_touch`) |
+| GPIO4 | D3 | Capacitive preset touch — **both** shoulder pads, one net (TOUCH4) | ESP32-S3 native touch (`esp32_touch`) |
+| GPIO2 | D1 | *reserved* — TOUCH2, free if the pads ever need splitting | — |
 
 Notes:
 - **D4/D5 for the audio/sensor I2C is the tested, source-of-truth mapping** — do
   not "correct" it from schematic-derived assumptions.
 - **Verify D0/GPIO1 is exposed and unused** on the Flex breakout pads (the LED
   data line moved here because GPIO43 now belongs to the I2S mic).
-- The capacitive touch threshold (`touch_threshold`) must be **calibrated** via
-  `esp32_touch: setup_mode: true` before it works reliably.
+- **Two touch pads on ONE pin.** Copper strips (~40 × 22 mm) bonded to the
+  *inside* of each upper shoulder, both wired to GPIO4/D3. Self-capacitance
+  sensing measures the whole electrode net, so two pads on one net behave as a
+  single electrode that happens to be split in two — touching either half gives
+  the same delta. One binary sensor, one threshold, no OR logic.
+- **Join the two leads at the MCU, not across the crown.** Each pad's lead drops
+  down the inside of its own flank to the floor and they meet at the XIAO. The
+  wire count is identical either way, and it keeps a ~200 mm antenna out of the
+  crown — which is exactly where the SK6812 data line, the I2S lines and the
+  STEMMA chain all run. This is the one routing decision that makes or breaks it.
+- Sharing costs: the baseline capacitance roughly doubles while the finger delta
+  does not, so relative sensitivity drops (still comfortably usable), and a
+  side-to-side sensitivity mismatch cannot be trimmed out with per-pad
+  thresholds. **GPIO2/D1 (TOUCH2) is kept free as the escape hatch** — splitting
+  to two channels later is one wire at the MCU plus a few lines of YAML.
+- The touch threshold (`touch_threshold`) must be **calibrated** via
+  `esp32_touch: setup_mode: true` before it works reliably. Thin the wall
+  locally to ~1.6 mm behind each pad.
+- **Watch for false triggers:** the shoulders are also where you grip the device
+  to move it. If that bites, require a short hold rather than a tap.
 - No SPI is used (the old MAX7219 display was replaced by the I2C HT16K33).
 
 ---
@@ -211,8 +248,72 @@ everything reconnected, drop toward 10 kHz.
 
 ## Enclosure (context)
 
-Five-part frame architecture, main body ~184×64×135 mm: main body, front
-facade, bottom plate, LED bracket, charging base. Zone-based internal layout
-(crescent LED panel zone → mid clock zone → lower speaker zone → floor). Front
-facade is acoustic grille cloth over a T-shaped white opal cast-acrylic diffuser
-(Glowforge-cut). Access is via a bottom slide-in plate. CAD in Fusion 360.
+Main body **~220×64×170 mm**. Form: a letter **"D" lying on its long flat side,
+extruded along the depth** — flat bottom, straight sides, semicircular top of
+radius `W/2`, **concentric with the LED crescent**. The crown is therefore a
+*cylinder*, not a sphere: it curves in front view and is flat in side view. Front
+facade is acoustic grille cloth over white opal cast-acrylic (Glowforge-cut).
+Access is via a bottom slide-in plate. CAD in Fusion 360.
+
+> **W, H and the crescent radius are all derived, not chosen.** Width is set by
+> the parts that sit side by side on the facade — a 50 mm speaker body each side
+> of the 110 mm mic array: `W = 2 × (edge + clr + 50 + clr + 55) = 220`. The arc
+> radius *is* `W/2`, so `H = W/2 + CRES_Y`: **every 2 mm of width adds 1 mm of
+> height**. The crescent then follows the body (`R = W/2 − 12`) so the rim stays
+> constant. A narrower speaker shrinks everything: a 40 mm body gives
+> 200×64×160 with an R88 crescent.
+
+Parts: **dome** (open front + open bottom) · **front module** · **bottom plate** ·
+the **matrix tray** sub-assembly (`3d-print/matrix-tray.stl`) · a printed
+**pebble knob** on the crown for the encoder.
+
+The **front module is one printed part**: facade + diffuser pocket + diffusion
+cavity + matrix pocket + speaker seats + mic channel. The diffuser itself stays a
+separate Glowforge-cut opal acrylic that drops into a pocket from behind. It
+**slides up** into grooves in the dome and is trapped by the bottom plate — no
+fastener touches the facade.
+
+The **bottom plate is the chassis**. Fixing is **6× wall lugs**: pads that
+project inward off the dome wall with a blind heat-set hole, so the screw comes
+up through the plate and grabs the lug. Lugs sit at the perimeter where the plate
+needs support anyway and cost no floor area — which matters, because the floor is
+fully spoken for. There is **no lug on the front edge** (the speaker boxes own
+both front corners, the tray owns the middle); the plate's front edge is captured
+between the seating ledge and the front module's bottom edge instead.
+
+Mounting inside:
+
+| Part | Where | How |
+|---|---|---|
+| UPS 3S | rear wall, centred | Board **stands vertically**; M3 through its own mounting holes into posts/brackets rising from the bottom plate. Its barrel jack lines up with the rear cutout. |
+| ReSpeaker Flex core | floor bay left of the UPS | M3 posts on the bottom plate. The bay is an **envelope (~52 × 31)**, not a fitted pocket, because Seeed doesn't publish the core board size. |
+| Linear-4 mic array | front module | 2× M3 into the mic channel behind the ports, with a gasket land per port. |
+| TPA2016 | rear wall above the UPS | No floor left, and the speaker leads are shortest from there. |
+| Speakers | front module | Seated in raised rings on the back of the facade, 4× fixings each. |
+
+See sheet 2 of the drawing set for the joint, the fixings and the clearances.
+
+**Rear wall** (a true flat face, same "D" profile as the front — the body is an
+extrusion). Everything on it is **centred on the width**: the BH1750 light pipe,
+the DC barrel jack (which lines up with the centred UPS pack behind it), and the
+vent slots above them.
+
+Front-face layout: the **matrix tray and the mic array stack into one tight
+cluster** — array 2 mm above the tray, deliberately close so the facade wastes no
+height — and the two **speaker boxes flank that whole cluster**. Crescent above,
+crown over that. Because the speakers sit beside the 110 mm array rather than
+under it, the array never pushes the crescent up; the cost is width, and width is
+what the body spends instead of height.
+
+> **Drawing set** — three generated sheets in [`3d-print/`](3d-print/), plus the
+> README beside them for the constraints they turned up:
+> [`enclosure-drawing.svg`](3d-print/enclosure-drawing.svg) (shell),
+> [`enclosure-internals.svg`](3d-print/enclosure-internals.svg) (front module,
+> joint, fixings, chassis), and
+> [`enclosure-wiring.svg`](3d-print/enclosure-wiring.svg) (the I2C chain and
+> where each board sits — generated from *this* file).
+
+> **History / drift:** earlier notes described a **five-part** frame (main body,
+> front facade, bottom plate, LED bracket, **charging base**) with a **T-shaped**
+> diffuser. The charging base is gone — the UPS charges through a rear barrel
+> jack — and the diffuser follows the crescent + clock aperture directly.
