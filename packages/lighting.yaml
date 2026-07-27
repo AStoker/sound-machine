@@ -224,8 +224,10 @@ light:
     rgb_order: GRB
     is_rgbw: true
     pin: GPIO1
-    # Real build: half-circle crescent, 60 LED/m strip (16.7mm pitch).
-    # Row widths 160/158/151/139/119/88/20 mm -> 9/9/9/8/7/5/1 = 48 pixels.
+    # Real build: half-circle crescent, 60 LED/m strip (16.7mm pitch), laid on
+    # the R108 diffuser arc. Rows are inset by the LED radius so every pixel body
+    # stays inside the diffusion box (see 3d-print/enclosure_geom.crescent_rows).
+    # Row chords 216/211/198/174/134/47 mm -> 11/11/10/9/6/1 = 48 pixels.
     num_leds: 48
     # Hard current ceiling: caps max PWM to led_max_pct of full scale, so the
     # strip physically can't exceed that current no matter what HA commands.
@@ -251,16 +253,17 @@ light:
           lambda: |-
             // ============ CONFIGURE FOR YOUR BUILD ============
             // LEDs per row, DATA-LINE order, BOTTOM row first. Sum == num_leds.
-            // Half-circle crescent at 16.7mm pitch (60 LED/m); the flat side is
-            // down, so the widest row is row 0 and the single-pixel apex is last.
-            //   row 0: 160mm -> 9    row 4: 119mm -> 7
-            //   row 1: 158mm -> 9    row 5:  88mm -> 5
-            //   row 2: 151mm -> 9    row 6:  20mm -> 1
-            //   row 3: 139mm -> 8                    total 48
+            // Half-circle crescent at 16.7mm pitch (60 LED/m) on the R108 arc;
+            // the flat side is down, so the widest row is row 0 and the
+            // single-pixel apex is last. Row centres are inset by the LED radius
+            // so no pixel body overhangs the diffusion box.
+            //   row 0: 216mm -> 11   row 3: 174mm -> 9
+            //   row 1: 211mm -> 11   row 4: 134mm -> 6
+            //   row 2: 198mm -> 10   row 5:  47mm -> 1   total 48
             // If the strip is laid serpentine, every ODD row runs right-to-left.
             // The sunrise only fills whole rows so that doesn't matter here, but
             // it will for any effect with horizontal structure.
-            static const uint8_t leds_per_row[] = {9, 9, 9, 8, 7, 5, 1};
+            static const uint8_t leds_per_row[] = {11, 11, 10, 9, 6, 1};
             const uint8_t row_count = sizeof(leds_per_row) / sizeof(leds_per_row[0]);
 
             // Dawn keyframes across normalized progress 0..1.
