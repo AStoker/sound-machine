@@ -38,32 +38,48 @@ reach the XIAO's own USB-C. This is an accepted tradeoff.
 
 | Block | Part | Notes |
 |-------|------|-------|
-| Crescent strip | **SK6812 GRBW**, 60 LED/m (16.7 mm pitch) | **48 pixels as built** (R80); the drawing set scales this — see the box below. Arranged as a half-circle crescent. Data on **GPIO1 / D0**. Driven by ESPHome `esp32_rmt_led_strip` (chipset SK6812, `rgb_order: GRB`, `is_rgbw: true`). |
+| Crescent strip | **SK6812 GRBW**, 60 LED/m (16.7 mm pitch) | **48 pixels** — fixed; the drawing set re-lays them on an R96 LED field inside an R117 diffuser, see the box below. Data on **GPIO1 / D0**. Driven by ESPHome `esp32_rmt_led_strip` (chipset SK6812, `rgb_order: GRB`, `is_rgbw: true`). |
 
 Row layout (bottom row first, flat side down), used by the Circadian Sunrise
-effect, laid on the R108 diffuser arc with each row inset by the LED radius so
-no pixel body overhangs the diffusion box:
-chords 216/211/198/174/134/47 mm → **11 / 11 / 10 / 9 / 6 / 1 = 48**.
+effect, laid on the **R96 LED field** with each row inset by the LED radius so
+no pixel body overhangs the box:
+chords 192/188/178/160/133/85 mm → **10 / 10 / 9 / 8 / 7 / 4 = 48**.
 
-> ### ⚠️ Same 48 pixels, new row layout
-> **48 px is fixed** — it is the strip you have. But the crescent **scales with
-> the enclosure** so the concentric rim stays at 12 mm, and at the current 240 mm
-> body the radius is **R108, not R80**. The same 48 pixels therefore have to be
-> re-distributed over a bigger arc:
+> ### ⚠️ The diffuser and the LED field are two different radii
+> **Diffuser R117** (the concentric maximum, 12 mm rim — what you see).
+> **LED field R96** (what is actually lit). The **21 mm band between them is
+> unlit on purpose**: 48 pixels cannot fill R117 without spreading thin, so
+> letting the glow die out before the edge gives a natural fade-off and the
+> acrylic does the work. The per-row fade to the diffuser edge runs 40–54 mm.
 >
-> | | R80 (as built) | R108 (drawing set) |
+> Two things about the layout are *not* free choice, and both changed from the
+> as-built R80:
+>
+> **1. Row pitch is 16.7, the same as the column pitch.** Earlier revisions
+> derived the row spacing by stretching however many rows there were across the
+> full radius, which put rows **20.6 mm** apart against 16.7 mm columns — visibly
+> stretched. The pitch is now set and the LED-field *radius* is solved to suit.
+>
+> **2. Row counts are chosen for a constant end margin, not proportionally.**
+> Proportional-to-capacity looks fine in a table and bad on the part: it let one
+> row run to within 3 mm of the arc while its neighbours stopped 18 mm short, so
+> the lit field bulged. Solving for a single end margin makes the outer pixels
+> trace a curve concentric with the crescent.
+>
+> | | R80 (as built) | R96 LED field (drawing set) |
 > |---|---|---|
-> | rows, chord widths | 160/158/151/139/119/88/20 | 216/211/198/174/134/47 |
-> | counts | 9/9/9/8/7/5/1 = 48 | 11/11/10/9/6/1 = 48 |
-> | strip run per row | ~84% of the chord | ~77% of the chord |
+> | rows, chord widths | 160/158/151/139/119/88/20 | 192/188/178/160/133/85 |
+> | counts | 9/9/9/8/7/5/1 = 48 | 10/10/9/8/7/4 = 48 |
+> | row pitch | — | 16.7 (= column pitch) |
+> | margin to the LED arc | — | 16–22 mm |
+> | fade to the R117 diffuser edge | — | 40–54 mm |
 >
 > Power is unchanged (~1.9 A at the 65% cap) because the pixel count is.
-> The cost is **density**: the strip spreads thinner, so the outer edge of the
-> diffuser runs dimmer than it does today. Shrink the crescent — accepting a
-> bigger rim — if that matters. `gen_drawing.py` prints the current table.
+> **There is no single-pixel apex any more** — the top row is 4 px — so any
+> effect that assumes a pointed top needs revisiting.
 >
-> `packages/lighting.yaml` now carries the **R108** row layout (11/11/10/9/6/1),
-> matching the drawing set; re-map it again if the enclosure radius changes.
+> `packages/lighting.yaml` carries this row layout (10/10/9/8/7/4); re-map it
+> again if `LED_R` changes. `gen_drawing.py` prints the table on every run.
 
 > **History / drift:** earlier design notes referenced a **144 LED/m** strip and
 > an **XL6009 boost converter** for the LED rail. The current build is **60 LED/m,
@@ -254,7 +270,7 @@ everything reconnected, drop toward 10 kHz.
 
 ## Enclosure (context)
 
-Main body **~240×64×181 mm**. Form: a letter **"D" lying on its long flat side,
+Main body **~258×64×190 mm**. Form: a letter **"D" lying on its long flat side,
 extruded along the depth** — flat bottom, straight sides, semicircular top of
 radius `W/2`, **concentric with the LED crescent**. The crown is therefore a
 *cylinder*, not a sphere: it curves in front view and is flat in side view. Front
@@ -262,19 +278,50 @@ facade is acoustic grille cloth over white opal cast-acrylic (Glowforge-cut).
 Access is via a bottom slide-in plate. CAD in Fusion 360.
 
 > **W, H and the crescent radius are all derived, not chosen.** Width is set by
-> the parts that sit side by side on the facade — a 50 mm speaker body each side
-> of the 110 mm mic array: `W = 2 × (edge + clr + 50 + clr + 55) = 220`. The arc
-> radius *is* `W/2`, so `H = W/2 + CRES_Y`: **every 2 mm of width adds 1 mm of
-> height**. The crescent then follows the body (`R = W/2 − 12`) so the rim stays
-> constant, and its 48 pixels are re-laid over the new radius. A narrower speaker
-> shrinks everything: a 40 mm body gives 202×64×162 with an R89 crescent.
+> the parts that sit side by side on the facade — a 50 mm speaker body, *plus the
+> post its side nub needs*, each side of the 110 mm mic array:
+> `W = 2 × (3.6 edge + 4 boss keep-out + 6.35 post + 50 + 6.35 post + 3 gap
+> + 55) = 258`. The arc radius *is* `W/2`, so `H = W/2 + CRES_Y`: **every 2 mm of
+> width adds 1 mm of height**. A narrower speaker shrinks everything: a 40 mm
+> body gives 238×64×180.
+>
+> ### ⚠️ The edge budget is the dome's RIB, not the outline
+> The module **slides up a groove**, and the dome's retaining rib grips the outer
+> `RIB_W` of its **back face** along both flanks and the arc. Anything standing
+> proud of that back face inside the band — a speaker post, a stiffening rib, the
+> diffusion cavity wall — **jams the module on assembly**. A 2D view cannot show
+> this: on the flat it just looks like clearance to the outline, and the outline
+> is not the constraint. So the width chain spends `BOSS_EDGE = RIB_W + 1`, not a
+> driver clearance. Three consequences:
+> - **`RIB_W` is 3 mm, not 5.** The rib only has to stop the module tipping
+>   forward (the bottom plate already traps it), and the keep-out is multiplied
+>   four times across the width. 5 → 3 gave back 4 mm of body width.
+> - **`RIM_MIN` is derived, not chosen.** Walking out from the crescent —
+>   `DIFF_MARGIN` + `CAV_WALL` + `BOSS_EDGE` + `REVEAL` — gives the smallest rim
+>   the shell can physically carry. Only if that comes out under the aesthetic
+>   minimum does 12 mm win.
+> - **The bottom edge is exempt.** It is the open end the module slides in
+>   through, and the bottom plate captures it there instead.
+>
+> `gen_front_plate.py` intersects every boss with this band and reports the
+> volume, so it cannot regress silently.
+>
+> **The diffuser sits at the concentric maximum; the LED field does not.** The
+> diffuser arc is `W/2 − RIM_MIN` = **R117**, so the crescent is as big as the
+> shell allows and the rim stays at 12 mm. The **LED field is a separate, smaller
+> R96**, solved so the 48 fixed pixels occupy ≥84 % of that arc's capacity at a
+> 16.7 mm row pitch. The 21 mm band between the two is **unlit by design** — it
+> is what turns a hard-edged lit area into a soft falloff. `CRES_FILL_MIN = 0`
+> pushes the LED field out to the diffuser arc and kills the fade.
 
-Parts: **dome** (open front + open bottom) · **front module** · **bottom plate** ·
-the **matrix tray** sub-assembly (`3d-print/matrix-tray.stl`) · a printed
-**pebble knob** on the crown for the encoder.
+Parts: **dome** (open front + open bottom) · **front module** · **bottom plate**
+· a printed **pebble knob** on the crown for the encoder. The front module
+carries the clock matrices itself, so `matrix-tray.stl` is no longer in the
+assembly — it survives as a standalone part.
 
 The **front module is one printed part**: facade + diffuser pocket + diffusion
-cavity + matrix pocket + speaker seats + mic channel. The diffuser itself stays a
+cavity + matrix posts and clips + speaker seats + mic channel. The diffuser
+itself stays a
 separate Glowforge-cut opal acrylic that drops into a pocket from behind. It
 **slides up** into grooves in the dome and is trapped by the bottom plate — no
 fastener touches the facade. The module is **wrapped in acoustically transparent
@@ -295,21 +342,39 @@ Mounting inside:
 | Part | Where | How |
 |---|---|---|
 | UPS 3S | rear wall, centred | Board **stands vertically**; M3 through its own mounting holes into posts/brackets rising from the bottom plate. Its barrel jack lines up with the rear cutout. |
-| ReSpeaker Flex core | **rear wall, above the UPS** | Mounted **vertically**, flat against the wall. About a credit card (~86 × 54) and ~19 mm deep where the XIAO sits. The rear wall is reachable the moment the front module is out, and this keeps the floor clear. |
+| ReSpeaker Flex core | **rear wall, above the UPS** | Mounted **vertically**, flat against the wall on 3 mm standoffs, 4× M3. Bare board **52 × 70 × 20 deep** at the XIAO; the 3.5 mm jack and the mic ribbon overhang the two short (52 mm) edges, so reserve a **110 mm envelope** in that direction. Hole pitch **45 × 63** (measured 42 × 60 inside-edge to inside-edge, 2 mm edge to hole outside → Ø3). The rear wall is reachable the moment the front module is out, and this keeps the floor clear. |
 | Linear-4 mic array | front module | 2× M3 into the mic channel behind the ports, with a gasket land per port. |
 | TPA2016 | **rear wall, flush, beside the UPS** | Not a side wall: the sides are only vertical *below* the springing line and the speaker boxes own all of that; above it the sides are the curved crown, no good for a flat board. |
-| Speakers | front module | Seated in raised rings on the back of the facade, 4× fixings each. The **seat ring**, not just the body, has to sit inside the module outline — that is part of what sets the width. |
+| Speakers | front module | **Hang on side nubs, not a baffle bolt pattern.** One nub per side, centred on the 45 mm side, its landing face **7 mm behind the speaker's front face**. So the module carries a **post beside each flank** standing 7 mm proud of its back face, with an M3 running front-to-back into it (inserted **from behind**, through the nub). The post — not the body — is the widest point, and it is what sets the width. Locating ribs sit above and below only: a rib down the flanks would foul the nubs. |
+| Clock matrices | front module, **directly** | ⚠️ **The two boards are only loosely soldered to each other**, so the frame cannot treat them as one part. Each board is located by its **own two posts** (Ø1.85 through its Ø2.0 diagonal holes) and seats on two pads in the clear margin above and below its LED field; the pair is then clamped by **six cantilever clips — two on each long edge, one at each end**. A pocket would locate the *pair*, and the pair is exactly the thing that is not rigid. No tray, no pocket. |
 
-See sheet 2 of the drawing set for the joint, the fixings and the clearances.
+See sheet 2 of the drawing set for the joint, the fixings and the clearances,
+and [`gen_front_plate.py`](3d-print/gen_front_plate.py) for the printable part.
+
+**The clock aperture is one open rectangle** — 84 × 23, no per-pixel holes.
+Through a 4 mm facade a per-pixel tunnel would be a light pipe and would gut the
+viewing angle; one open window avoids that and avoids a registration problem.
 
 **Rear wall** (a true flat face, same "D" profile as the front — the body is an
-extrusion). Everything on it is **centred on the width**: the BH1750 light pipe,
-the DC barrel jack (which lines up with the centred UPS pack behind it), and the
-vent slots above them.
+extrusion). The BH1750 light pipe and the DC barrel jack are **centred on the
+width**; the jack lines up with the centred UPS pack behind it.
 
-Front-face layout: the **matrix tray and the mic array stack into one tight
-cluster** — array 2 mm above the tray, deliberately close so the facade wastes no
-height — and the two **speaker boxes flank that whole cluster**. Crescent above,
+> **The rear wall is the most crowded face in the build** — UPS, Flex, amp, lux
+> pipe, jack and vents all land on it, so `rear_wall_clearances()` checks every
+> pair rather than trusting the eye. Two consequences:
+> - **The vents are two stacks flanking the UPS, not one centred stack.** A
+>   centred stack sits directly behind the Flex board, which both blocks the
+>   slots and bakes the board. On the flanks they clear the Flex *and* sit right
+>   above the amp, where the heat actually is.
+> - **The lux pipe threads a ~5 mm band.** The UPS stands to y=97 and the Flex
+>   starts at y=102, so a centred pipe has exactly that gap — hence Ø3, with only
+>   1 mm clear each side. The BH1750 itself sits in front of the UPS (31 mm of
+>   free depth) with a short pipe up to the wall. **If this band gets any
+>   tighter, move the lux to the crown** — it is the one rear feature with
+>   nowhere else to go on this wall.
+
+Front-face layout: the **matrix pair and the mic array stack into one
+cluster** — and the two **speaker boxes flank that whole cluster**. Crescent above,
 crown over that. Because the speakers sit beside the 110 mm array rather than
 under it, the array never pushes the crescent up; the cost is width, and width is
 what the body spends instead of height.

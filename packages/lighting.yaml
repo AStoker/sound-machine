@@ -225,9 +225,13 @@ light:
     is_rgbw: true
     pin: GPIO1
     # Real build: half-circle crescent, 60 LED/m strip (16.7mm pitch), laid on
-    # the R108 diffuser arc. Rows are inset by the LED radius so every pixel body
-    # stays inside the diffusion box (see 3d-print/enclosure_geom.crescent_rows).
-    # Row chords 216/211/198/174/134/47 mm -> 11/11/10/9/6/1 = 48 pixels.
+    # the R96 LED field. That sits INSIDE an R117 diffuser -- the 21mm band
+    # between them is unlit on purpose, so the glow fades out rather than
+    # stopping at a hard edge (see 3d-print/enclosure_geom.crescent_rows).
+    # ROW PITCH IS ALSO 16.7 -- rows used to be stretched across the radius,
+    # which put them 20.6mm apart against 16.7mm columns. Row counts are chosen
+    # for a CONSTANT end margin, so the outer pixels trace the arc.
+    # Row chords 192/188/178/160/133/85 mm -> 10/10/9/8/7/4 = 48 pixels.
     num_leds: 48
     # Hard current ceiling: caps max PWM to led_max_pct of full scale, so the
     # strip physically can't exceed that current no matter what HA commands.
@@ -253,17 +257,21 @@ light:
           lambda: |-
             // ============ CONFIGURE FOR YOUR BUILD ============
             // LEDs per row, DATA-LINE order, BOTTOM row first. Sum == num_leds.
-            // Half-circle crescent at 16.7mm pitch (60 LED/m) on the R108 arc;
-            // the flat side is down, so the widest row is row 0 and the
-            // single-pixel apex is last. Row centres are inset by the LED radius
-            // so no pixel body overhangs the diffusion box.
-            //   row 0: 216mm -> 11   row 3: 174mm -> 9
-            //   row 1: 211mm -> 11   row 4: 134mm -> 6
-            //   row 2: 198mm -> 10   row 5:  47mm -> 1   total 48
+            // Half-circle crescent at 16.7mm pitch (60 LED/m) on the R96 LED arc,
+            // rows ALSO 16.7 apart; the flat side is down, so the widest row is
+            // row 0. Row centres are inset by the LED radius so no pixel body
+            // overhangs the diffusion box, and each row's count is set for a
+            // CONSTANT ~16-22mm end margin rather than proportionally -- that is
+            // what makes the outer pixels follow the arc.
+            //   row 0: 192mm -> 10   row 3: 160mm -> 8
+            //   row 1: 188mm -> 10   row 4: 133mm -> 7
+            //   row 2: 178mm ->  9   row 5:  85mm -> 4   total 48
+            // NOTE row 5 is 4 pixels, not 1 -- there is no single-pixel apex any
+            // more, so an effect that assumes a pointed top needs revisiting.
             // If the strip is laid serpentine, every ODD row runs right-to-left.
             // The sunrise only fills whole rows so that doesn't matter here, but
             // it will for any effect with horizontal structure.
-            static const uint8_t leds_per_row[] = {11, 11, 10, 9, 6, 1};
+            static const uint8_t leds_per_row[] = {10, 10, 9, 8, 7, 4};
             const uint8_t row_count = sizeof(leds_per_row) / sizeof(leds_per_row[0]);
 
             // Dawn keyframes across normalized progress 0..1.

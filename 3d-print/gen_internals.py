@@ -54,23 +54,42 @@ def fm_rear():
     o.append(path(fm_profile(), "phan"))
     o.append(semi(W/2, fy(CRES_Y), DIFF_R, "obj"))        # diffuser pocket
     o.append(semi(W/2, fy(CRES_Y), CAV_R, "obj"))         # cavity outer wall
-    o.append(semi(W/2, fy(CRES_Y), CRES_R, "hid"))        # LED strip centreline
-    # matrix pocket + through aperture
-    o.append(rect(W/2-TRAY_W/2, fy(CLK_Y+TRAY_H/2), TRAY_W, TRAY_H, "obj", 1))
+    o.append(semi(W/2, fy(CRES_Y), LED_R, "hid"))         # LED field arc (< diffuser)
+    # the two matrices, the open aperture behind them, and the retention that
+    # holds them: each board located by its OWN posts (they are only loosely
+    # soldered to each other), the pair clamped by clips on all four sides
+    _mx0, _my0 = W/2 - TRAY_W/2, TRAY_Y0
+    o.append(rect(_mx0, fy(CLK_Y+TRAY_H/2), TRAY_W, TRAY_H, "phan"))
+    o.append(line(W/2, fy(TRAY_Y1), W/2, fy(TRAY_Y0), "phan"))   # the seam
     o.append(rect(W/2-CLK_W/2, fy(CLK_Y+CLK_H/2), CLK_W, CLK_H, "hid", 2))
-    # speaker seats: square body pockets + corner fixings
+    for _b in range(MTX_N):
+        for _hx, _hy in MTX_HOLES:
+            o.append(circ(_mx0 + _b*MTX_BOARD_W + _hx, fy(_my0 + _hy), 1.85))
+    for _cx in (W/2 - TRAY_W/4, W/2 + TRAY_W/4):                 # top + bottom
+        for _cy, _s in ((TRAY_Y0, -1), (TRAY_Y1, 1)):
+            o.append(rect(_cx - 3, fy(_cy + _s*2.45 + (0 if _s < 0 else 0)),
+                          6, 2.2, "obj"))
+    for _cx, _s in ((_mx0, -1), (_mx0 + TRAY_W, 1)):             # the two ends
+        o.append(rect(_cx + (0 if _s > 0 else -2.45), fy(CLK_Y + 3),
+                      2.2, 6, "obj"))
+    # speaker seats: square body pockets + a SIDE-MOUNT POST beside each flank.
+    # The speaker has no baffle bolt pattern -- it hangs off one nub per side,
+    # so the module grows a post there instead of a ring of face screws.
     for sx in (SPK_X, W-SPK_X):
-        o.append(rect(sx-SPK_BODY_W/2-SPK_RING_W, fy(SPK_SEAT_Y1),
-                      SPK_BODY_W+2*SPK_RING_W, SPK_BODY_H+2*SPK_RING_W, "obj", 3))
+        o.append(rect(sx-SPK_BODY_W/2-SPK_SEAT_W, fy(SPK_SEAT_Y1),
+                      SPK_BODY_W+2*SPK_SEAT_W, SPK_BODY_H+2*SPK_RING_W, "obj", 3))
         o.append(rect(sx-SPK_BODY_W/2, fy(SPK_Y1), SPK_BODY_W, SPK_BODY_H, "obj", 2))
         o.append(circ(sx, fy(SPK_Y), SPK_GRILLE, "hid"))
-        for dx in (-SPK_FIX_W/2, SPK_FIX_W/2):
-            for dy in (-SPK_FIX_H/2, SPK_FIX_H/2):
-                o.append(circ(sx + dx, fy(SPK_Y) + dy, 2.8, "obj"))
-        # stiffening ribs -- a 4 mm plate with a sealed box on it will buzz
         for sgn in (-1, 1):
-            o.append(line(sx + sgn*(SPK_BODY_W/2+SPK_RING_W), fy(SPK_Y),
-                          sx + sgn*(SPK_BODY_W/2+SPK_RING_W+16), fy(SPK_Y), "obj"))
+            px = sx + sgn * (SPK_BODY_W/2 + SPK_NUB_PROJ/2)
+            # the post the nub lands on, and its screw
+            o.append(rect(px - (SPK_NUB_PROJ + SPK_POST_WALL)/2,
+                          fy(SPK_NUB_Y + SPK_NUB_H/2 + 1.5),
+                          SPK_NUB_PROJ + SPK_POST_WALL, SPK_NUB_H + 3, "obj", 1))
+            o.append(circ(px, fy(SPK_NUB_Y), SPK_NUB_SCREW, "hid"))
+            # stiffening ribs -- a 4 mm plate with a sealed box on it will buzz
+            o.append(line(sx + sgn*(SPK_BODY_W/2+SPK_SEAT_W), fy(SPK_Y1 - 8),
+                          sx + sgn*(SPK_BODY_W/2+SPK_SEAT_W+14), fy(SPK_Y1 - 8), "obj"))
     # mic flex channel + ports
     o.append(rect(W/2-MIC_PCB_W/2-1, fy(MIC_Y1+1), MIC_PCB_W+2, MIC_PCB_H+2, "obj", 1))
     for mx in mic_x():
@@ -88,15 +107,16 @@ def fm_dims():
                     f"diffuser pocket R{dt(DIFF_R)} x {dt(DIFF_REBATE)} deep", "end"))
     o.append(leader(W/2 - CAV_R*0.42, fy(CRES_Y + CAV_R*0.9), -14, -26,
                     f"cavity wall {dt(CAV_WALL)}, R{dt(CAV_R)}", "end"))
-    o.append(leader(W/2 + CRES_R*0.6, fy(CRES_Y + CRES_R*0.79), 34, -18,
-                    f"SK6812 strip seats at R{dt(CRES_R)}"))
-    o.append(leader(W/2 + TRAY_W/2, fy(CLK_Y - TRAY_H/2), 52, 26,
-                    f"matrix tray pocket {dt(TRAY_W)} x {dt(TRAY_H)} x "
-                    f"{dt(TRAY_REBATE)} ({dt(TRAY_FIT)} interference)"))
-    o.append(leader(W - SPK_X + (SPK_BODY_W/2+SPK_RING_W)*0.71,
-                    fy(SPK_Y) - (SPK_BODY_W/2+SPK_RING_W)*0.71, 34, -30,
-                    f"Seeed enclosed speaker {dt(SPK_BODY_W)} x {dt(SPK_BODY_H)} x "
-                    f"{dt(SPK_BODY_D)}, seat + {SPK_FIX}x fixing (?)"))
+    o.append(leader(W/2 + LED_R*0.6, fy(CRES_Y + LED_R*0.79), 44, -18,
+                    f"SK6812 strip seats at R{dt(LED_R)} - {dt(CRES_FADE)} inside "
+                    f"the R{dt(CRES_R)} diffuser, so the glow fades out"))
+    o.append(leader(W/2 - TRAY_W/4, fy(TRAY_Y0), -26, 42,
+                    f"2x matrix - {2*MTX_N} posts + 6 clips, see note h", "end"))
+    o.append(leader(W - SPK_X + (SPK_BODY_W/2+SPK_SEAT_W)*0.71,
+                    fy(SPK_Y) - (SPK_BODY_W/2+SPK_SEAT_W)*0.71, 30, -30,
+                    f"2x Seeed {dt(SPK_BODY_W)}x{dt(SPK_BODY_H)}x{dt(SPK_BODY_D)}"))
+    o.append(leader(W - SPK_X + SPK_BODY_W/2 + SPK_NUB_PROJ/2, fy(SPK_NUB_Y),
+                    32, 20, f"side post - see note g"))
     o.append(leader(W/2 - MIC_PCB_W/2, fy(MIC_Y), -22, 30,
                     f"mic flex channel {dt(MIC_CHAN_D)} deep, "
                     f"{dt(MIC_GASKET)} gasket land per port", "end"))
@@ -142,8 +162,13 @@ def sec_internals():
                   UPS_D, UPS_H, "hid"))                                  # UPS
     o.append(rect(D - WALL - AMP_H, fy(AMP_WALL_Y + AMP_D/2),
                   AMP_H, AMP_D, "hid"))                                  # amp, flush
-    o.append(rect(D - WALL - FLEX_D, fy(FLEX_WALL_Y + FLEX_H),
-                  FLEX_D, FLEX_H, "hid"))          # Flex, on the rear wall
+    # Flex on the rear wall: standoff, then the 20 deep board (deepest at XIAO)
+    o.append(rect(D - WALL - FLEX_STANDOFF - FLEX_D, fy(FLEX_WALL_Y + FLEX_H),
+                  FLEX_D, FLEX_H, "hid"))
+    for _hy in (FLEX_WALL_Y + FLEX_H/2 - FLEX_HOLE_PY/2,
+                FLEX_WALL_Y + FLEX_H/2 + FLEX_HOLE_PY/2):
+        o.append(rect(D - WALL - FLEX_STANDOFF, fy(_hy + FLEX_BOSS_D/2),
+                      FLEX_STANDOFF, FLEX_BOSS_D, "obj"))
     # a rear-wall lug, sectioned
     o.append(rect(D - WALL - LUG_L, fy(BP_T + LUG_H), LUG_L, LUG_H, "obj"))
     o.append(rect(D - WALL - LUG_L/2 - INSERT_D/2, fy(BP_T + 6), INSERT_D, 6, "hid"))
@@ -162,14 +187,19 @@ def sec_dims():
                     f"{dt(D - WALL - UPS_D - FM_Z0 - FM_DEPTH)}"))
     o.append(leader(D - WALL - UPS_D, fy(BP_T + UPS_H), 26, -22,
                     f"UPS 3S board {dt(UPS_W)} x {dt(UPS_H)}, STANDING"))
-    o.append(leader(D - WALL - AMP_H, fy(AMP_WALL_Y), -24, 22,
-                    "TPA2016 FLUSH on the rear wall", "end"))
+    # everything on the rear wall calls out to the RIGHT -- to the left is the
+    # FRONT MODULE panel, and long text with an "end" anchor lands on top of it
+    o.append(leader(D - WALL, fy(AMP_WALL_Y), 30, 26,
+                    "TPA2016 FLUSH on the rear wall"))
     o.append(leader(D - WALL - LUG_L, fy(BP_T + LUG_H), -26, 26,
-                    f"wall LUG {dt(LUG_L)} x {dt(LUG_W)} x {dt(LUG_H)} - screw comes "
-                    "up from below", "end"))
-    o.append(leader(D - WALL - FLEX_D, fy(FLEX_WALL_Y + FLEX_H), -20, -20,
-                    f"ReSpeaker Flex {dt(FLEX_W)} x {dt(FLEX_H)} x {dt(FLEX_D)} (?), "
-                    "VERTICAL on the rear wall", "end"))
+                    f"wall LUG {dt(LUG_L)}x{dt(LUG_W)}x{dt(LUG_H)}", "end"))
+    o.append(leader(D - WALL - FLEX_STANDOFF - FLEX_D, fy(FLEX_WALL_Y + FLEX_H),
+                    36, -24,
+                    f"ReSpeaker Flex {dt(FLEX_PCB_W)} x {dt(FLEX_PCB_H)} x "
+                    f"{dt(FLEX_D)} deep at the XIAO"))
+    o.append(leader(D - WALL - FLEX_STANDOFF, fy(FLEX_WALL_Y + FLEX_H*0.62), 30, -12,
+                    f"vertical, on {dt(FLEX_STANDOFF)} standoffs "
+                    f"({dt(FLEX_W)} wide over its connectors)"))
     return o
 
 
@@ -178,7 +208,7 @@ def bp_plan():
     o = [path(rrect(0, 0, BP_W, BP_D, max(R_PLAN - WALL, 1)), "obj")]
     ox, oy = (IN_W - BP_W)/2 - (WALL - WALL), (IN_D - BP_D)/2
     for name, x0, x1, d0, d1 in floor_items():
-        if name.startswith("driver") or name == "matrix tray":
+        if name.startswith("driver") or name == "matrix pair":
             cls = "phan"
         else:
             cls = "hid"
@@ -245,7 +275,7 @@ def dome_under_dims():
                     f"6x wall lug {dt(LUG_L)} x {dt(LUG_W)} x {dt(LUG_H)}, "
                     f"{chr(216)}{dt(INSERT_D)} for M{dt(SCREW_D)} heat-set"))
     o.append(txt(W/2, D + 30, "no lug on the FRONT edge - the speakers own both "
-                 "corners and the tray owns the middle. It does not need one:",
+                 "corners and the matrix owns the middle. It does not need one:",
                  "note", "middle"))
     o.append(txt(W/2, D + 35, "the plate's front edge is captured between the "
                  "seating ledge and the front module's bottom edge.",
@@ -401,13 +431,37 @@ def build():
     nl("    cost no floor area - which matters, because the floor is fully "
        "spoken for. Clearances per lug are in the key beside the plan.")
     nl("e   NO LUG ON THE FRONT EDGE. The speaker bodies own both front corners "
-       "and the tray owns the middle, so there is nowhere to put one.")
+       "and the matrix owns the middle, so there is nowhere to put one.")
     nl("    It does not need one: the plate's front edge is captured between "
        "the seating ledge and the front module's bottom edge.")
     nl(f"f   TPA2016 moved to the REAR WALL at y={dt(AMP_WALL_Y)}. There is no "
        "floor left for it, and the speaker leads are shortest from there.")
     nl("    Bridge-tied outputs: do NOT common the two speakers' negatives "
        "(HARDWARE.md).")
+    nl(f"g   SPEAKERS HANG ON SIDE NUBS, not on a baffle bolt pattern. Each body "
+       f"has one nub per side, centred on the {dt(SPK_BODY_H)} mm side, its "
+       f"landing face {dt(SPK_NUB_Z)} mm behind the")
+    nl(f"    speaker's front face. So the module carries a POST beside each "
+       f"flank, standing {dt(SPK_NUB_Z)} proud of its back face, and an "
+       f"M{n(SPK_NUB_SCREW)} runs front-to-back into it.")
+    nl(f"    NUB PROJECTION IS A GUESS ({dt(SPK_NUB_PROJ)} mm) and it is a width "
+       f"driver: the post needs {dt(SPK_SEAT_W)} mm beside each flank, so every "
+       f"+1 mm of nub costs +4 mm of body width")
+    nl(f"    and +2 mm of height. Measure it before you print. The seat ring is "
+       f"sized from it ({dt(SPK_SEAT_W)} = nub {dt(SPK_NUB_PROJ)} + "
+       f"{dt(SPK_POST_WALL)} wall), not chosen.")
+    nl(f"h   THE TWO MATRICES ARE ONLY LOOSELY SOLDERED TOGETHER, so the frame "
+       f"cannot treat them as one part. Each board is located by its OWN two "
+       f"posts through its")
+    nl(f"    own {chr(216)}{dt(MTX_HOLE_D)} diagonal holes, seats on two pads in "
+       f"the clear margin above and below its LED field, and the pair is clamped "
+       f"by SIX clips - two on")
+    nl(f"    each long edge and one at each end. There is no tray and no pocket: "
+       f"a pocket would locate the PAIR, and the pair is exactly the thing that "
+       f"is not rigid.")
+    nl(f"    The clock aperture is ONE OPEN {dt(CLK_W)} x {dt(CLK_H)} rectangle - "
+       f"no per-pixel holes. Through a {dt(FP_T)} mm facade a per-pixel tunnel "
+       f"would kill the viewing angle.")
     o.append(g("NOTES", L, 90.0, 372.0))
 
     o.append(title_block(

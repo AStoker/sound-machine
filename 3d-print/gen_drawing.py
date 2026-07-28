@@ -92,16 +92,21 @@ def front_dims():
     o.append(leader(W/2 + ARCH_R*0.707, fy(ARCH_Y + ARCH_R*0.707), 30, -44,
                     f"R{dt(ARCH_R)} shell arc"))
     o.append(leader(W/2 + CRES_R*0.5, fy(ARCH_Y + CRES_R*0.866), 54, -30,
-                    f"R{dt(CRES_R)} crescent - CONCENTRIC, {dt(ARCH_R-CRES_R)} rim"))
-    o.append(dim_h(W/2-CRES_R, W/2+CRES_R, fy(CRES_Y) - 7, dt(2*CRES_R), ext=fy(CRES_Y)))
+                    f"R{dt(CRES_R)} diffuser - CONCENTRIC, {dt(CRES_RIM)} rim"))
+    o.append(leader(W/2 - LED_R*0.5, fy(ARCH_Y + LED_R*0.866), -30, -44,
+                    f"R{dt(LED_R)} LED field - {dt(CRES_FADE)} inside the "
+                    "diffuser edge (unlit fade band)", "end"))
+    # (no 2xR dimension across the baseline -- it would run straight through the
+    #  bottom LED row, and R + concentric + centre height already fix the arc)
     o.append(dim_v(fy(ARCH_Y), fy(0), W + 12, dt(ARCH_Y), ext=W/2+CRES_R))
     o.append(dim_v(fy(CRES_Y + CRES_R), fy(0), W + 24, dt(CRES_Y+CRES_R), ext=W/2))
-    # clock aperture + tray pocket
+    # clock aperture + matrix pair
     o.append(dim_h(W/2-CLK_W/2, W/2+CLK_W/2, H + 10, dt(CLK_W), ext=H))
     o.append(leader(W/2+CLK_W/2, fy(CLK_Y) - CLK_H/2, 78, -56,
                     f"clock aperture {dt(CLK_W)} x {dt(CLK_H)}"))
     o.append(leader(W/2+TRAY_W/2, fy(CLK_Y)+TRAY_H/2, 76, 20,
-                    f"tray pocket {dt(TRAY_W)} x {dt(TRAY_H)}"))
+                    f"2x matrix {dt(MTX_BOARD_W)} x {dt(TRAY_H)} butted = "
+                    f"{dt(TRAY_W)} - posts + clips, no tray"))
     o.append(dim_v(fy(CLK_Y), fy(0), -11, dt(CLK_Y), ext=W/2-CLK_W/2))
     # mic array band, above the clock
     o.append(cl_h(W/2 - MIC_PCB_W/2 - 8, W/2 + MIC_PCB_W/2 + 8, fy(MIC_Y)))
@@ -246,17 +251,25 @@ def rear_dome():
     o.append(path(d_profile(WALL, max(R_BOT - WALL, 1)), "hid"))      # inner wall
     o.append(circ(W/2, fy(LP_Y), LP_D))                               # lux
     o.append(circ(W/2, fy(BARREL_Y), BARREL_D))                       # barrel jack
-    for i in range(VENT_N):
-        o.append(rect(W/2 - VENT_W/2, fy(vent_y(i)) - VENT_HH/2,
-                      VENT_W, VENT_HH, "obj", VENT_HH/2))
+    for vx in vent_x():                      # two stacks, flanking the UPS
+        for i in range(VENT_N):
+            o.append(rect(vx - VENT_W/2, fy(vent_y(i)) - VENT_HH/2,
+                          VENT_W, VENT_HH, "obj", VENT_HH/2))
     return o
 
 
 def rear_internals():
     """What is mounted ON the rear wall, seen through it."""
-    return [rect(W/2 - UPS_W/2, fy(BP_T + UPS_H), UPS_W, UPS_H, "hid"),
-            rect(W/2 - FLEX_W/2, fy(FLEX_WALL_Y + FLEX_H), FLEX_W, FLEX_H, "hid"),
-            rect(AMP_WALL_X - AMP_W/2, fy(AMP_WALL_Y + AMP_D/2), AMP_W, AMP_D, "hid")]
+    o = [rect(W/2 - UPS_W/2, fy(BP_T + UPS_H), UPS_W, UPS_H, "hid"),
+         rect(AMP_WALL_X - AMP_W/2, fy(AMP_WALL_Y + AMP_D/2), AMP_W, AMP_D, "hid")]
+    # Flex: the 52-wide BARE BOARD, then the 110 envelope its connectors need
+    o.append(rect(W/2 - FLEX_PCB_W/2, fy(FLEX_WALL_Y + FLEX_PCB_H),
+                  FLEX_PCB_W, FLEX_PCB_H, "hid"))
+    o.append(rect(W/2 - FLEX_W/2, fy(FLEX_WALL_Y + FLEX_H), FLEX_W, FLEX_H, "phan"))
+    for hx, hy in flex_holes():                       # 4x M3, 45 x 63 pitch
+        o.append(circ(hx, fy(hy), FLEX_HOLE_D, "obj"))
+        o.append(circ(hx, fy(hy), FLEX_BOSS_D, "phan"))
+    return o
 
 
 def rear_dims():
@@ -266,24 +279,37 @@ def rear_dims():
     # heights, all off the same centreline
     o.append(dim_v(fy(BARREL_Y), fy(0), W + 14, dt(BARREL_Y), ext=W/2 + BARREL_D/2))
     o.append(dim_v(fy(LP_Y), fy(0), W + 26, dt(LP_Y), ext=W/2 + LP_D/2))
-    o.append(dim_v(fy(vent_y(0)), fy(0), W + 38, dt(VENT_Y), ext=W/2 + VENT_W/2))
+    o.append(dim_v(fy(vent_y(0)), fy(0), W + 38, dt(VENT_Y),
+                   ext=vent_x()[1] + VENT_W/2))
     o.append(leader(W/2 + BARREL_D/2, fy(BARREL_Y), 46, 26,
                     f"{chr(216)}{dt(BARREL_D)} DC barrel jack - UPS 3S charge in (?)"))
-    o.append(leader(W/2 + LP_D/2, fy(LP_Y), 52, 14,
+    o.append(leader(W/2 + LP_D/2, fy(LP_Y), 62, 62,
                     f"{chr(216)}{dt(LP_D)} light pipe - BH1750 lux"))
-    o.append(leader(W/2 + VENT_W/2, fy(vent_y(VENT_N - 1)), 34, -30,
-                    f"{VENT_N}x vent slot {dt(VENT_W)} x {dt(VENT_HH)} @ {dt(VENT_P)}"))
-    o.append(dim_h(W/2 - VENT_W/2, W/2 + VENT_W/2, fy(vent_y(0)) + 10, dt(VENT_W),
-                   ext=fy(vent_y(0))))
-    o.append(leader(W/2 - UPS_W/2, fy(BP_T + UPS_H/2), -22, 14,
+    o.append(leader(vent_x()[1] + VENT_W/2, fy(vent_y(VENT_N - 1)), 30, -26,
+                    f"2x {VENT_N} vent slot {dt(VENT_W)} x {dt(VENT_HH)} @ "
+                    f"{dt(VENT_P)} - FLANKING the UPS, clear of the Flex"))
+    o.append(dim_h(vent_x()[1] - VENT_W/2, vent_x()[1] + VENT_W/2,
+                   fy(vent_y(0)) + 10, dt(VENT_W), ext=fy(vent_y(0))))
+    o.append(dim_h(W/2, vent_x()[1], fy(vent_y(VENT_N-1)) - 9, dt(VENT_X_OFF)))
+    o.append(leader(W/2 - UPS_W/2, fy(BP_T + UPS_H*0.30), -16, 18,
                     f"UPS 3S {dt(UPS_W)} x {dt(UPS_H)}, standing (jack lands here)",
                     "end"))
-    o.append(leader(W/2 + FLEX_W/2, fy(FLEX_WALL_Y + FLEX_H), 30, -22,
-                    f"ReSpeaker Flex {dt(FLEX_W)} x {dt(FLEX_H)} (?) - VERTICAL on "
-                    "this wall, above the UPS"))
-    o.append(leader(AMP_WALL_X - AMP_W/2, fy(AMP_WALL_Y), -22, 26,
-                    f"TPA2016 {dt(AMP_W)} x {dt(AMP_D)} FLUSH on this wall", "end"))
-    o.append(txt(W/2, H + 38, "all rear features CENTRED on the width",
+    o.append(leader(W/2 + FLEX_PCB_W/2, fy(FLEX_WALL_Y + FLEX_PCB_H), 40, -30,
+                    f"ReSpeaker Flex board {dt(FLEX_PCB_W)} x {dt(FLEX_PCB_H)} x "
+                    f"{dt(FLEX_D)} deep - VERTICAL on this wall, above the UPS"))
+    o.append(leader(W/2 + FLEX_W/2, fy(FLEX_WALL_Y + FLEX_H*0.62), 34, -46,
+                    f"{dt(FLEX_W)} envelope - the 3.5 mm jack and the mic ribbon "
+                    "overhang the short edges"))
+    o.append(dim_h(W/2 - FLEX_HOLE_PX/2, W/2 + FLEX_HOLE_PX/2,
+                   fy(FLEX_WALL_Y + FLEX_H/2), dt(FLEX_HOLE_PX)))
+    o.append(leader(W/2 - FLEX_HOLE_PX/2, fy(FLEX_WALL_Y + FLEX_H/2 + FLEX_HOLE_PY/2),
+                    -30, -18,
+                    f"4x M{n(FLEX_HOLE_D)} boss @ {dt(FLEX_HOLE_PX)} x "
+                    f"{dt(FLEX_HOLE_PY)}, {dt(FLEX_STANDOFF)} standoff", "end"))
+    o.append(leader(AMP_WALL_X - AMP_W/2, fy(AMP_WALL_Y), -22, 34,
+                    f"TPA2016 {dt(AMP_W)} x {dt(AMP_D)}, FLUSH"))
+    o.append(txt(W/2, H + 38, "lux + barrel jack CENTRED on the width; "
+                 "vents moved to the flanks to stay clear of the Flex board",
                  "note", "middle"))
     return o
 
@@ -326,9 +352,9 @@ def side_dims():
                     f"side groove, {dt(ARCH_Y - REVEAL)} of straight travel", "end"))
     o.append(leader(D, fy(vent_y(VENT_N - 1)), 24, -10,
                     "rear wall: vents, lux, barrel jack"))
-    o.append(leader(D, fy(LP_Y), 24, 6, "- all centred, see REAR view"))
+    o.append(leader(D, fy(LP_Y), 24, 6, "- see REAR view"))
     o.append(leader(FP_T + TRAY_D, fy(CLK_Y) + TRAY_H/2, -14, 52,
-                    f"4  matrix tray, depth {dt(TRAY_D)}", "end"))
+                    f"4  matrix stack, depth {dt(TRAY_D)}", "end"))
     o.append(dim_h(FP_T, FP_T + TRAY_D, fy(CLK_Y) + TRAY_H/2 + 7, dt(TRAY_D),
                    ext=fy(CLK_Y)+TRAY_H/2))
     o.append(dim_v(fy(BP_T + UPS_H), fy(BP_T), D + 22, dt(UPS_H), ext=D - WALL))
@@ -577,7 +603,7 @@ def build():
         "diffusion cavity, matrix pocket, baffle rings, mic channel",
         f"BOTTOM PLATE - chassis: ReSpeaker Flex + UPS 3S, 6x M{dt(SCREW_D)}, "
         f"{dt(BP_CLR)} clearance/side",
-        "MATRIX TRAY - existing sub-assembly, matrix-tray.stl / gen_tray.py",
+        "MATRIX PAIR - 2x IS31FL3731, held by the front module itself",
         f"KNOB - pebble {chr(216)}{dt(KNOB_D)} x {dt(KNOB_H)} on a "
         f"{chr(216)}{dt(KNOB_BASE_D)} base flat",
     ], "PARTS"), 330.0, 560.0))
@@ -625,7 +651,7 @@ if __name__ == "__main__":
           f"{chr(216)}{dt(KNOB_BASE_D)} flat; over-knob height {dt(H+KNOB_H)}")
     print(f"\nfacade stack (y up from the bottom of the envelope)")
     for lo, hi, what in [(0, BP_T, "bottom plate"),
-                         (TRAY_Y0, TRAY_Y1, "matrix tray"),
+                         (TRAY_Y0, TRAY_Y1, "matrix pair"),
                          (SPK_SEAT_Y0, SPK_SEAT_Y1, f"speaker seats ({dt(SPK_BODY_W)}x{dt(SPK_BODY_H)} bodies)"),
                          (MIC_Y0, MIC_Y1, "mic strip"),
                          (CRES_Y, CRES_Y + CRES_R, "crescent"),
@@ -636,6 +662,8 @@ if __name__ == "__main__":
         ("speaker -> floor",            SPK_Y0 - FLOOR_Y),
         ("speaker seat -> crescent",    CLR_SPK_CRES),
         ("speaker -> mic array (horiz)", CLR_SPK_MIC),
+        ("speaker NUB -> mic array",    CLR_NUB_MIC),
+        ("speaker NUB -> plate edge",   CLR_NUB_EDGE),
         ("speaker -> plate edge",       SPK_X - SPK_BODY_W/2 - REVEAL),
         ("speaker -> tray (horiz)",     CLR_SPK_TRAY),
         ("tray -> mic strip",           MIC_Y0 - TRAY_Y1),
@@ -644,31 +672,75 @@ if __name__ == "__main__":
         ("tray -> floor",               TRAY_Y0 - FLOOR_Y),
         ("pack -> side wall",           (IN_W - UPS_W)/2),
         ("pack -> tray (depth)",        (D - WALL - UPS_BACK - UPS_D) - (FP_T + TRAY_D)),
+        # the Flex is 110 wide on a wall that curves in above the springing line,
+        # so the check is against the arc at its TOP edge, not at the floor
+        ("Flex 110 -> arc at its top",  flex_wall_fit()[2]),
+        ("Flex -> UPS (vertical)",      FLEX_WALL_Y - (FLOOR_Y + UPS_H)),
+        ("Flex -> crown (vertical)",    H - WALL - (FLEX_WALL_Y + FLEX_H)),
+        ("Flex depth -> tray",          (D - WALL - FLEX_D) - (FP_T + TRAY_D)),
     ]
     print("\nclearances")
     bad = [c for c in checks if c[1] < 0]
     for name, v in checks:
         print(f"  {'FAIL' if v < 0 else 'ok  '}  {v:7.2f}   {name}")
+    # The rear wall is its own packing problem -- UPS, Flex, amp, lux, vents and
+    # the jack all land on one face, so check every pair rather than eyeballing.
+    rear = rear_wall_clearances()
+    bad += [c for c in rear if c[1] < 0]
+    print("\nrear wall (every pair)")
+    for name, v in sorted(rear, key=lambda c: c[1]):
+        print(f"  {'FAIL' if v < 0 else 'ok  '}  {v:7.2f}   {name}")
     print(f"W driven by  "
           + ("speaker + mic array" if W_FROM_SPK >= W_FROM_TRAY else "speaker + tray")
           + f"   (mic {dt(W_FROM_SPK)} vs tray {dt(W_FROM_TRAY)})")
-    print(f"rim          {dt(ARCH_R - CRES_R)} mm, held constant -- the crescent "
-          f"scales with the body (arc R{dt(ARCH_R)}, crescent R{dt(CRES_R)})")
-    print(f"\nCRESCENT  R{dt(CRES_R)}, {crescent_px()} px (fixed) -- NEW ROW LAYOUT "
-          "for packages/lighting.yaml:")
-    print("   row   chord    px   strip run   fill")
-    for w, c, run in crescent_rows():
-        fill = f"{100*run/w:.0f}%" if w else "  -"
-        print(f"        {w:6.1f}   {c:3d}   {run:7.1f}     {fill}")
-    print(f"  as-built R80 filled ~84% of each chord; at R{dt(CRES_R)} the same 48 "
-          "pixels fill ~77%, so the outer")
-    print("  edge of the diffuser runs dimmer. Shrink the crescent (bigger rim) if "
-          "that matters.")
+    _cap = cres_capacity(LED_R)[0]
+    print(f"rim          {dt(CRES_RIM)} mm -- shell arc R{dt(ARCH_R)}, diffuser "
+          f"R{dt(CRES_R)} (concentric max)")
+    print(f"LED field    R{dt(LED_R)} -- {dt(CRES_FADE)} inside the diffuser edge. "
+          f"That band is UNLIT ON PURPOSE:\n             48 px cannot fill "
+          f"R{dt(CRES_R)} without spreading thin, so the glow fades out instead "
+          f"({_cap} px capacity, {100*CRES_PX/_cap:.0f}% used)")
+    print(f"\nCRESCENT  LED field R{dt(LED_R)}, {crescent_px()} px (fixed) -- ROW "
+          "LAYOUT for packages/lighting.yaml:")
+    print("   row      y    LED chord   px   strip run   to LED arc   FADE to "
+          "diffuser")
+    for (w, c, run), yy in zip(crescent_rows(), crescent_row_ys()):
+        dch = 2 * max(CRES_R**2 - yy**2, 0.0) ** 0.5
+        print(f"        {yy:6.1f}   {w:7.1f}   {c:3d}   {run:7.1f}    "
+              f"{(w-run)/2:7.1f}       {(dch-run)/2:7.1f}")
+    print(f"  rows sit at the strip's own {dt(LED_ROW_PITCH)} pitch (they used to be "
+          f"stretched to {dt((LED_R-LED_D)/max(len(crescent_row_ys())-1,1))} when the")
+    print("  row COUNT was solved instead of the radius). Counts are set for a "
+          "constant margin to the")
+    print(f"  LED arc, so the outer pixels trace it. Beyond that the FADE column is "
+          f"diffuser with no LED")
+    print(f"  behind it -- deliberate, it gives a soft falloff instead of 48 pixels "
+          f"spread thin.")
+    print(f"  CRES_FILL_MIN={CRES_FILL_MIN} sizes the LED field; 0 pushes it out to "
+          f"the diffuser arc and kills the fade.")
+    # NB both tables mirror the real derivation exactly -- BOSS_EDGE for the
+    # edge term, and SPK_FIT inside the seat. They used SPK_CLR and a seat
+    # without the fit, and quietly disagreed with W by 6 mm.
+    def _w_for(body_w, seat_w):
+        base = REVEAL + BOSS_EDGE + seat_w + body_w + seat_w + SPK_MIC_GAP
+        return 2 * math.ceil(max(2*(base + MIC_PCB_W/2),
+                                 2*(base + TRAY_W/2)) / 2)
+
     print(f"\nWIDTH<->HEIGHT COUPLING: H = W/2 + {dt(CRES_Y)}. Every +2 on W is +1 on H.")
+    print(f"  edge budget is BOSS_EDGE {dt(BOSS_EDGE)} (the dome rib band), not a "
+          f"driver clearance;")
+    print(f"  the side nubs add {dt(2*SPK_NUB_PROJ)} to the can, and each flank "
+          f"needs a {dt(SPK_SEAT_W)} post")
     for bw in (40.0, 45.0, 50.0, 55.0):
-        _base = REVEAL + SPK_CLR + SPK_RING_W + bw + SPK_RING_W + SPK_MIC_GAP
-        w = 2 * math.ceil(max(2*(_base + MIC_PCB_W/2),
-                              2*(_base + TRAY_W/2)) / 2)
+        w = _w_for(bw, SPK_SEAT_W)
+        flag = "  <-- actual" if abs(bw - SPK_BODY_W) < 0.01 else ""
         print(f"  if the body were {bw:5.1f} wide -> W {w:6.1f} -> "
-              f"H {w/2 + CRES_Y:6.1f}   crescent R{w/2 - RIM_MIN:5.1f}")
+              f"H {w/2 + CRES_Y:6.1f}{flag}")
+    print(f"\nNUB SENSITIVITY (the number you still have to measure):")
+    for np_ in (2.0, 3.0, 4.0, 5.0, 6.0):
+        sw = max(SPK_RING_W, SPK_FIT + np_ + SPK_POST_WALL)
+        w = _w_for(SPK_BODY_W, sw)
+        flag = "  <-- assumed" if abs(np_ - SPK_NUB_PROJ) < 0.01 else ""
+        print(f"  nub projection {np_:4.1f} -> seat {sw:4.2f} -> W {w:6.1f} -> "
+              f"H {w/2 + CRES_Y:6.1f}{flag}")
     print("\nALL CLEAR" if not bad else f"\n*** {len(bad)} COLLISION(S) ***")

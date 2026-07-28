@@ -1,6 +1,7 @@
 # 3D-printed parts
 
-Three reference sheets, all generated, all sharing one source of truth:
+Three reference sheets and two printable parts, all generated, all sharing one
+source of truth.
 
 | Sheet | File | What it answers |
 |---|---|---|
@@ -8,30 +9,122 @@ Three reference sheets, all generated, all sharing one source of truth:
 | 2 | [`enclosure-internals.svg`](enclosure-internals.svg) | the front module, the slide-up joint, the fixings, the chassis |
 | 3 | [`enclosure-wiring.svg`](enclosure-wiring.svg) | the I2C chain, direct GPIO, power, and where each board sits |
 
+| Part | File | Status |
+|---|---|---|
+| Matrix tray | [`matrix-tray.stl`](matrix-tray.stl) | printable — **no longer in the assembly**, the front module carries the matrices itself |
+| **Front module** | [`front-module.stl`](front-module.stl) | printable — 250.8 × 182 × 16.7 |
+| Dome, bottom plate, knob, LED carrier | — | still to do |
+
 ```sh
+# sheets (stdlib only)
 python3 gen_drawing.py && python3 gen_internals.py && python3 gen_wiring.py
 for f in enclosure-drawing enclosure-internals enclosure-wiring; do
   rsvg-convert -b white -z 2 $f.svg -o $f.png
 done
+# solids (need manifold3d)
+../.venv/bin/pip install manifold3d trimesh matplotlib
+../.venv/bin/python gen_tray.py && ../.venv/bin/python gen_front_plate.py
 ```
 
-Code layout — **no sheet invents a dimension**:
+Code layout — **no sheet and no solid invents a dimension**:
 
 ```
 enclosure_geom.py   every parameter, every derived value, the part outlines
 drawlib.py          SVG primitives, dimensions, leaders, sheet chrome
-gen_drawing.py      sheet 1        gen_internals.py  sheet 2
-gen_wiring.py       sheet 3        gen_tray.py       matrix-tray.stl
+gen_drawing.py      sheet 1        gen_internals.py    sheet 2
+gen_wiring.py       sheet 3        gen_tray.py         matrix-tray.stl
+                                   gen_front_plate.py  front-module.stl
 ```
 
-`enclosure_geom.py` also carries the clearance model. `gen_drawing.py` prints the
-facade-stack check and `gen_internals.py` prints the fixing-lug check; both end
-in `ALL CLEAR` or a collision count. Change a component and re-run — the envelope
-re-derives and both checks re-run.
+`enclosure_geom.py` also carries the clearance model. Every generator ends in
+`ALL CLEAR` or a problem count: `gen_drawing.py` checks the facade stack and the
+rear wall, `gen_internals.py` the fixing lugs, `gen_front_plate.py` the solid
+(see below). Change a component and re-run — the envelope re-derives and every
+check re-runs.
+
+## How the solids are checked
+
+A render proves nothing. `gen_front_plate.py` validates three ways, and only
+prints `ALL CLEAR` if all three pass:
+
+- **Mesh sanity** — watertight, consistent winding, and **exactly one connected
+  body** (more means a feature is floating in space).
+- **Envelope interference, negative.** Every component that this part carries
+  gets its swept volume intersected with the printed solid; the result must be
+  *zero* mm³. The matrix pair (with its mounting holes punched out, since the
+  posts are *supposed* to be in them), the backpacks behind it, **all 288 LEDs**,
+  the acrylic, the air gap, both speaker bodies, all four side nubs, the mic
+  board, and the dome's groove band.
+- **Feature presence, positive.** Interference tests can't notice a retention
+  feature that quietly vanished into a boolean, so a 1 mm probe checks that
+  plastic actually *exists* at every locating post, seating pad, rib, spine,
+  clip beam and clip hook — that each hook overhangs the board *above* its back
+  face but not below — and that the clock aperture is genuinely open.
+
+The LED check earned its keep immediately: it caught the seating pads sitting on
+the corner LEDs, which a bounding box around the LED field had waved through.
+
+Plus a containment guard: the whole solid is intersected with the module outline
+before export, so a boss can never hang off the edge. It reports how much it
+trimmed, and that has to be zero too.
+
+---
+
+# Front module
+
+`front-module.stl` — **250.8 × 182 × 16.7**, one printed part carrying the whole
+facade. Print **face down**: the facade is then the bottom layer (the one surface
+anyone sees) and every boss, wall and clip grows upward off the bed, so there is
+nothing to support. Fits a 256 mm bed with 5.2 mm to spare.
+
+| Zone | What the part does |
+|---|---|
+| **Crescent** | R117 through aperture, a 1.5 mm ledge, then an R118.5 pocket the opal acrylic drops into **from behind**, then a 12 mm air gap inside a 2 mm cavity wall. The wall stands 12.7 mm proud of the back face and is the part's main stiffener. |
+| **Clock** | ONE open 84 × 23 aperture — no per-pixel holes. Behind it the two matrices seat on the back face: **2 locating posts + 2 seating pads per board**, then **six clips**, two on each long edge and one at each end. |
+| **Speakers** | Ø40 grille through, locating ribs above and below (not on the flanks — the nubs are there), and a 7 mm post beside each flank with a Ø2.5 pilot. The M3 goes in **from behind**, through the speaker's nub, into the post. |
+| **Mic array** | 4 × Ø2.5 ports on Ø4.5 raised gasket lands, in a 110.8 × 12.8 × 2 channel, with two M3 pilot bosses. |
+
+## Why there is no tray and no pocket
+
+**The two matrices are only loosely soldered to each other.** A pocket locates
+the *pair* — and the pair is exactly the thing that isn't rigid, so the solder
+joint would end up carrying the alignment and would work loose. Instead each
+board is located by its **own** two posts through its own Ø2.0 diagonal holes,
+and the six clips clamp both boards flat against the facade.
+
+The seating pads sit at **mid-width in the strips above and below the LED
+field**, not on the board corners: the corners fall inside the LED field's
+bounding box, and a pad there lands on the outermost LEDs. The 288-LED
+interference check is what caught that.
+
+Room for the clips came free. The matrix/mic cluster used to be squeezed to
+1 mm and 2 mm gaps back when it set the enclosure height — it doesn't any more
+(the speaker seats do, at y=56), so ~9 mm of slack was sitting unused. Spending
+4 mm above and 4 mm below buys clips on all four sides and costs no height.
+
+## ⚠️ Measure these before printing (top of `gen_front_plate.py`)
+
+| Param | Default | What to check |
+|---|---|---|
+| `SPK_NUB_PROJ` | 4.0 mm | **The important one** — it is a *width driver*. Every +1 mm is +4 mm of body width and +2 mm of height. |
+| `MTX_STACK_GAP` | 5.0 mm | Matrix back → backpack front (your header pins). |
+| `MIC_BOSS_X` | 50.0 mm | Seeed doesn't publish the linear-4 array's hole positions. |
+| `DIFF_GAP` | 12.0 mm | Diffusion air gap — ~0.7 × the LED pitch is the starting point. Test-print a crescent corner. |
+| `CLOTH_T` | 0.6 mm | Grille cloth per layer; it goes through the dome groove with the module. |
+
+Snap features can't be simulated for fit. Test-print one corner of the clock
+zone and tune `CLIP_REACH`, `CLIP_RAMP`, `CLIP_T` and `CLIP_W`.
 
 ---
 
 # Dual CharliePlex matrix snap-in tray
+
+> **⚠️ Superseded in the assembly.** The front module now carries the two
+> matrices directly — posts through each board's own holes, six clips all round
+> — so there is no tray in the build any more. This part still works and is
+> still generated; keep it if you want the matrices as a self-contained module,
+> and note that its front face has **per-pixel light tunnels**, which the front
+> module deliberately does not.
 
 `matrix-tray.stl` — a mount that holds **two butted Adafruit IS31FL3731 16×9
 CharliePlex matrices *and* their two driver backpacks** as one solid unit, with
@@ -129,7 +222,7 @@ therefore a **cylinder**, not a sphere — it curves in FRONT and is flat in SID
 
 The one rule that drives everything: **the shell arc and the LED crescent are
 concentric**, both centred on `(W/2, CRES_Y)`. So the arc radius *is* `W/2`, and
-the rim between shell and crescent is `W/2 − 80`.
+the rim between shell and crescent is `W/2 − CRES_R`.
 
 ## Nothing is hand-set — W and H are derived
 
@@ -145,23 +238,47 @@ CRES_Y = floor + max(tray, speaker seat) + gap + mic array + gap
 **⚠️ Widening also heightens.** Because the arc radius is `W/2`, every 2 mm of
 extra width adds 1 mm of height. The **50 mm speaker body** is what sets W:
 
-| If the speaker body were | W | H | Crescent R |
-|---|---|---|---|
-| 40 wide | 220 | 170.6 | R98 |
-| 45 wide | 230 | 175.6 | R103 |
-| **50 wide (actual)** | **240** | **180.6** | **R108** |
-| 55 wide | 250 | 185.6 | R113 |
+| If the speaker body were | W | H |
+|---|---|---|
+| 40 wide | 238 | 179.6 |
+| 45 wide | 248 | 184.6 |
+| **50 wide (actual)** | **258** | **189.6** |
+| 55 wide | 268 | 194.6 |
 
-The **crescent scales with the body** (`R = W/2 − 12`) so the rim stays at 12 mm
-however wide the parts push things. **The pixel count does not** — 48 px is the
-strip you have, so the row layout is re-solved for each radius. At R108 that is
-11/11/10/9/6/1, and the strip fills ~77% of each chord versus ~84% at the
-as-built R80: same power, thinner spread, dimmer outer edge. `gen_drawing.py`
-prints the table every run.
+…and the **speaker's side nub is a width driver in its own right**, because each
+one needs a post beside it. This is the number still to be measured:
+
+| Nub projection | Seat/post width | W | H |
+|---|---|---|---|
+| 2.0 | 4.35 | 250 | 185.6 |
+| 3.0 | 5.35 | 254 | 187.6 |
+| **4.0 (assumed)** | **6.35** | **258** | **189.6** |
+| 5.0 | 7.35 | 262 | 191.6 |
+| 6.0 | 8.35 | 266 | 193.6 |
+
+### The diffuser and the LED field are two different radii
+
+| | value | what it is |
+|---|---|---|
+| `CRES_R` | **R117** | the **diffuser** arc — the concentric maximum, 12 mm rim. What you see. |
+| `LED_R` | **R96** | the arc the **48 pixels** sit on. Solved for density. |
+| `CRES_FADE` | **21 mm** | the gap between them at the apex — **unlit on purpose** |
+
+48 px cannot fill R117 without spreading thin (rows would stop ~40 mm short). Rather than shrink the visible crescent to match, the diffuser
+stays full-size and the LED field sits inside it: the glow dies out before the
+edge and the acrylic turns that into a soft falloff instead of a hard boundary.
+Per-row fade to the diffuser edge runs **40–54 mm**.
+
+`CRES_FILL_MIN` sizes the LED field (0.84 → R96); set it to `0` to push the LEDs
+out to the diffuser arc and kill the fade. Two related fixes:
+**row pitch is now 16.7** (it used to be stretched to 20.6 against 16.7 columns),
+and **row counts are solved for a constant end margin** rather than
+proportionally — proportional let one row reach within 3 mm of the arc while its
+neighbours stopped 18 mm short. `gen_drawing.py` prints the table every run.
 
 Width is set by what sits side by side on the facade:
-`edge | clr | seat ring | 50 body | seat ring | gap | half the 110 array`. The
-**seat ring counts** — an early version had the ring hanging off the edge of the
+`edge | clr | seat+post | 50 body | seat+post | gap | half the 110 array`. The
+**seat counts** — an early version had the ring hanging off the edge of the
 module. The **110 mm array sits 2 mm above the matrix tray**, one tight cluster,
 with the speaker boxes flanking the whole thing.
 
@@ -289,16 +406,41 @@ front-to-back** so its 17.8 mm edge clears the 25.4 mm encoder breakout.
 | **The UPS board must stand up** | It is 60 × 93; 93 mm will not lie down in a 59 mm interior. Standing also aligns its barrel jack with the rear cutout. |
 | **The floor carries only the UPS** | Flex and amp both mount on the *rear wall* — the Flex vertically above the UPS, the amp flush beside it. The sides are only vertical below the springing, and the speakers own all of that. |
 | **Bottom-row pixels were burying themselves** | The crescent baseline is a row *centre*, so it has to clear the speaker seats by the LED radius as well as the gap. |
+| **Speakers hang on side nubs** | Not a baffle bolt pattern. One nub per side, landing 7 mm behind the front face, so the module grows a post beside each flank — and the post, not the body, is the widest point. |
+| **48 px can't fill a rim-maximal crescent** | Capacity grows with area but the strip doesn't. So the diffuser (R117) and the LED field (R96) are separate radii, and the 21 mm between them is an intentional fade band. |
+| **A centred vent stack sits behind the Flex** | It would block the slots and bake the board. The vents are two stacks flanking the UPS, which also puts them right above the amp. |
+| **The lux pipe has a ~5 mm slot to live in** | UPS to y=97, Flex from y=102. A centred pipe gets exactly that gap — Ø3, 1 mm clear each side. Any tighter and it has to move to the crown. |
 | **Fixings are wall lugs, and asymmetric** | The floor is fully spoken for. No lug fits on the front edge at all — the plate's front edge is captured by the ledge and the module instead. |
 | **Charge is a barrel jack** | 12.6 V 2 A, not USB-C. The only USB-C is the XIAO's internal flashing port. |
+
+### …and what the *solid* found, which the drawing could not
+
+Building the real part surfaced a class of error the 2D views are blind to:
+
+| | Constraint |
+|---|---|
+| **The edge budget is the dome's RIB, not the outline** | The module slides up a groove, so the outer `RIB_W` of its **back face** must stay plain along both flanks and the arc. On the flat, a boss 1 mm inside the outline looks fine; in reality it jams the assembly. Four features were inside the band — a speaker post by 4.35 mm, the spine by the full 5, the speaker ribs by 1.35, the cavity wall by 0.10. |
+| **`RIM_MIN` is derived, not an aesthetic choice** | `REVEAL + BOSS_EDGE + DIFF_MARGIN + CAV_WALL` is the smallest rim the shell can carry, because the diffusion cavity wall has to clear that same rib band. The 12 mm "look" minimum only wins when it is larger. |
+| **`RIB_W` 5 → 3 paid for itself** | The keep-out is multiplied four times across the width, so 2 mm off the rib gave back 4 mm of body. A 3 mm rib behind a 4 mm plate is ample — the bottom plate already traps the module. |
+| **The bottom edge is exempt from all of it** | It is the open end the module slides in through. Treating the keep-out as a plain ring around the outline flagged 2143 mm³ of false positives until the bottom strip was excluded. |
+| **The two matrices are not one part** | They are only loosely soldered to each other, so a pocket — which locates the *pair* — is the wrong tool. Each board gets its own locating posts, and six clips on all four sides clamp the pair. |
+| **Pads cannot go on the board corners** | The corners are inside the LED field's bounding box; a Ø4 pad there lands on the outermost LEDs. Only the strips above the top row and below the bottom row are genuinely clear, so the pads sit at mid-width. |
+| **Clip roots need real estate the tight cluster had spent** | 1 mm below the matrix and 2 mm above it was fine when the cluster set the height. It does not — the speaker seats do, at y=56 — so ~9 mm of slack was sitting unused. Spending 4 mm above and below buys clips on all four sides for free. |
+| **A rib down the speaker flanks would foul the nubs** | The nubs stand 4 mm off the body at mid-height. Locating ribs are top-and-bottom only; the posts do the locating in x. |
 
 ### Sourced vs. still guessed
 
 Sourced from datasheets: speaker **50 × 45 × 22**, mic array **110 mm / 33 mm
 pitch**, UPS board **60 × 93**, charger **12.6 V 2 A**.
 
-Still marked **(?)** and able to move real geometry: the **UPS depth with cells
-fitted** (~24 assumed), the **ReSpeaker Flex core board size** (Seeed doesn't
-publish it — the design reserves a ~52 × 31 bay instead of a fitted pocket), the
-**speaker fixing-hole pitch**, the **mic array board width**, the **diffuser air
-gap**, and **where the sensor chip sits on your VL53L0X breakout**.
+Measured off the actual parts: **speaker side nub 7 mm behind the front face**;
+**Flex core 52 × 70 × 20 deep**, **110 mm** over its jack and mic-ribbon
+connectors, holes **45 × 63** pitch (from 42 × 60 inside-edge to inside-edge with
+2 mm edge-to-hole-outside, which gives Ø3 on both axes — a consistency check that
+passed).
+
+Still marked **(?)** and able to move real geometry: the **speaker nub
+projection** (4 mm assumed — worth ±4 mm of body width per mm, see the table
+above), the **UPS depth with cells fitted** (~24 assumed), the **mic array board
+width**, the **diffuser air gap**, and **where the sensor chip sits on your
+VL53L0X breakout**.

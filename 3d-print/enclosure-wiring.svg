@@ -157,28 +157,28 @@
 <g id="LOCATIONS" transform="translate(790,300)">
 <text class="blk" x="0" y="-26" text-anchor="start">WHERE THEY SIT</text>
 <text class="lbl" x="0" y="-16" text-anchor="start">numbers match the chain above</text>
-<g transform="scale(0.62)"><path class="obj" d="M0,174.6 V120 A120,120 0 0 1 240,120 V174.6 A6,6 0 0 1 234,180.6 H6 A6,6 0 0 1 0,174.6 Z"/>
-<path class="hid" d="M12,120 A108,108 0 0 1 228,120 Z"/>
-<path class="hid" d="M79,147.83 H161 A1,1 0 0 1 162,148.83 V169.83 A1,1 0 0 1 161,170.83 H79 A1,1 0 0 1 78,169.83 V148.83 A1,1 0 0 1 79,147.83 Z"/>
-<path class="hid" d="M9.6,127.6 H55.6 A2,2 0 0 1 57.6,129.6 V170.6 A2,2 0 0 1 55.6,172.6 H9.6 A2,2 0 0 1 7.6,170.6 V129.6 A2,2 0 0 1 9.6,127.6 Z"/>
-<path class="hid" d="M184.4,127.6 H230.4 A2,2 0 0 1 232.4,129.6 V170.6 A2,2 0 0 1 230.4,172.6 H184.4 A2,2 0 0 1 182.4,170.6 V129.6 A2,2 0 0 1 184.4,127.6 Z"/>
-<circle class="hid" cx="70.5" cy="135.06" r="1.25"/>
-<circle class="hid" cx="103.5" cy="135.06" r="1.25"/>
-<circle class="hid" cx="136.5" cy="135.06" r="1.25"/>
-<circle class="hid" cx="169.5" cy="135.06" r="1.25"/>
-<line class="dim" x1="90" y1="159.33" x2="46" y2="129.33" marker-start="url(#arw)"/><circle class="bal" cx="46" cy="129.33" r="4.6"/><text class="balt" x="46" y="130.93" text-anchor="middle">7</text>
-<line class="dim" x1="150" y1="159.33" x2="194" y2="129.33" marker-start="url(#arw)"/><circle class="bal" cx="194" cy="129.33" r="4.6"/><text class="balt" x="194" y="130.93" text-anchor="middle">8</text></g>
-<text class="lbl" x="74.4" y="123.972" text-anchor="middle">FRONT (front module)</text>
-<g transform="translate(188.8,0) scale(0.62)"><path class="obj" d="M4,0 H60 A4,4 0 0 1 64,4 V176.6 A4,4 0 0 1 60,180.6 H4 A4,4 0 0 1 0,176.6 V4 A4,4 0 0 1 4,0 Z"/>
-<rect class="hid" x="37.5" y="83.6" width="24" height="93"/>
-<rect class="hid" x="2" y="3.6" width="4" height="173"/>
-<line class="dim" x1="61.5" y1="140.6" x2="98" y2="124.6" marker-start="url(#arw)"/><circle class="bal" cx="98" cy="124.6" r="4.6"/><text class="balt" x="98" y="126.2" text-anchor="middle">3</text>
-<line class="dim" x1="61.5" y1="80.6" x2="98" y2="94.6" marker-start="url(#arw)"/><circle class="bal" cx="98" cy="94.6" r="4.6"/><text class="balt" x="98" y="96.2" text-anchor="middle">4</text>
+<g transform="scale(0.62)"><path class="obj" d="M0,183.6 V129 A129,129 0 0 1 258,129 V183.6 A6,6 0 0 1 252,189.6 H6 A6,6 0 0 1 0,183.6 Z"/>
+<path class="hid" d="M12,129 A117,117 0 0 1 246,129 Z"/>
+<path class="hid" d="M88,156.13 H170 A1,1 0 0 1 171,157.13 V178.13 A1,1 0 0 1 170,179.13 H88 A1,1 0 0 1 87,178.13 V157.13 A1,1 0 0 1 88,156.13 Z"/>
+<path class="hid" d="M15.95,136.6 H61.95 A2,2 0 0 1 63.95,138.6 V179.6 A2,2 0 0 1 61.95,181.6 H15.95 A2,2 0 0 1 13.95,179.6 V138.6 A2,2 0 0 1 15.95,136.6 Z"/>
+<path class="hid" d="M196.05,136.6 H242.05 A2,2 0 0 1 244.05,138.6 V179.6 A2,2 0 0 1 242.05,181.6 H196.05 A2,2 0 0 1 194.05,179.6 V138.6 A2,2 0 0 1 196.05,136.6 Z"/>
+<circle class="hid" cx="79.5" cy="143.66" r="1.25"/>
+<circle class="hid" cx="112.5" cy="143.66" r="1.25"/>
+<circle class="hid" cx="145.5" cy="143.66" r="1.25"/>
+<circle class="hid" cx="178.5" cy="143.66" r="1.25"/>
+<line class="dim" x1="99" y1="167.63" x2="55" y2="137.63" marker-start="url(#arw)"/><circle class="bal" cx="55" cy="137.63" r="4.6"/><text class="balt" x="55" y="139.23" text-anchor="middle">7</text>
+<line class="dim" x1="159" y1="167.63" x2="203" y2="137.63" marker-start="url(#arw)"/><circle class="bal" cx="203" cy="137.63" r="4.6"/><text class="balt" x="203" y="139.23" text-anchor="middle">8</text></g>
+<text class="lbl" x="79.98" y="129.552" text-anchor="middle">FRONT (front module)</text>
+<g transform="translate(199.96,0) scale(0.62)"><path class="obj" d="M4,0 H60 A4,4 0 0 1 64,4 V185.6 A4,4 0 0 1 60,189.6 H4 A4,4 0 0 1 0,185.6 V4 A4,4 0 0 1 4,0 Z"/>
+<rect class="hid" x="37.5" y="92.6" width="24" height="93"/>
+<rect class="hid" x="2" y="3.6" width="4" height="182"/>
+<line class="dim" x1="61.5" y1="149.6" x2="98" y2="133.6" marker-start="url(#arw)"/><circle class="bal" cx="98" cy="133.6" r="4.6"/><text class="balt" x="98" y="135.2" text-anchor="middle">3</text>
+<line class="dim" x1="61.5" y1="90.1" x2="98" y2="104.1" marker-start="url(#arw)"/><circle class="bal" cx="98" cy="104.1" r="4.6"/><text class="balt" x="98" y="105.7" text-anchor="middle">4</text>
 <line class="dim" x1="34" y1="3" x2="98" y2="-22" marker-start="url(#arw)"/><circle class="bal" cx="98" cy="-22" r="4.6"/><text class="balt" x="98" y="-20.4" text-anchor="middle">5</text>
 <line class="dim" x1="34" y1="3" x2="-30" y2="-22" marker-start="url(#arw)"/><circle class="bal" cx="-30" cy="-22" r="4.6"/><text class="balt" x="-30" y="-20.4" text-anchor="middle">6</text>
-<line class="dim" x1="49.5" y1="130.1" x2="-30" y2="130.1" marker-start="url(#arw)"/><circle class="bal" cx="-30" cy="130.1" r="4.6"/><text class="balt" x="-30" y="131.7" text-anchor="middle">2</text>
-<line class="dim" x1="50" y1="170.6" x2="-30" y2="156.6" marker-start="url(#arw)"/><circle class="bal" cx="-30" cy="156.6" r="4.6"/><text class="balt" x="-30" y="158.2" text-anchor="middle">1</text></g>
-<text class="lbl" x="208.64" y="123.972" text-anchor="middle">RIGHT SIDE</text>
+<line class="dim" x1="49.5" y1="139.1" x2="-30" y2="139.1" marker-start="url(#arw)"/><circle class="bal" cx="-30" cy="139.1" r="4.6"/><text class="balt" x="-30" y="140.7" text-anchor="middle">2</text>
+<line class="dim" x1="50" y1="179.6" x2="-30" y2="165.6" marker-start="url(#arw)"/><circle class="bal" cx="-30" cy="165.6" r="4.6"/><text class="balt" x="-30" y="167.2" text-anchor="middle">1</text></g>
+<text class="lbl" x="219.8" y="129.552" text-anchor="middle">RIGHT SIDE</text>
 </g>
 <g id="CHAIN-LEGEND" transform="translate(790,130)">
 <rect class="tb" x="0" y="0" width="99.76" height="83"/>
