@@ -6,7 +6,7 @@
 #   AIC3104 codec (on Flex)  -> line out -> TPA2016 amp -> 2x speakers
 #   HT16K33 7-seg clock display (Adafruit #1002)        [I2C 0x70]
 #   BH1750 light, VL53L0X ToF, DS3231 RTC, seesaw knob
-#   SK6812 GRBW crescent strip (data on GPIO1 / D0), 48 px half-circle
+#   SK6812 GRBW crescent strip (data on GPIO1 / D0), 48 px flattened half-ellipse
 #   Waveshare UPS Module 3S (3x 18650 series) - I2C power monitoring
 #   OPTIONAL: IS31FL3731 charlieplex 9x16 matrix        [I2C 0x74]
 #

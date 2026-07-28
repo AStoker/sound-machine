@@ -42,7 +42,7 @@ CHAIN = [
 GPIO = [
     ("GPIO5  / D4", "I2C SDA", "shared bus - every device below"),
     ("GPIO6  / D5", "I2C SCL", "shared bus - 100 kHz, 1 ms timeout"),
-    ("GPIO1  / D0", "SK6812 data", "48 px crescent, front module"),
+    ("GPIO1  / D0", "SK6812 data", f"{CRES_PX} px crescent, front module"),
     ("GPIO4  / D3", "touch L + R", "TOUCH4 - BOTH shoulder pads, one net"),
     ("GPIO2  / D1", "(reserved)", "TOUCH2 - free, to split the pads later"),
     ("GPIO7  / D8", "I2S WS", "ReSpeaker Flex (fixed)"),
@@ -161,7 +161,10 @@ def location_block():
          txt(0, -16, "numbers match the chain above", "lbl")]
     sc = 0.62
     fo = [path(d_profile(0, R_BOT), "obj"),
-          semi(W/2, fy(CRES_Y), CRES_R, "hid"),
+          # semi_e, NOT semi: the crown is a flattened half-ELLIPSE (CROWN_K).
+          # This drew a true semicircle of radius CRES_R, which made the
+          # crescent on this sheet 26 mm taller than the one on sheets 1 and 2.
+          semi_e(W/2, fy(CRES_Y), CRES_R, CRES_RY, "hid"),
           rect(W/2-CLK_W/2, fy(CLK_Y+CLK_H/2), CLK_W, CLK_H, "hid", 1)]
     for sx in (SPK_X, W-SPK_X):
         fo.append(rect(sx-SPK_BODY_W/2, fy(SPK_Y1), SPK_BODY_W, SPK_BODY_H, "hid", 2))

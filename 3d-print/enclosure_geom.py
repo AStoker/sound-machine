@@ -161,13 +161,25 @@ TRAY_D         = MTX_PCB_T + MTX_STACK_GAP + MTX_BP_T + MTX_CLIP_Z
 # stays at RIM_MIN no matter how wide the parts push W. That keeps the look
 # fixed -- but it changes the LED COUNT, which is a firmware change: see
 # crescent_rows() and the run summary.
-LED_PITCH = 16.7     # SK6812 60 LED/m -- FIXED by the strip, along a row
-CRES_PX   = 48       # FIXED -- this is the strip you have. The crescent
-                     #   RADIUS scales with the body, so the row layout has
-                     #   to be re-solved to spend exactly 48 pixels on it.
+LED_PITCH = 16.5     # MEASURED, cut line to cut line. Was 16.7 from the nominal
+                     #   60 LED/m figure; the real strip is 16.5.
+# >>> CRES_PX IS AN OUTCOME NOW, NOT AN INPUT. It used to be "FIXED -- this is
+# >>> the strip you have", on the assumption that 48 px would always be made to
+# >>> fit by re-solving the rows. That assumption held only because every check
+# >>> measured the LED BODY. The thing that actually has to fit the cavity is
+# >>> the RIBBON: a segment of n pixels is n x LED_PITCH long, because the cut
+# >>> lines sit half a pitch outboard of the end LEDs and you cannot trim past
+# >>> them without losing the solder pads. On the bottom row that ribbon is
+# >>> 6.9 mm longer than the LED span, and it did not fit.
+# >>> At CROWN_K 0.74 the crescent physically holds 45. Fitting 48 needs 0.80,
+# >>> which is TALLER than the design was before this session. 45 was the call.
+# >>> See crescent_capacity_note() and the ribbon cap in _crescent_row_cap().
+CRES_PX   = 45       # DERIVED from the cavity -- see above. Cut 3 px off the
+                     #   48-px strip; they are simply not laid.
 LED_D     = 5.2      # SK6812 package, drawn indicatively
-STRIP_W   = 10.0     # (?) physical ribbon width of a 60 LED/m strip -- this is
-                     #   the floor on the ROW pitch; any closer and rows overlap
+STRIP_W   = 10.0     # MEASURED. Ribbon width. Two jobs: it floors the ROW pitch
+                     #   (rows any closer overlap) and, being wider than the LED,
+                     #   it is what reaches the cavity wall first.
 # ROW pitch is the one spacing we actually control: within a row the strip fixes
 # it at LED_PITCH, but the gap BETWEEN rows is ours to choose. Earlier revisions
 # derived it by stretching however many rows we had across the full radius,
@@ -179,11 +191,11 @@ LED_ROW_PITCH = LED_PITCH            # square grid; drop to 0.866x for hex
 #   CRES_R  the diffuser arc -- what you SEE. Sits at the concentric maximum,
 #           so the rim stays at RIM_MIN and the crescent is as big as the shell
 #           allows.
-#   LED_R   the arc the 48 pixels are laid out on. Smaller, sized so the strip
+#   LED_R   the arc the pixels are laid out on. Smaller, sized so the strip
 #           actually fills its rows at a sane density.
 #
 # The band between them is UNLIT ON PURPOSE. Trying to light the diffuser right
-# out to its edge with only 48 pixels means spreading them thin; letting the
+# out to its edge with so few pixels means spreading them thin; letting the
 # glow die out before the edge gives a natural fade-off instead, and the acrylic
 # does the work. CRES_FADE is how much fade you get at the apex.
 #
@@ -209,7 +221,12 @@ SPK_BODY_W = 45.0    # body width  as mounted (the datasheet's 45 mm face)
 SPK_BODY_H = 50.0    # body height as mounted (the datasheet's 50 mm face)
 SPK_BODY_D = 22.0    # body depth  -- datasheet
 SPK_GRILLE = 40.0    # (?) open cone diameter, inside the 45 body height
-SPK_RING_W = 3.0     # raised baffle seat around each speaker body
+SPK_RING_W = 3.0     # VESTIGIAL. Was a raised baffle seat around each body,
+                     #   from the pre-rotation mount. There is no seat ring now:
+                     #   the flanks are bare and the body is held by two screws
+                     #   top and bottom. Kept only so old drawings still import;
+                     #   nothing in the built geometry reads it. Do not size
+                     #   anything from it -- use SPK_POST_W / SPK_POST_H_Y.
 # MOUNTING IS ON THE SIDES, NOT THE FACE. Each body carries one NUB per side --
 # a little ear that sticks out past the 50 mm body, centred on the 45 mm side
 # height, its face set back 7 mm from the speaker's front face. So the front
@@ -341,8 +358,18 @@ def ell_half_chord(y, a=None, b=None):
 
 
 def cres_capacity(pitch, a=None, b=None):
-    """How many pixels the crescent holds at a given ROW pitch, with every LED
-    BODY inside the box. Returns (total, per-row list)."""
+    """How many pixels the crescent holds at a given ROW pitch. Returns
+    (total, per-row list).
+
+    >>> BOTH LIMITS, NOT JUST THE OPTICAL ONE. This used to count how many LED
+    >>> BODIES fitted inside the chord, which overstates it -- the ribbon is a
+    >>> full LED_PITCH longer than the span between its end pixels, and that is
+    >>> what has to fit the cavity. Defined below _crescent_row_cap so it can
+    >>> reuse it; the a/b arguments are kept for callers that probe a
+    >>> hypothetical crescent."""
+    if a is None and b is None:
+        return (lambda c: (sum(c), c))([_crescent_row_cap(y)
+                                        for y in _row_ys_at(pitch)])
     a = CRES_R if a is None else a
     b = CRES_RY if b is None else b
     caps, y = [], LED_D / 2
@@ -361,26 +388,48 @@ def cres_capacity(pitch, a=None, b=None):
 CRES_FILL_TARGET = 0.92
 
 
+def _row_ys_at(pitch, b=None):
+    b = CRES_RY if b is None else b
+    ys, y = [], LED_D / 2
+    while y <= b - LED_D / 2 + 1e-9:
+        ys.append(y)
+        y += pitch
+    return ys or [LED_D / 2]
+
+
 def _solve_row_pitch():
-    """The LARGEST row pitch that fits CRES_PX with slack to spare.
+    """The row pitch that gets the MOST pixels onto the crescent, largest wins
+    on a tie.
 
-    On the flattened crown the pitch is no longer ours to pick freely: the
-    crescent is short, so the pitch is whatever gets the pixels on. Two bounds
-    squeeze it -- capacity must beat CRES_PX/CRES_FILL_TARGET, and the pitch
-    cannot go below STRIP_W + 1, because the strip is a physical ribbon about
-    STRIP_W wide and rows any closer would overlap."""
-    need = CRES_PX / CRES_FILL_TARGET
+    On the flattened crown the pitch is not ours to pick freely: the crescent is
+    short, so the pitch is whatever gets the pixels on. The floor is STRIP_W + 1
+    -- the strip is a physical ribbon and rows any closer overlap.
+
+    >>> IT MAXIMISES CAPACITY, IT DOES NOT STOP AT A TARGET. The old version
+    >>> walked the pitch down and returned the first one whose capacity beat
+    >>> CRES_PX/CRES_FILL_TARGET, using a CHORD-based capacity that ignored the
+    >>> ribbon. Once the ribbon cap went in, that measure still reported enough
+    >>> room at 11.5 while the real layout only held 42 -- so it stopped early
+    >>> and threw away three pixels. Capacity here is the true per-row cap, both
+    >>> limits applied.
+    """
     lo = STRIP_W + 1.0
+    best, best_p = -1, lo
     p = LED_PITCH
-    while p >= lo:
-        if cres_capacity(p)[0] >= need:
-            return round(p, 1)
+    while p >= lo - 1e-9:
+        tot = sum(_crescent_row_cap(y) for y in _row_ys_at(round(p, 1)))
+        if tot > best:                       # strictly >, so ties keep the
+            best, best_p = tot, round(p, 1)  #   LARGER pitch found first
         p -= 0.1
-    return round(lo, 1)
+    return best_p
 
 
-LED_ROW_PITCH = _solve_row_pitch()
-# The LED field IS the diffuser ellipse -- no fade band. At this size 48 px
+# LED_ROW_PITCH is resolved at the BOTTOM of this file, not here: the pitch
+# solver now measures true capacity, which needs ell_dist / ribbon_cap /
+# _crescent_row_cap -- all defined further down. Anything above that point
+# must not read LED_ROW_PITCH at import time.
+LED_ROW_PITCH = None
+# The LED field IS the diffuser ellipse -- no fade band. At this size the px
 # fill it about 92%, so the glow reaches the edge instead of dying out early.
 LED_R    = CRES_R
 LED_RY   = CRES_RY
@@ -499,9 +548,9 @@ SPK_BODY_D          = 22.0               # (?) speaker can depth
 # DIFF_T / DIFF_REBATE / DIFF_MARGIN / CAV_WALL are defined UP TOP, next to
 # BOSS_EDGE -- they have to exist before RIM_MIN can be derived from them.
 # Air gap between the acrylic and the LEDs. Too small and you see 48 dots
-# through the diffuser; ~0.7x the 16.7 mm LED pitch is the usual rule.
+# through the diffuser; ~0.7x the LED pitch is the usual rule.
 DIFF_GAP    = 12.0                   # (?) TUNE ON A TEST PRINT
-LED_STRIP_T = 3.0                    # (?) SK6812 strip + adhesive
+LED_STRIP_T = 2.13                   # MEASURED. SK6812 ribbon + adhesive.
 TRAY_REBATE = 2.0                    # pocket the matrix tray front face sits in
 TRAY_FIT    = 0.20                   # (superseded: the tray is a clearance fit
                                      #  with clips now -- see gen_front_plate)
@@ -511,6 +560,115 @@ MIC_CHAN_D  = 2.0                    # flex channel depth on the back
 MIC_GASKET  = 1.0                    # foam gasket land around each port
 # Depth of the front module at its deepest (the crescent zone):
 FM_DEPTH    = FP_T + DIFF_REBATE + DIFF_GAP + LED_STRIP_T
+
+# ---- LED carrier: PART 6 ---------------------------------------------------
+# The pixels are cut strip segments, one per row. They have to be held at a KNOWN
+# standoff behind the acrylic -- DIFF_GAP is the whole reason the diffuser looks
+# even -- and adhesive tape onto a curved cavity wall will not do that. So they
+# go on their own flat plate that screws onto the back of the front module.
+#
+# >>> WHY IT MOUNTS TO PADS ON THE INSIDE OF THE CAVITY WALL. Three other places
+# >>> were considered and all of them cost more:
+# >>>   - ears reaching OUTWARD onto the rim: there is only 0.9 mm of rim free
+# >>>     outside the cavity wall before the dome's rib keep-out. Making room
+# >>>     means RIM_MIN 12 -> ~16, which shrinks the crescent to 85 x 58.7 and
+# >>>     drops it to five rows -- 48 px would no longer fit.
+# >>>   - pillars up from the facade floor: 12 mm columns standing inside a lit
+# >>>     cavity, straight across the light path.
+# >>>   - captured by the dome, no screws: locates the plate but never clamps it,
+# >>>     and the strips hang off it at a 12 mm standoff.
+# >>> Pads on the wall put the fixings at the perimeter, where the diffuser is
+# >>> dimmest anyway, and they double as buttresses for what is otherwise a
+# >>> 2 mm x 20 mm tall unsupported fin.
+#
+# Z STACK, from the front face of the facade:
+#   facade front            0
+#   acrylic front           DIFF_LIP                 1.5
+#   acrylic back            DIFF_LIP + DIFF_REBATE   4.7
+#   LED emitting face       + DIFF_GAP              16.70  = CAV_Z, wall back
+#   strip back / carrier    + LED_STRIP_T           18.83  = CARRIER_Z0
+#   carrier back            + CARRIER_T             21.33  == FM_DEPTH
+# CARRIER_T is 2.5 BECAUSE that lands the assembly exactly on FM_DEPTH, which is
+# the number every other sheet already quotes as the module's depth.
+CARRIER_T      = 2.5
+# DIFF_LIP lives here rather than in gen_front_plate.py now: the carrier's z
+# origin is derived from it, and two files deriving a z stack from a constant
+# defined in only one of them is how the last set of drift bugs started.
+DIFF_LIP       = 1.5                 # facade left in FRONT of the acrylic
+CAV_Z          = DIFF_LIP + DIFF_REBATE + DIFF_GAP   # cavity wall back face
+CARRIER_Z0     = CAV_Z + LED_STRIP_T                 # carrier front face
+CARRIER_Z1     = CARRIER_Z0 + CARRIER_T
+
+# The strip ribbon is STRIP_W wide and the bottom row's CENTRE is only LED_D/2
+# above the crescent baseline, so the ribbon hangs (STRIP_W - LED_D)/2 = 2.4 mm
+# BELOW it. The plate needs a skirt or row 0 is unsupported along its bottom
+# edge. Checked against the mic channel in the carrier's own run.
+CARRIER_SKIRT  = STRIP_W / 2 - LED_D / 2 + 0.6
+
+# End stops: a block at each end of each row. NOT full-length channels -- the
+# row pitch is LED_ROW_PITCH (11.0) against a STRIP_W (10.0) ribbon, so a
+# dividing wall between rows would be 1.0 mm total, i.e. 0.5 mm a side. That is
+# under one nozzle width on a 0.4 mm setup. The stops locate each segment's ends
+# and the adhesive backing does the holding.
+STOP_T         = 1.6                 # stop thickness, along the row
+STOP_H         = 2.2                 # how far it stands off the carrier face
+# >>> STOP_W IS 3.0, NOT STRIP_W + 2. A stop the full width of the ribbon (12)
+# >>> looks like the obvious choice and it is the wrong one: the stops sit at the
+# >>> row ENDS, which is exactly the perimeter real estate the fixing pads need,
+# >>> and a 12 mm stop blocked every usable pad angle below 20 deg. A 3 mm nub at
+# >>> the row's centre height stops the segment sliding just as well -- nothing
+# >>> pushes it sideways, and the adhesive backing holds it down -- while leaving
+# >>> the perimeter free. See the band table in the carrier's run.
+STOP_W         = 3.0                 # across the row, centred on it
+STRIP_END_CLR  = 0.5                 # per end, cut segment to stop
+
+# Six fixings, symmetric. The angles are NOT chosen for looks: each is the best
+# point of a band from pad_angle_bands(), which is the set of angles where a pad
+# clears the pixels, the end stops AND the ribbons. The carrier's run prints that
+# table -- move a row count or a stop size and the bands move with it, so re-read
+# it rather than nudging these by eye.
+#
+# >>> THERE IS NO PAD AT THE APEX, and that is not an oversight. 90 deg looks
+# >>> like the obvious spot -- it has the most room from the pixels of anywhere
+# >>> on the wall -- but the top row's RIBBON runs right through it. The row is
+# >>> only 2 px, so the LEDs are nowhere near, which is exactly why a check that
+# >>> looked at pixels alone waved it through and the preview did not.
+CARRIER_FIX_DEG = [7.5, 34.2, 72.5, 107.5, 145.8, 172.5]
+# >>> M2.5, NOT M3, AND THIS IS THE REASON. Everything else on the build is M3,
+# >>> but an M3 pad is 8 mm across and at 8 mm the lowest usable band is 20 deg
+# >>> -- which leaves the plate's two bottom corners, and with them the widest
+# >>> and most visible LED row, hanging off a fixing 19 mm away. Dropping to
+# >>> M2.5 shrinks the pad to 6.5 and opens a band at 7.3 deg, right down beside
+# >>> those corners. A smaller screw in a better place beats a bigger one in a
+# >>> worse one; nothing here is structural, it only has to hold a flat standoff.
+PAD_W          = 6.5                 # pad diameter -- a round boss, so this is
+                                     #   both its width along the wall and its
+                                     #   radial thickness
+# >>> A PAD MUST NOT POKE OUT PAST THE CAVITY'S OUTER FACE. There is 0.9 mm of
+# >>> rim beyond it before the dome's retaining-rib keep-out, and a boss in that
+# >>> band jams the module on assembly -- which is precisely the failure the
+# >>> speaker posts caused. So the pad centre is offset inward along the true
+# >>> ELLIPSE NORMAL by (PAD_W/2 - CAV_WALL), which puts the boss's outer edge
+# >>> flush with the wall's outer face. Offsetting by scaling the semi-axes
+# >>> instead would be wrong here: the crescent is eccentric (90.5 x 64.2), so a
+# >>> scaled offset and a normal offset diverge badly near the ends.
+# The +0.3: CAV_R/CAV_RY are the DIFF ellipse with CAV_WALL added to each
+# semi-axis, which is a scaled offset, not a normal one -- so the wall's true
+# normal thickness dips a hair under CAV_WALL at some angles and a pad sized to
+# exactly CAV_WALL lands 0.03 proud. Nudge it in and the margin goes positive.
+PAD_WALL_CLR   = 0.3
+PAD_OFFSET_IN  = PAD_W / 2 - CAV_WALL + PAD_WALL_CLR
+PAD_PROJ       = PAD_W - CAV_WALL + PAD_WALL_CLR   # DERIVED inward projection
+PAD_PILOT_D    = 2.1                 # M2.5 self-tapping pilot
+PAD_PILOT_Z    = 8.0                 # pilot depth into the pad
+CARRIER_SCREW  = 2.5                 # M2.5 -- see the note on PAD_W
+CARRIER_CLR_D  = 2.9                 # clearance hole in the carrier
+# The cavity's inner and outer ellipses, needed by carrier_pads(). gen_front_
+# plate.py derives the same two locally as DIFF_R/DIFF_RY and CAV_R/CAV_RY.
+DIFF_R_G       = CRES_R  + DIFF_MARGIN
+DIFF_RY_G      = CRES_RY + DIFF_MARGIN
+CAV_R_G        = DIFF_R_G  + CAV_WALL
+CAV_RY_G       = DIFF_RY_G + CAV_WALL
 
 # ---- dome <-> bottom plate fixings -----------------------------------------
 # LUGS, not free-standing bosses: little pads that project INWARD off the dome
@@ -819,16 +977,40 @@ def led_clearance(n, y, a=None, b=None):
     return ell_dist((n - 1) * LED_PITCH / 2, y, a, b) - LED_D / 2
 
 
+def ribbon_cap(y):
+    """Most pixels whose RIBBON fits the cavity in the row at height y.
+
+    >>> THIS IS THE CONSTRAINT EVERY EARLIER VERSION MISSED, AND IT BINDS BEFORE
+    >>> THE OPTICAL ONE. A cut segment of n pixels is n x LED_PITCH long, not
+    >>> (n-1) x LED_PITCH: the cut lines sit half a pitch outboard of the end
+    >>> LEDs, and trimming past them takes the solder pads with it. So the strip
+    >>> is a full pitch longer than the span between its end pixels -- 6.9 mm on
+    >>> the bottom row -- and it is the RIBBON, not the LED, that reaches the
+    >>> cavity wall first. The old layout put 11 px on row 0: a 181.5 mm strip
+    >>> into a 181.0 mm cavity.
+    >>>
+    >>> The ribbon is also STRIP_W tall, so what has to fit is a RECTANGLE, and
+    >>> its binding corner is the TOP one (the ellipse narrows going up). Below
+    >>> the baseline the cavity wall is a straight skirt, hence the min().
+    """
+    y_top = y + STRIP_W / 2
+    lim = DIFF_R_G if y_top <= 0 else min(
+        DIFF_R_G, ell_half_chord(y_top, DIFF_R_G, DIFF_RY_G))
+    usable = lim - STRIP_END_CLR - STOP_T          # the end stop lives here too
+    return max(int(2 * usable // LED_PITCH), 0)
+
+
 def _crescent_row_cap(y):
-    """Most pixels that fit in the row at height y with the outer LED BODY still
-    inside the diffuser -- true distance, not the chord."""
+    """Most pixels that fit in the row at height y: the tighter of the OPTICAL
+    limit (LED body inside the diffuser, true distance not chord) and the
+    PHYSICAL one (ribbon + end stop inside the cavity)."""
     n = 0
     for k in range(1, 40):
         if led_clearance(k, y) >= 0.0:
             n = k
         else:
             break
-    return max(n, 1)
+    return max(min(n, ribbon_cap(y)), 0)
 
 
 def crescent_rows():
@@ -874,7 +1056,7 @@ def crescent_rows():
                     k = n
                 else:
                     break
-            out[i] = k
+            out[i] = min(k, cap[i])          # cap[i] already carries the ribbon
         for i in range(1, n_rows):            # non-increasing, bottom-first
             out[i] = min(out[i], out[i - 1])
         return out
@@ -910,6 +1092,156 @@ def crescent_rows():
         short -= 1
     return [(chord[i], cnt[i], max(cnt[i] - 1, 0) * LED_PITCH)
             for i in range(n_rows)]
+
+
+def crescent_led_xy():
+    """Every pixel centre as (x, y) RELATIVE to the crescent centre -- x from the
+    centreline, y above the baseline. The carrier and the pad placement both
+    work in this frame."""
+    o = []
+    for (_, k, run), y in zip(crescent_rows(), crescent_row_ys()):
+        for i in range(k):
+            o.append(((-run/2 + i * LED_PITCH) if k > 1 else 0.0, y))
+    return o
+
+
+def carrier_pads():
+    """The six screw pads, as (x, y, angle) in the crescent frame.
+
+    Each sits on the cavity wall's INNER face -- the ellipse DIFF_R x DIFF_RY --
+    at a chosen angle, and grows PAD_PROJ inward from there. The angles are not
+    aesthetic: they are the local maxima of the clearance sweep in
+    pad_led_clearances(), i.e. the gaps between the row ends where the crescent
+    has no pixels near its edge. Move one and re-read that table."""
+    o = []
+    a, b = DIFF_R_G, DIFF_RY_G
+    for deg in CARRIER_FIX_DEG:
+        t = math.radians(deg)
+        px, py = a * math.cos(t), b * math.sin(t)
+        # true outward unit normal of the ellipse at t
+        nx, ny = math.cos(t) / a, math.sin(t) / b
+        nl = math.hypot(nx, ny)
+        o.append((px - PAD_OFFSET_IN * nx / nl,
+                  py - PAD_OFFSET_IN * ny / nl, deg))
+    return o
+
+
+def pad_wall_margins():
+    """How far each pad's OUTER edge stays inside the cavity wall's outer face.
+    Must be >= 0 or the boss stands in the dome's rib band. Measured as a true
+    distance to the CAV ellipse, for the same reason ell_dist exists."""
+    return [(deg, ell_dist(px, py, CAV_R_G, CAV_RY_G) - PAD_W / 2)
+            for px, py, deg in carrier_pads()]
+
+
+def strip_stops():
+    """Every end stop as (x, y) in the crescent frame -- two per non-empty row.
+
+    A cut segment of n pixels is n * LED_PITCH of ribbon (see ribbon_cap), so the
+    stops bracket that, not the LED span."""
+    o = []
+    for (_, n, run), y in zip(crescent_rows(), crescent_row_ys()):
+        if n == 0:
+            continue
+        seg = run + LED_PITCH
+        for sgn in (-1, 1):
+            o.append((sgn * (seg/2 + STRIP_END_CLR + STOP_T/2), y))
+    return o
+
+
+def strip_rects():
+    """Each row's RIBBON as (half_len, y, half_width) in the crescent frame.
+
+    >>> THE RIBBON IS AN OBSTACLE IN ITS OWN RIGHT, not just its LEDs and its end
+    >>> stops. It is STRIP_W (10) tall against the LED's 5.2, so it reaches
+    >>> 2.4 mm further up and down than any pixel does -- and at the apex, where
+    >>> the crescent is only 62.7 tall, that is the difference between a pad
+    >>> sitting in clear space and a pad sitting on the strip. A pad on the
+    >>> ribbon holds the plate off its seat and skews the whole air gap."""
+    return [((n * LED_PITCH) / 2, y, STRIP_W / 2)
+            for (_, n, _r), y in zip(crescent_rows(), crescent_row_ys()) if n]
+
+
+def pad_clearances():
+    """For each pad: (deg, gap to nearest LED, gap to nearest END STOP, gap to
+    nearest RIBBON). Negative means the pad is standing on something.
+
+    >>> ALL THREE, NOT JUST THE PIXELS. The first version checked only LEDs,
+    >>> picked six angles with 3-8 mm of pixel clearance, and three of them
+    >>> landed on a STOP -- the stops live at the row ends, which is exactly the
+    >>> quiet perimeter the pads were chosen for. The second version added the
+    >>> stops and the apex pad then landed on the RIBBON of the top row, which
+    >>> the preview caught and the checks did not. Every obstacle, or the check
+    >>> is worthless."""
+    leds, stops, rects = crescent_led_xy(), strip_stops(), strip_rects()
+    out = []
+    for px, py, deg in carrier_pads():
+        dl = min(math.hypot(px - lx, py - ly) for lx, ly in leds) \
+             - LED_D/2 - PAD_W/2
+        ds = min(math.hypot(max(abs(px - sx) - STOP_T/2, 0.0),
+                            max(abs(py - sy) - STOP_W/2, 0.0))
+                 for sx, sy in stops) - PAD_W/2
+        dr = min(math.hypot(max(abs(px) - hl, 0.0), max(abs(py - ry) - hw, 0.0))
+                 for hl, ry, hw in rects) - PAD_W/2
+        out.append((deg, dl, ds, dr))
+    return out
+
+
+def pad_led_clearances():
+    """(deg, worst of all three) per pad."""
+    return [(deg, min(dl, ds, dr)) for deg, dl, ds, dr in pad_clearances()]
+
+
+def _pad_xy(deg):
+    """Where a pad at this angle lands -- the ellipse point pulled in along the
+    true normal. Same maths as carrier_pads(), for one angle."""
+    t = math.radians(deg)
+    a, b = DIFF_R_G, DIFF_RY_G
+    px, py = a * math.cos(t), b * math.sin(t)
+    nx, ny = math.cos(t) / a, math.sin(t) / b
+    nl = math.hypot(nx, ny)
+    return px - PAD_OFFSET_IN * nx / nl, py - PAD_OFFSET_IN * ny / nl
+
+
+def pad_angle_bands(step=0.25, need=1.2):
+    """Every angular band where a pad clears the pixels, the end stops AND the
+    ribbons by at least `need`. This is what CARRIER_FIX_DEG is picked from -- if
+    a row count or a stop size changes, re-read this rather than nudging angles.
+
+    The obstacles are gathered ONCE. Rebuilding them per angle re-solves the
+    whole crescent a thousand times and takes minutes."""
+    leds, stops, rects = crescent_led_xy(), strip_stops(), strip_rects()
+
+    def worst(px, py):
+        dl = min(math.hypot(px - lx, py - ly) for lx, ly in leds) - LED_D/2
+        ds = min(math.hypot(max(abs(px - sx) - STOP_T/2, 0.0),
+                            max(abs(py - sy) - STOP_W/2, 0.0))
+                 for sx, sy in stops)
+        dr = min(math.hypot(max(abs(px) - hl, 0.0), max(abs(py - ry) - hw, 0.0))
+                 for hl, ry, hw in rects)
+        return min(dl, ds, dr) - PAD_W/2
+
+    bands, cur, d = [], [], 2.0
+    while d <= 178.0:
+        w = worst(*_pad_xy(d))
+        if w >= need:
+            cur.append((d, w))
+        elif cur:
+            bands.append(cur)
+            cur = []
+        d = round(d + step, 3)
+    if cur:
+        bands.append(cur)
+    return [(b[0][0], b[-1][0], max(x[1] for x in b),
+             max(b, key=lambda x: x[1])[0]) for b in bands]
+
+
+def crescent_capacity_note():
+    """(capacity, fitted, per-row cap). Capacity is what the crescent physically
+    holds -- optical AND ribbon limits applied. If fitted < CRES_PX the target is
+    not achievable at this CROWN_K and the shell has to get taller."""
+    caps = [_crescent_row_cap(y) for y in crescent_row_ys()]
+    return sum(caps), sum(c for _, c, _ in crescent_rows()), caps
 
 
 def crescent_clearance():
@@ -980,3 +1312,11 @@ def rear_wall_clearances():
     return out
 
 
+
+# ---------------------------------------------------------------------------
+# LATE RESOLUTION
+# ---------------------------------------------------------------------------
+# The row pitch depends on the true per-row capacity, which depends on ell_dist,
+# ribbon_cap and _crescent_row_cap -- so it cannot be solved where it is
+# declared. Solve it here, once everything it needs exists.
+LED_ROW_PITCH = _solve_row_pitch()

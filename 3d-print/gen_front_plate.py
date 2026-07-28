@@ -3,14 +3,18 @@
 
 One part, four jobs:
   * CRESCENT   through aperture + a rebate the opal acrylic drops into from
-               behind + a cavity wall that sets the diffusion air gap
+               behind + a cavity wall that sets the diffusion air gap, and six
+               PADS on the inside of that wall for the LED carrier (gen_led_
+               carrier.py) to screw onto
   * CLOCK      ONE OPEN APERTURE (deliberately no per-pixel holes) and the two
                CharliePlex matrices held directly. THE BOARDS ARE ONLY LOOSELY
                SOLDERED TO EACH OTHER, so each is located by its OWN posts and
                the pair is clamped by six cantilever CLIPS, on all four sides
-  * SPEAKERS   grille apertures + locating ribs + a POST beside each flank that
-               the speaker's side nub bolts to (these bodies have no baffle bolt
-               pattern -- see HARDWARE.md)
+  * SPEAKERS   grille apertures + a POST above and below each body, on its
+               vertical centreline, that the speaker's nub bolts to. THE BODIES
+               ARE ROTATED 90 DEG, so the nubs are top and bottom and the flanks
+               carry nothing at all (no seat rings, no side ribs -- see the note
+               at the speaker block). These bodies have no baffle bolt pattern.
   * MIC ARRAY  four ports + a recessed channel for the linear-4 board + a raised
                gasket land per port
 
@@ -42,6 +46,9 @@ from enclosure_geom import (
     BOSS_EDGE, LIP, REVEAL, RIB_W, R_BOT, SPK_BODY_H, SPK_BODY_W, SPK_GRILLE, SPK_NUB_PROJ,
     SPK_NUB_SCREW, SPK_NUB_Y, SPK_NUB_Z, SPK_POST_WALL, SPK_RING_W, SPK_SEAT_W,
     SPK_NUB_H, SPK_NUB_W, SPK_POST_W, SPK_POST_H_Y, CLR_POST_MIC,
+    DIFF_LIP, CAV_Z, CARRIER_Z0, CARRIER_T, LED_STRIP_T, DIFF_R_G, CAV_RY_G,
+    PAD_PROJ, PAD_W, PAD_PILOT_D, PAD_PILOT_Z, carrier_pads, pad_led_clearances,
+    pad_wall_margins,
     SPK_FIT, SPK_X, SPK_Y, SPK_Y0, SPK_Y1, TRAY_D, TRAY_H, TRAY_REBATE, TRAY_W, TRAY_Y0,
     TRAY_Y1, W, mic_x,
 )
@@ -51,12 +58,15 @@ SEG = 96              # facets on the big arcs -- this part is 245 mm wide
 # PRINT PARAMETERS -- the things a drawing does not fix. Tune these, not the
 # imported geometry.
 # ---------------------------------------------------------------------------
-DIFF_LIP    = 1.5     # facade left in FRONT of the acrylic (the visible rebate)
-CAV_Z       = DIFF_LIP + DIFF_REBATE + DIFF_GAP    # back face of the cavity wall
+# DIFF_LIP and CAV_Z are IMPORTED now, not defined here. The LED carrier derives
+# its z origin from the same stack, and two files each deriving a z stack from a
+# constant only one of them owns is exactly how the earlier drift bugs started.
 DIFF_R      = CRES_R + DIFF_MARGIN                 # acrylic pocket, across
 DIFF_RY     = CRES_RY + DIFF_MARGIN                #      "        , up
 CAV_R       = DIFF_R + CAV_WALL                    # cavity outer wall, across
 CAV_RY      = DIFF_RY + CAV_WALL                   #      "            , up
+assert abs(DIFF_R - DIFF_R_G) < 1e-9 and abs(CAV_RY - CAV_RY_G) < 1e-9, \
+    "cavity ellipse disagrees with enclosure_geom -- the carrier will not fit"
 
 # --- the clock: posts locate, clips clamp -----------------------------------
 # THE TWO MATRICES ARE ONLY LOOSELY SOLDERED TOGETHER, so the frame cannot treat
@@ -210,9 +220,28 @@ body = slab(outline2(), 0.0, FP_T)
 # The cavity wall stands proud of the back face; the acrylic pocket and the air
 # gap are one bore through it, open at the back so the acrylic and then the LED
 # carrier go in from behind.
+#
+# >>> THE WALL RUNS TO CARRIER_Z0, NOT CAV_Z. CAV_Z is where the LED emitting
+# >>> face sits -- one DIFF_GAP behind the acrylic. The strip is LED_STRIP_T
+# >>> thick BEHIND that, so a wall stopping at CAV_Z would leave the ribbon
+# >>> standing proud in a 3 mm gap all the way round and give the carrier
+# >>> nothing to land on. Running it the extra LED_STRIP_T shrouds the strip and
+# >>> makes the wall's back face the carrier's seating plane.
 cav_wall = (half_disc(W / 2, CRES_Y, CAV_R, skirt=CAV_WALL, ry=CAV_RY)
             - half_disc(W / 2, CRES_Y, DIFF_R, ry=DIFF_RY))
-body = body + slab(cav_wall, 0.0, CAV_Z)
+body = body + slab(cav_wall, 0.0, CARRIER_Z0)
+
+# --- LED carrier fixing pads ------------------------------------------------
+# Six local thickenings on the INSIDE of the cavity wall, at the angles the
+# clearance sweep picked (see enclosure_geom.carrier_pads). They run the full
+# height of the wall, so they also buttress what is otherwise a 2 mm x 20 mm
+# unsupported fin -- the reason for the wall's aspect ratio is optical, not
+# structural, and it prints better braced.
+pad_pts = []
+for _px, _py, _deg in carrier_pads():
+    _x, _y = W / 2 + _px, CRES_Y + _py
+    pad_pts.append((_x, _y))
+    body = body + cyl(_x, _y, 0.0, CARRIER_Z0, PAD_W)
 
 cuts = []
 cuts.append(slab(half_disc(W / 2, CRES_Y, DIFF_R, ry=DIFF_RY), DIFF_LIP, CAV_Z + 1))
@@ -434,6 +463,12 @@ for sgn in (-1, 1):
                       MIC_Z0 + 0.8, MIC_Z0 + MIC_CHAN_D + 3, MIC_PILOT_D))
 for mxc in mic_x():
     pilots.append(cyl(mxc, MIC_Y, -1.0, MIC_Z0 + MIC_LAND_H + 1, MIC_PORT_D))
+# LED carrier pilots. Blind, from the BACK -- they must not break through into
+# the diffusion cavity or the acrylic pocket, so they stop PAD_PILOT_Z short of
+# CARRIER_Z0 and never reach DIFF_LIP+DIFF_REBATE. Checked below.
+for _px, _py, _ in carrier_pads():
+    pilots.append(cyl(W / 2 + _px, CRES_Y + _py,
+                      CARRIER_Z0 - PAD_PILOT_Z, CARRIER_Z0 + 1, PAD_PILOT_D))
 body = body - union(pilots)
 
 # ---------------------------------------------------------------------------
@@ -543,7 +578,7 @@ say(f"            {len(clips)} clips on all four sides, {CLIP_W} wide, hook "
     f"{CLIP_REACH} over the board back at z={MTX_ZB:.2f}")
 say(f"            stack: matrix {MTX_Z0}-{MTX_ZB} | gap | backpack "
     f"{BP_Z0}-{BP_ZB}")
-say(f"speakers    grille {chr(216)}{SPK_GRILLE} thru; ribs {SPK_RIB_H} tall; "
+say(f"speakers    grille {chr(216)}{SPK_GRILLE} thru; NO ribs (rotated mount); "
     f"posts {SPK_NUB_Z} tall with {chr(216)}{SPK_PILOT_D} x {SPK_PILOT_Z} pilots")
 say(f"mic         channel {mic_ch_w:.1f} x {mic_ch_h:.1f} x {MIC_CHAN_D} deep; "
     f"4x {chr(216)}{MIC_PORT_D} ports on {chr(216)}{MIC_PORT_D+2*MIC_GASKET} "
@@ -599,9 +634,18 @@ clash(f"{len(led_xy)} LEDs vs facade / pads / posts", leds)
 clash("opal acrylic disc",
       slab(half_disc(W / 2, CRES_Y, CRES_R + 0.2, ry=CRES_RY + 0.2), DIFF_LIP,
            DIFF_LIP + DIFF_T))
-# the diffusion air gap -- must be clear or it is not a diffusion cavity
-clash("diffusion air gap",
-      slab(half_disc(W / 2, CRES_Y, CRES_R, ry=CRES_RY), DIFF_LIP + DIFF_REBATE, CAV_Z))
+# The diffusion air gap must be clear or it is not a diffusion cavity. The six
+# carrier pads are the ONE thing allowed into it, so they are subtracted from
+# the envelope rather than waved through with an allowance -- that way the check
+# still catches anything else that wanders in, and it fails if a pad moves
+# somewhere it was not vetted for. How close each one comes to a pixel is
+# measured separately, in the pad table.
+_gap_env = slab(half_disc(W / 2, CRES_Y, CRES_R, ry=CRES_RY),
+                DIFF_LIP + DIFF_REBATE, CAV_Z)
+for _px, _py, _ in carrier_pads():
+    _gap_env = _gap_env - cyl(W / 2 + _px, CRES_Y + _py, -1.0, CARRIER_Z0 + 1,
+                              PAD_W + 0.02)
+clash("diffusion air gap (carrier pads excepted)", _gap_env)
 # each speaker body, plus the nubs sweeping in from behind
 for _sx in (SPK_X, W - SPK_X):
     clash(f"speaker body @ x={_sx:.1f}",
@@ -672,6 +716,12 @@ for _sx in (SPK_X, W - SPK_X):
           _sx + (SPK_BODY_W/2 + SPK_FLANK/2)
     probe(f"speaker {side} OUTBOARD flank stays bare", _fo, SPK_Y, FP_T + 2.0,
           want=False)
+for _px, _py, _deg in carrier_pads():
+    # material at the pad, and a HOLE down its centre a little deeper in
+    probe(f"carrier pad @ {_deg:.0f} deg",
+          W/2 + _px + PAD_W*0.35, CRES_Y + _py, CARRIER_Z0 - 1.0)
+    probe(f"  ...its pilot is open", W/2 + _px, CRES_Y + _py,
+          CARRIER_Z0 - PAD_PILOT_Z / 2, want=False)
 probe("stiffening spine (above matrix)", W / 2,
       (SPINE_Y0 + SPINE_Y1) / 2, FP_T + 2.0)
 probe("stiffening spine (below matrix)", W / 2,
@@ -789,9 +839,24 @@ checks = [
      (mtx_y0 - CLIP_GAP - CLIP_T) - BP_T),
     ("room above the matrix for its clip",
      (MIC_Y0 - MIC_FIT) - (mtx_y1 + CLIP_GAP + CLIP_T)),
-    ("cavity wall clear of the speaker rib",
-     (CRES_Y - CAV_WALL) - (SPK_Y1 + SPK_FIT + SPK_RING_W)),
+    # There is no speaker rib any more -- the tallest thing above the body is the
+    # NUB POST, SPK_POST_H_Y (6.0) not SPK_RING_W (3.0). Measuring the rib made
+    # this read 3 mm more clearance than the part actually has.
+    ("cavity wall clear of the speaker post",
+     (CRES_Y - CAV_WALL) - (SPK_Y1 + SPK_FIT + SPK_POST_H_Y)),
     ("cavity wall clear of the mic channel", (CRES_Y - CAV_WALL) - MIC_Y1),
+    # --- LED carrier interface ---------------------------------------------
+    # Equality, not an inequality: the wall's back face must land EXACTLY one
+    # strip thickness behind the LED plane, or the carrier either crushes the
+    # ribbon or leaves it floating. Written as -abs(...) like the nub-plane check
+    # above, so float noise on an exact zero does not read as a failure.
+    ("carrier seat lands on the strip back (must be 0)",
+     0.001 - abs(CARRIER_Z0 - CAV_Z - LED_STRIP_T)),
+    ("pilot stays out of the acrylic pocket",
+     (CARRIER_Z0 - PAD_PILOT_Z) - (DIFF_LIP + DIFF_REBATE)),
+    ("tightest pad -> nearest pixel", min(c for _, c in pad_led_clearances())),
+    ("tightest pad inside the wall outer face",
+     min(m for _, m in pad_wall_margins())),
     ("mic boss clear of the array end", MIC_PCB_W / 2 - MIC_BOSS_X),
     ("facade left in front of the acrylic", DIFF_LIP),
     ("acrylic pocket vs 3.0 acrylic", DIFF_REBATE - DIFF_T),

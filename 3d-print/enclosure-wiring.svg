@@ -98,7 +98,7 @@
 <line class="ext" x1="0" y1="13.4" x2="300" y2="13.4"/>
 <text class="lbl" x="0" y="22" text-anchor="start">GPIO1  / D0</text>
 <text class="note" x="58" y="22" text-anchor="start">SK6812 data</text>
-<text class="note" x="130" y="22" text-anchor="start">48 px crescent, front module</text>
+<text class="note" x="130" y="22" text-anchor="start">45 px crescent, front module</text>
 <line class="ext" x1="0" y1="24.4" x2="300" y2="24.4"/>
 <text class="lbl" x="0" y="33" text-anchor="start">GPIO4  / D3</text>
 <text class="note" x="58" y="33" text-anchor="start">touch L + R</text>
@@ -158,7 +158,7 @@
 <text class="blk" x="0" y="-26" text-anchor="start">WHERE THEY SIT</text>
 <text class="lbl" x="0" y="-16" text-anchor="start">numbers match the chain above</text>
 <g transform="scale(0.62)"><path class="obj" d="M0,149.69 V74.74 A101,74.74 0 0 1 202,74.74 V149.69 A6,6 0 0 1 196,155.69 H6 A6,6 0 0 1 0,149.69 Z"/>
-<path class="hid" d="M12,74.74 A89,89 0 0 1 190,74.74 Z"/>
+<path class="hid" d="M12,74.74 A89,62.74 0 0 1 190,74.74 Z"/>
 <path class="hid" d="M60,107.84 H142 A1,1 0 0 1 143,108.84 V129.84 A1,1 0 0 1 142,130.84 H60 A1,1 0 0 1 59,129.84 V108.84 A1,1 0 0 1 60,107.84 Z"/>
 <path class="hid" d="M10.6,94.34 H51.6 A2,2 0 0 1 53.6,96.34 V142.34 A2,2 0 0 1 51.6,144.34 H10.6 A2,2 0 0 1 8.6,142.34 V96.34 A2,2 0 0 1 10.6,94.34 Z"/>
 <path class="hid" d="M150.4,94.34 H191.4 A2,2 0 0 1 193.4,96.34 V142.34 A2,2 0 0 1 191.4,144.34 H150.4 A2,2 0 0 1 148.4,142.34 V96.34 A2,2 0 0 1 150.4,94.34 Z"/>

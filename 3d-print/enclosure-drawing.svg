@@ -105,54 +105,51 @@
 <circle class="obj" cx="150.5" cy="85.34" r="1.25"/>
 </g>
 <g id="asm-front-crescent-leds">
-<circle class="led" cx="17.5" cy="72.14" r="2.6"/>
-<circle class="led" cx="34.2" cy="72.14" r="2.6"/>
-<circle class="led" cx="50.9" cy="72.14" r="2.6"/>
-<circle class="led" cx="67.6" cy="72.14" r="2.6"/>
-<circle class="led" cx="84.3" cy="72.14" r="2.6"/>
-<circle class="led" cx="101" cy="72.14" r="2.6"/>
-<circle class="led" cx="117.7" cy="72.14" r="2.6"/>
-<circle class="led" cx="134.4" cy="72.14" r="2.6"/>
-<circle class="led" cx="151.1" cy="72.14" r="2.6"/>
-<circle class="led" cx="167.8" cy="72.14" r="2.6"/>
-<circle class="led" cx="184.5" cy="72.14" r="2.6"/>
-<circle class="led" cx="25.85" cy="61.14" r="2.6"/>
-<circle class="led" cx="42.55" cy="61.14" r="2.6"/>
-<circle class="led" cx="59.25" cy="61.14" r="2.6"/>
-<circle class="led" cx="75.95" cy="61.14" r="2.6"/>
-<circle class="led" cx="92.65" cy="61.14" r="2.6"/>
-<circle class="led" cx="109.35" cy="61.14" r="2.6"/>
-<circle class="led" cx="126.05" cy="61.14" r="2.6"/>
-<circle class="led" cx="142.75" cy="61.14" r="2.6"/>
-<circle class="led" cx="159.45" cy="61.14" r="2.6"/>
-<circle class="led" cx="176.15" cy="61.14" r="2.6"/>
-<circle class="led" cx="25.85" cy="50.14" r="2.6"/>
-<circle class="led" cx="42.55" cy="50.14" r="2.6"/>
-<circle class="led" cx="59.25" cy="50.14" r="2.6"/>
-<circle class="led" cx="75.95" cy="50.14" r="2.6"/>
-<circle class="led" cx="92.65" cy="50.14" r="2.6"/>
-<circle class="led" cx="109.35" cy="50.14" r="2.6"/>
-<circle class="led" cx="126.05" cy="50.14" r="2.6"/>
-<circle class="led" cx="142.75" cy="50.14" r="2.6"/>
-<circle class="led" cx="159.45" cy="50.14" r="2.6"/>
-<circle class="led" cx="176.15" cy="50.14" r="2.6"/>
-<circle class="led" cx="42.55" cy="39.14" r="2.6"/>
-<circle class="led" cx="59.25" cy="39.14" r="2.6"/>
-<circle class="led" cx="75.95" cy="39.14" r="2.6"/>
-<circle class="led" cx="92.65" cy="39.14" r="2.6"/>
-<circle class="led" cx="109.35" cy="39.14" r="2.6"/>
-<circle class="led" cx="126.05" cy="39.14" r="2.6"/>
-<circle class="led" cx="142.75" cy="39.14" r="2.6"/>
-<circle class="led" cx="159.45" cy="39.14" r="2.6"/>
-<circle class="led" cx="50.9" cy="28.14" r="2.6"/>
-<circle class="led" cx="67.6" cy="28.14" r="2.6"/>
-<circle class="led" cx="84.3" cy="28.14" r="2.6"/>
-<circle class="led" cx="101" cy="28.14" r="2.6"/>
-<circle class="led" cx="117.7" cy="28.14" r="2.6"/>
-<circle class="led" cx="134.4" cy="28.14" r="2.6"/>
-<circle class="led" cx="151.1" cy="28.14" r="2.6"/>
-<circle class="led" cx="92.65" cy="17.14" r="2.6"/>
-<circle class="led" cx="109.35" cy="17.14" r="2.6"/>
+<circle class="led" cx="26.75" cy="72.14" r="2.6"/>
+<circle class="led" cx="43.25" cy="72.14" r="2.6"/>
+<circle class="led" cx="59.75" cy="72.14" r="2.6"/>
+<circle class="led" cx="76.25" cy="72.14" r="2.6"/>
+<circle class="led" cx="92.75" cy="72.14" r="2.6"/>
+<circle class="led" cx="109.25" cy="72.14" r="2.6"/>
+<circle class="led" cx="125.75" cy="72.14" r="2.6"/>
+<circle class="led" cx="142.25" cy="72.14" r="2.6"/>
+<circle class="led" cx="158.75" cy="72.14" r="2.6"/>
+<circle class="led" cx="175.25" cy="72.14" r="2.6"/>
+<circle class="led" cx="26.75" cy="61.14" r="2.6"/>
+<circle class="led" cx="43.25" cy="61.14" r="2.6"/>
+<circle class="led" cx="59.75" cy="61.14" r="2.6"/>
+<circle class="led" cx="76.25" cy="61.14" r="2.6"/>
+<circle class="led" cx="92.75" cy="61.14" r="2.6"/>
+<circle class="led" cx="109.25" cy="61.14" r="2.6"/>
+<circle class="led" cx="125.75" cy="61.14" r="2.6"/>
+<circle class="led" cx="142.25" cy="61.14" r="2.6"/>
+<circle class="led" cx="158.75" cy="61.14" r="2.6"/>
+<circle class="led" cx="175.25" cy="61.14" r="2.6"/>
+<circle class="led" cx="35" cy="50.14" r="2.6"/>
+<circle class="led" cx="51.5" cy="50.14" r="2.6"/>
+<circle class="led" cx="68" cy="50.14" r="2.6"/>
+<circle class="led" cx="84.5" cy="50.14" r="2.6"/>
+<circle class="led" cx="101" cy="50.14" r="2.6"/>
+<circle class="led" cx="117.5" cy="50.14" r="2.6"/>
+<circle class="led" cx="134" cy="50.14" r="2.6"/>
+<circle class="led" cx="150.5" cy="50.14" r="2.6"/>
+<circle class="led" cx="167" cy="50.14" r="2.6"/>
+<circle class="led" cx="43.25" cy="39.14" r="2.6"/>
+<circle class="led" cx="59.75" cy="39.14" r="2.6"/>
+<circle class="led" cx="76.25" cy="39.14" r="2.6"/>
+<circle class="led" cx="92.75" cy="39.14" r="2.6"/>
+<circle class="led" cx="109.25" cy="39.14" r="2.6"/>
+<circle class="led" cx="125.75" cy="39.14" r="2.6"/>
+<circle class="led" cx="142.25" cy="39.14" r="2.6"/>
+<circle class="led" cx="158.75" cy="39.14" r="2.6"/>
+<circle class="led" cx="59.75" cy="28.14" r="2.6"/>
+<circle class="led" cx="76.25" cy="28.14" r="2.6"/>
+<circle class="led" cx="92.75" cy="28.14" r="2.6"/>
+<circle class="led" cx="109.25" cy="28.14" r="2.6"/>
+<circle class="led" cx="125.75" cy="28.14" r="2.6"/>
+<circle class="led" cx="142.25" cy="28.14" r="2.6"/>
+<circle class="led" cx="92.75" cy="17.14" r="2.6"/>
+<circle class="led" cx="109.25" cy="17.14" r="2.6"/>
 </g>
 <g id="asm-front-bottom-plate">
 <path class="obj" d="M4.3,151.69 H197.7 A1.5,1.5 0 0 1 199.2,153.19 V154.19 A1.5,1.5 0 0 1 197.7,155.69 H4.3 A1.5,1.5 0 0 1 2.8,154.19 V153.19 A1.5,1.5 0 0 1 4.3,151.69 Z"/>
@@ -175,7 +172,7 @@
 <line class="ctr" x1="-2" y1="74.74" x2="204" y2="74.74"/>
 <line class="dim" x1="172.407" y1="21.899" x2="202.407" y2="-22.101" marker-start="url(#arw)"/><line class="dim" x1="202.407" y1="-22.101" x2="208.407" y2="-22.101"/><text class="dtx" x="209.607" y="-21.001" text-anchor="start">shell arch 101 x 74.7 - FLATTENED (k=0.74), not a semicircle</text>
 <line class="dim" x1="145.5" y1="20.407" x2="199.5" y2="-9.593" marker-start="url(#arw)"/><line class="dim" x1="199.5" y1="-9.593" x2="205.5" y2="-9.593"/><text class="dtx" x="206.7" y="-8.493" text-anchor="start">diffuser 89 x 62.7, 12 rim</text>
-<line class="dim" x1="56.5" y1="-2.334" x2="26.5" y2="-46.334" marker-start="url(#arw)"/><line class="dim" x1="26.5" y1="-46.334" x2="20.5" y2="-46.334"/><text class="dtx" x="19.3" y="-45.234" text-anchor="end">R89 LED field - 0 inside the diffuser edge (unlit fade band)</text>
+<line class="dim" x1="56.5" y1="20.407" x2="26.5" y2="-23.593" marker-start="url(#arw)"/><line class="dim" x1="26.5" y1="-23.593" x2="20.5" y2="-23.593"/><text class="dtx" x="19.3" y="-22.493" text-anchor="end">89 x 62.7 LED field = the diffuser, no fade band - 45 px, tightest body-to-edge 2.3</text>
 <line class="ext" x1="190" y1="74.74" x2="216" y2="74.74"/><line class="ext" x1="190" y1="155.69" x2="216" y2="155.69"/><line class="dim" x1="214" y1="74.74" x2="214" y2="155.69" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="212.6" y="115.215" text-anchor="middle" transform="rotate(-90 212.6 115.215)">80.9</text>
 <line class="ext" x1="101" y1="12" x2="228" y2="12"/><line class="ext" x1="101" y1="155.69" x2="228" y2="155.69"/><line class="dim" x1="226" y1="12" x2="226" y2="155.69" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="224.6" y="83.845" text-anchor="middle" transform="rotate(-90 224.6 83.845)">143.7</text>
 <line class="ext" x1="59" y1="155.69" x2="59" y2="167.69"/><line class="ext" x1="143" y1="155.69" x2="143" y2="167.69"/><line class="dim" x1="59" y1="165.69" x2="143" y2="165.69" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="101" y="164.29" text-anchor="middle">84</text>
@@ -458,14 +455,14 @@
 <text class="note" x="0" y="121.3" text-anchor="start">l   Front plate seats into a rebate in the dome lip (4.5 wide, 3.6 reveal all round).</text>
 </g>
 <g id="PARTS-LEGEND" transform="translate(330,560)">
-<rect class="tb" x="0" y="0" width="200.2" height="59"/>
+<rect class="tb" x="0" y="0" width="208.3" height="67"/>
 <text class="lbl" x="5" y="11" text-anchor="start">PARTS</text>
 <circle class="bal" cx="9.6" cy="17.46" r="3.6"/>
 <text class="dtx" x="9.6" y="18.96" text-anchor="middle">1</text>
 <text class="note" x="17" y="18.96" text-anchor="start">DOME - 'D' extruded along the depth, open front + open bottom, wall 2.5</text>
 <circle class="bal" cx="9.6" cy="25.46" r="3.6"/>
 <text class="dtx" x="9.6" y="26.96" text-anchor="middle">2</text>
-<text class="note" x="17" y="26.96" text-anchor="start">FRONT MODULE - one part: facade 4, diffuser pocket, diffusion cavity, matrix pocket, baffle rings, mic channel</text>
+<text class="note" x="17" y="26.96" text-anchor="start">FRONT MODULE - one part: facade 4, diffuser pocket, diffusion cavity, matrix pocket, speaker nub posts, mic channel</text>
 <circle class="bal" cx="9.6" cy="33.46" r="3.6"/>
 <text class="dtx" x="9.6" y="34.96" text-anchor="middle">3</text>
 <text class="note" x="17" y="34.96" text-anchor="start">BOTTOM PLATE - chassis: ReSpeaker Flex + UPS 3S, 6x M3, 0.3 clearance/side</text>
@@ -475,6 +472,9 @@
 <circle class="bal" cx="9.6" cy="49.46" r="3.6"/>
 <text class="dtx" x="9.6" y="50.96" text-anchor="middle">5</text>
 <text class="note" x="17" y="50.96" text-anchor="start">KNOB - pebble Ø34 x 20 on a Ø28 base flat</text>
+<circle class="bal" cx="9.6" cy="57.46" r="3.6"/>
+<text class="dtx" x="9.6" y="58.96" text-anchor="middle">6</text>
+<text class="note" x="17" y="58.96" text-anchor="start">LED CARRIER - 2.5 plate, 45 px in 6 cut segments, 6x M2.5 into the cavity wall</text>
 </g>
 <g id="TITLE-BLOCK" transform="translate(936,640)">
 <rect class="tb" x="0" y="0" width="238" height="90"/>

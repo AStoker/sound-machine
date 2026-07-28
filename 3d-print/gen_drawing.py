@@ -94,9 +94,14 @@ def front_dims():
                     f"(k={CROWN_K}), not a semicircle"))
     o.append(leader(W/2 + CRES_R*0.5, fy(ARCH_Y + CRES_RY*0.866), 54, -30,
                     f"diffuser {dt(CRES_R)} x {dt(CRES_RY)}, {dt(CRES_RIM)} rim"))
-    o.append(leader(W/2 - LED_R*0.5, fy(ARCH_Y + LED_R*0.866), -30, -44,
-                    f"R{dt(LED_R)} LED field - {dt(CRES_FADE)} inside the "
-                    "diffuser edge (unlit fade band)", "end"))
+    # LED_RY, not LED_R, for the vertical offset -- the field is an ellipse, and
+    # using the horizontal semi-axis put this leader 26 mm above the arc it
+    # points at. There is also no fade band any more (CRES_FADE = 0): the field
+    # IS the diffuser, and what matters instead is the clearance to its edge.
+    o.append(leader(W/2 - LED_R*0.5, fy(ARCH_Y + LED_RY*0.866), -30, -44,
+                    f"{dt(LED_R)} x {dt(LED_RY)} LED field = the diffuser, no "
+                    f"fade band - {CRES_PX} px, tightest body-to-edge "
+                    f"{dt(crescent_clearance())}", "end"))
     # (no 2xR dimension across the baseline -- it would run straight through the
     #  bottom LED row, and R + concentric + centre height already fix the arc)
     o.append(dim_v(fy(ARCH_Y), fy(0), W + 12, dt(ARCH_Y), ext=W/2+CRES_R))
@@ -601,12 +606,15 @@ def build():
         f"DOME - 'D' extruded along the depth, open front + open bottom, "
         f"wall {dt(WALL)}",
         f"FRONT MODULE - one part: facade {dt(FP_T)}, diffuser pocket, "
-        "diffusion cavity, matrix pocket, baffle rings, mic channel",
+        "diffusion cavity, matrix pocket, speaker nub posts, mic channel",
         f"BOTTOM PLATE - chassis: ReSpeaker Flex + UPS 3S, 6x M{dt(SCREW_D)}, "
         f"{dt(BP_CLR)} clearance/side",
         "MATRIX PAIR - 2x IS31FL3731, held by the front module itself",
         f"KNOB - pebble {chr(216)}{dt(KNOB_D)} x {dt(KNOB_H)} on a "
         f"{chr(216)}{dt(KNOB_BASE_D)} base flat",
+        f"LED CARRIER - {dt(CARRIER_T)} plate, {CRES_PX} px in "
+        f"{len([1 for _, n, _ in crescent_rows() if n])} cut segments, "
+        f"{len(carrier_pads())}x M{dt(CARRIER_SCREW)} into the cavity wall",
     ], "PARTS"), 330.0, 560.0))
 
     # -------------------------------------------------------- title block

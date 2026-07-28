@@ -224,15 +224,31 @@ light:
     rgb_order: GRB
     is_rgbw: true
     pin: GPIO1
-    # Real build: half-circle crescent, 60 LED/m strip (16.7mm pitch), laid on
-    # the R96 LED field. That sits INSIDE an R117 diffuser -- the 21mm band
-    # between them is unlit on purpose, so the glow fades out rather than
-    # stopping at a hard edge (see 3d-print/enclosure_geom.crescent_rows).
-    # ROW PITCH IS ALSO 16.7 -- rows used to be stretched across the radius,
-    # which put them 20.6mm apart against 16.7mm columns. Row counts are chosen
-    # for a CONSTANT end margin, so the outer pixels trace the arc.
-    # Row chords 192/188/178/160/133/85 mm -> 10/10/9/8/7/4 = 48 pixels.
-    num_leds: 48
+    # Real build: the crescent is a FLATTENED HALF-ELLIPSE, 89 x 62.7 semi-axes,
+    # not a half circle -- the crown was flattened (CROWN_K 0.74) to get the dome
+    # printable in one piece on a 220 bed. MEASURED strip: 10.0mm ribbon, 16.5mm
+    # cut-line pitch, 2.13mm thick. See 3d-print/enclosure_geom.crescent_rows --
+    # that is the source of truth, this is a copy of its output.
+    #
+    # >>> 45 PIXELS, NOT 48. The strip is a 48-px reel; three are cut off and not
+    # >>> laid. What limits it is the RIBBON, not the LEDs: a cut segment of n
+    # >>> pixels is n * 16.5mm long, because the cut lines sit half a pitch
+    # >>> outboard of the end LEDs and trimming past them loses the solder pads.
+    # >>> On the bottom row that is 6.9mm more than the LED span, and it did not
+    # >>> fit the diffusion cavity. Every earlier layout measured only the LED
+    # >>> bodies and so overcounted. Fitting 48 needs CROWN_K 0.80, which is a
+    # >>> TALLER shell than the design started at -- 45 was the deliberate call.
+    #
+    # THE ROW PITCH IS 11.0, NOT 16.5. It is DERIVED: the flattened crown leaves
+    # only 62.7mm of height, so the pitch is whatever gets the most pixels on,
+    # floored at the ribbon width + 1. Rows are therefore CLOSER together than
+    # the pixels within a row - the grid is not square.
+    #
+    # NO FADE BAND. The LED field IS the diffuser ellipse now; the old R96-inside-
+    # R117 arrangement with a 21mm unlit band is gone. Tightest LED-body-to-
+    # diffuser gap is 2.26mm.
+    # Row chords 177.8/173.5/163.4/146.2/118.6/69.6 mm -> 10/10/9/8/6/2 = 45 px.
+    num_leds: 45
     # Hard current ceiling: caps max PWM to led_max_pct of full scale, so the
     # strip physically can't exceed that current no matter what HA commands.
     # Sized against the UPS 5V/5A rail with the amp at full tilt (see subs).
@@ -257,21 +273,28 @@ light:
           lambda: |-
             // ============ CONFIGURE FOR YOUR BUILD ============
             // LEDs per row, DATA-LINE order, BOTTOM row first. Sum == num_leds.
-            // Half-circle crescent at 16.7mm pitch (60 LED/m) on the R96 LED arc,
-            // rows ALSO 16.7 apart; the flat side is down, so the widest row is
-            // row 0. Row centres are inset by the LED radius so no pixel body
-            // overhangs the diffusion box, and each row's count is set for a
-            // CONSTANT ~16-22mm end margin rather than proportionally -- that is
-            // what makes the outer pixels follow the arc.
-            //   row 0: 192mm -> 10   row 3: 160mm -> 8
-            //   row 1: 188mm -> 10   row 4: 133mm -> 7
-            //   row 2: 178mm ->  9   row 5:  85mm -> 4   total 48
-            // NOTE row 5 is 4 pixels, not 1 -- there is no single-pixel apex any
-            // more, so an effect that assumes a pointed top needs revisiting.
+            // FLATTENED half-ellipse crescent, 89 x 62.7 semi-axes. 16.5mm pitch
+            // ALONG a row; rows are 11.0 apart, NOT 16.5 -- the grid is
+            // deliberately not square, see the note on the light above. The flat
+            // side is down, so the widest row is row 0. Row counts are limited by
+            // whichever binds first: the LED body staying inside the diffuser, or
+            // the RIBBON (n x 16.5mm) fitting the cavity. On rows 0, 2 and 4 it
+            // is the ribbon.
+            //   row 0: 177.8mm -> 10   row 3: 146.2mm -> 8
+            //   row 1: 173.5mm -> 10   row 4: 118.6mm -> 6
+            //   row 2: 163.4mm ->  9   row 5:  69.6mm -> 2   total 45
+            //
+            // >>> ROW 5 IS TWO PIXELS. It was 4 on the old circular arc. The apex
+            // >>> is nearly bare now, so any effect that assumes a usefully wide
+            // >>> top row -- or that treats the crescent as roughly circular --
+            // >>> needs re-checking against this table. Rows are also only 11mm
+            // >>> apart, so vertical gradients have ~2/3 the physical travel they
+            // >>> used to.
+            //
             // If the strip is laid serpentine, every ODD row runs right-to-left.
             // The sunrise only fills whole rows so that doesn't matter here, but
             // it will for any effect with horizontal structure.
-            static const uint8_t leds_per_row[] = {10, 10, 9, 8, 7, 4};
+            static const uint8_t leds_per_row[] = {10, 10, 9, 8, 6, 2};
             const uint8_t row_count = sizeof(leds_per_row) / sizeof(leds_per_row[0]);
 
             // Dawn keyframes across normalized progress 0..1.

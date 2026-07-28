@@ -73,24 +73,30 @@ def fm_rear():
     for _cx, _s in ((_mx0, -1), (_mx0 + TRAY_W, 1)):             # the two ends
         o.append(rect(_cx + (0 if _s > 0 else -2.45), fy(CLK_Y + 3),
                       2.2, 6, "obj"))
-    # speaker seats: square body pockets + a SIDE-MOUNT POST beside each flank.
-    # The speaker has no baffle bolt pattern -- it hangs off one nub per side,
-    # so the module grows a post there instead of a ring of face screws.
+    # Speaker seats: a body footprint and a nub post ABOVE and BELOW it.
+    #
+    # >>> THE POSTS ARE ON THE VERTICAL CENTRELINE, NOT THE FLANKS. This block
+    # >>> drew them at px = sx +/- (SPK_BODY_W/2 + SPK_NUB_PROJ/2) with a seat
+    # >>> ring SPK_SEAT_W wide around the body and a stiffening rib off each
+    # >>> flank -- all of it the pre-rotation mount. The speakers are rotated 90
+    # >>> deg: the nubs are top and bottom, the flanks carry nothing at all
+    # >>> (SPK_FLANK = 1.0 is pure clearance), and the ribs are gone. Drawing the
+    # >>> old arrangement made this sheet disagree with the part it documents.
     for sx in (SPK_X, W-SPK_X):
-        o.append(rect(sx-SPK_BODY_W/2-SPK_SEAT_W, fy(SPK_SEAT_Y1),
-                      SPK_BODY_W+2*SPK_SEAT_W, SPK_BODY_H+2*SPK_RING_W, "obj", 3))
         o.append(rect(sx-SPK_BODY_W/2, fy(SPK_Y1), SPK_BODY_W, SPK_BODY_H, "obj", 2))
         o.append(circ(sx, fy(SPK_Y), SPK_GRILLE, "hid"))
-        for sgn in (-1, 1):
-            px = sx + sgn * (SPK_BODY_W/2 + SPK_NUB_PROJ/2)
+        for ytop in (SPK_Y0 - SPK_FIT, SPK_Y1 + SPK_FIT + SPK_POST_H_Y):
             # the post the nub lands on, and its screw
-            o.append(rect(px - (SPK_NUB_PROJ + SPK_POST_WALL)/2,
-                          fy(SPK_NUB_Y + SPK_NUB_H/2 + 1.5),
-                          SPK_NUB_PROJ + SPK_POST_WALL, SPK_NUB_H + 3, "obj", 1))
-            o.append(circ(px, fy(SPK_NUB_Y), SPK_NUB_SCREW, "hid"))
-            # stiffening ribs -- a 4 mm plate with a sealed box on it will buzz
-            o.append(line(sx + sgn*(SPK_BODY_W/2+SPK_SEAT_W), fy(SPK_Y1 - 8),
-                          sx + sgn*(SPK_BODY_W/2+SPK_SEAT_W+14), fy(SPK_Y1 - 8), "obj"))
+            o.append(rect(sx - SPK_POST_W/2, fy(ytop),
+                          SPK_POST_W, SPK_POST_H_Y, "obj", 1))
+            o.append(circ(sx, fy(ytop - SPK_POST_H_Y/2), SPK_NUB_SCREW, "hid"))
+    # Stiffening: TWO SPINES, one in the band above the matrix and one below it.
+    # The old short flank ribs are gone -- see the note in gen_front_plate.py:
+    # they ran at SPK_Y, which is now the matrix mid-height.
+    for _y0, _y1 in ((BP_T + BOSS_EDGE, TRAY_Y0 - 3.45),
+                     (TRAY_Y1 + 3.45, SPK_Y1 - 1.0)):
+        _sx0 = SPK_X + SPK_BODY_W/2 + SPK_FIT + 1.0
+        o.append(rect(_sx0, fy(_y1), W - 2*_sx0, _y1 - _y0, "obj", 1))
     # mic flex channel + ports
     o.append(rect(W/2-MIC_PCB_W/2-1, fy(MIC_Y1+1), MIC_PCB_W+2, MIC_PCB_H+2, "obj", 1))
     for mx in mic_x():
@@ -113,11 +119,13 @@ def fm_dims():
                     f"the strip fills the diffuser, no fade band"))
     o.append(leader(W/2 - TRAY_W/4, fy(TRAY_Y0), -26, 42,
                     f"2x matrix - {2*MTX_N} posts + 6 clips, see note h", "end"))
-    o.append(leader(W - SPK_X + (SPK_BODY_W/2+SPK_SEAT_W)*0.71,
-                    fy(SPK_Y) - (SPK_BODY_W/2+SPK_SEAT_W)*0.71, 30, -30,
-                    f"2x Seeed {dt(SPK_BODY_W)}x{dt(SPK_BODY_H)}x{dt(SPK_BODY_D)}"))
-    o.append(leader(W - SPK_X + SPK_BODY_W/2 + SPK_NUB_PROJ/2, fy(SPK_NUB_Y),
-                    32, 20, f"side post - see note g"))
+    o.append(leader(W - SPK_X + (SPK_BODY_W/2)*0.71,
+                    fy(SPK_Y) - (SPK_BODY_W/2)*0.71, 30, -30,
+                    f"2x Seeed {dt(SPK_BODY_W)}x{dt(SPK_BODY_H)}x{dt(SPK_BODY_D)} "
+                    f"- ROTATED 90, nubs top+bottom"))
+    o.append(leader(W - SPK_X, fy(SPK_Y1 + SPK_FIT + SPK_POST_H_Y/2),
+                    32, -20, f"nub post {dt(SPK_POST_W)}x{dt(SPK_POST_H_Y)} "
+                             f"on the centreline - see note g"))
     o.append(leader(W/2 - MIC_PCB_W/2, fy(MIC_Y), -22, 30,
                     f"mic flex channel {dt(MIC_CHAN_D)} deep, "
                     f"{dt(MIC_GASKET)} gasket land per port", "end"))
@@ -327,18 +335,27 @@ def detail_diffuser():
     o.append(line((z + DIFF_REBATE)*sc, 0, (z + DIFF_REBATE)*sc, hgt*sc, "hid"))
     z += DIFF_REBATE + DIFF_GAP
     o.append(rect(z*sc, 0, LED_STRIP_T*sc, hgt*sc, "hid"))             # strip
-    o.append(rect(0, hgt*sc, (z + LED_STRIP_T)*sc, CAV_WALL*sc, "obj"))
+    # THE LED CARRIER closes the stack. The cavity wall runs to CARRIER_Z0 --
+    # one strip thickness PAST the LED plane -- so its back face is what the
+    # carrier lands on, and the strip is shrouded rather than standing proud.
+    o.append(rect(0, hgt*sc, CARRIER_Z0*sc, CAV_WALL*sc, "obj"))
+    o.append(rect(CARRIER_Z0*sc, 0, CARRIER_T*sc,
+                  (hgt + CAV_WALL)*sc, "obj"))                         # carrier
     rows = [(FP_T/2, f"facade {dt(FP_T)}"),
             (FP_T + DIFF_T/2, f"opal acrylic {dt(DIFF_T)} (?), in a "
                               f"{dt(DIFF_REBATE)} pocket"),
             (FP_T + DIFF_REBATE + DIFF_GAP/2,
              f"air gap {dt(DIFF_GAP)} (?)  TUNE ON A TEST PRINT"),
-            (z + LED_STRIP_T/2, f"SK6812 strip {dt(LED_STRIP_T)}")]
+            (z + LED_STRIP_T/2, f"SK6812 strip {dt(LED_STRIP_T)} MEASURED"),
+            (CARRIER_Z0 + CARRIER_T/2,
+             f"LED CARRIER {dt(CARRIER_T)} - part 6, "
+             f"{len(carrier_pads())}x M{dt(CARRIER_SCREW)} into wall pads")]
     for i, (xc, lab) in enumerate(rows):
         o.append(leader(xc*sc, 0, 0, -(20 + i*10), lab))
-    o.append(leader((z + LED_STRIP_T)*sc*0.4, (hgt + CAV_WALL)*sc, -12, 22,
-                    f"cavity wall {dt(CAV_WALL)}, follows the arc", "end"))
-    o.append(dim_h(0, (z + LED_STRIP_T)*sc, (hgt + CAV_WALL)*sc + 34,
+    o.append(leader(CARRIER_Z0*sc*0.4, (hgt + CAV_WALL)*sc, -12, 22,
+                    f"cavity wall {dt(CAV_WALL)}, follows the arc; runs to "
+                    f"{dt(CARRIER_Z0)} so the carrier seats on it", "end"))
+    o.append(dim_h(0, (CARRIER_Z0 + CARRIER_T)*sc, (hgt + CAV_WALL)*sc + 34,
                    f"{dt(FM_DEPTH)} total"))
     return o
 
@@ -421,7 +438,7 @@ def build():
     nl("    Ribs run from each baffle ring out to the perimeter for the same "
        "reason.")
     nl(f"c   AIR GAP IS A GUESS. {dt(DIFF_GAP)} mm is ~0.7x the "
-       f"{dt(16.7)} mm LED pitch, the usual starting point for not seeing 48 "
+       f"{dt(LED_PITCH)} mm LED pitch, the usual starting point for not seeing {CRES_PX} "
        "dots through opal.")
     nl("    Test-print the crescent corner before committing - this is the one "
        "number most likely to need changing.")
@@ -439,18 +456,26 @@ def build():
        "floor left for it, and the speaker leads are shortest from there.")
     nl("    Bridge-tied outputs: do NOT common the two speakers' negatives "
        "(HARDWARE.md).")
-    nl(f"g   SPEAKERS HANG ON SIDE NUBS, not on a baffle bolt pattern. Each body "
-       f"has one nub per side, centred on the {dt(SPK_BODY_H)} mm side, its "
-       f"landing face {dt(SPK_NUB_Z)} mm behind the")
-    nl(f"    speaker's front face. So the module carries a POST beside each "
-       f"flank, standing {dt(SPK_NUB_Z)} proud of its back face, and an "
-       f"M{n(SPK_NUB_SCREW)} runs front-to-back into it.")
-    nl(f"    NUB PROJECTION IS A GUESS ({dt(SPK_NUB_PROJ)} mm) and it is a width "
-       f"driver: the post needs {dt(SPK_SEAT_W)} mm beside each flank, so every "
-       f"+1 mm of nub costs +4 mm of body width")
-    nl(f"    and +2 mm of height. Measure it before you print. The seat ring is "
-       f"sized from it ({dt(SPK_SEAT_W)} = nub {dt(SPK_NUB_PROJ)} + "
-       f"{dt(SPK_POST_WALL)} wall), not chosen.")
+    nl(f"g   SPEAKERS HANG ON NUBS, TOP AND BOTTOM, not on a baffle bolt pattern. "
+       f"The bodies are ROTATED 90 deg, so the two nubs -- one centred on each "
+       f"{dt(SPK_BODY_H)} mm face -- point UP and DOWN.")
+    nl(f"    The module carries a POST above and below each body, on its vertical "
+       f"CENTRELINE, {dt(SPK_POST_W)} x {dt(SPK_POST_H_Y)}, standing "
+       f"{dt(SPK_NUB_Z)} proud of the back face, with an M{n(SPK_NUB_SCREW)} "
+       f"front-to-back into it.")
+    nl(f"    THE FLANKS CARRY NOTHING. Two screws on one vertical line fix x, y "
+       f"and rotation between them, so there are no seat rings and no side ribs "
+       f"-- the width chain budgets")
+    nl(f"    SPK_FLANK {dt(SPK_FLANK)} mm per flank as pure clearance and it "
+       f"butts straight onto the dome's rib keep-out, so anything there jams "
+       f"the module on assembly.")
+    nl(f"    NUB PROJECTION IS A GUESS ({dt(SPK_NUB_PROJ)} mm). Rotated, it now "
+       f"costs HEIGHT, not width: {dt(SPK_POST_H_Y)} mm at each end of the body. "
+       f"SPK_NUB_H ({dt(SPK_NUB_H)}) sets the post WIDTH,")
+    nl(f"    which is what keeps it clear of the mic array by "
+       f"{dt(CLR_POST_MIC)} mm and lets the array sit "
+       f"{dt(SPK_MIC_GAP)} mm above the body instead of above the post. Measure "
+       f"both before you print.")
     nl(f"h   THE TWO MATRICES ARE ONLY LOOSELY SOLDERED TOGETHER, so the frame "
        f"cannot treat them as one part. Each board is located by its OWN two "
        f"posts through its")
