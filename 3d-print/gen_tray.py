@@ -14,7 +14,7 @@ Holds the stack solidly as one unit:
 Needs manifold3d (robust CSG). Build:
   venv/bin/pip install manifold3d trimesh matplotlib
   venv/bin/python gen_tray.py
-Outputs matrix-tray.stl (+ a cross-section preview PNG in the scratchpad).
+Outputs models/matrix-tray.stl (+ a cross-section preview PNG in the scratchpad).
 
 >>> MEASURE THESE ON YOUR BUILD and set below <<<
   PCB_T, BP_T   PCB thicknesses (1.6 mm is standard)
@@ -139,6 +139,7 @@ tris = len(mesh.tri_verts)
 import struct
 V = mesh.vert_properties[:, :3]
 F = mesh.tri_verts
+from enclosure_geom import MODEL_DIR
 base = os.path.dirname(os.path.abspath(__file__))
 buf = bytearray(b"\0"*80 + struct.pack("<I", len(F)))
 for f in F:
@@ -148,7 +149,7 @@ for f in F:
     nx, ny, nz = uy*vz-uz*vy, uz*vx-ux*vz, ux*vy-uy*vx
     L = math.sqrt(nx*nx+ny*ny+nz*nz) or 1.0
     buf += struct.pack("<12fH", nx/L, ny/L, nz/L, *a, *b, *c, 0)
-open(os.path.join(base, "matrix-tray.stl"), "wb").write(buf)
+open(os.path.join(MODEL_DIR, "matrix-tray.stl"), "wb").write(buf)
 
 print(f"tray outer  {OX:.2f} x {OY:.2f} x {D:.2f} mm")
 print(f"z-levels    face 0-{FACE_T}  matrix {FACE_T}-{Z_MAT_BACK}  "

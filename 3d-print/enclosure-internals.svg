@@ -108,9 +108,9 @@
 <rect class="obj" x="2.8" y="151.69" width="58.4" height="4"/>
 <rect class="hid" x="37.5" y="58.69" width="24" height="93"/>
 <rect class="hid" x="53.5" y="141.69" width="8" height="20"/>
-<rect class="hid" x="38.5" y="69.69" width="20" height="70"/>
-<rect class="obj" x="58.5" y="132.69" width="3" height="7"/>
-<rect class="obj" x="58.5" y="69.69" width="3" height="7"/>
+<rect class="hid" x="38.5" y="63.69" width="20" height="70"/>
+<rect class="obj" x="58.5" y="126.69" width="3" height="7"/>
+<rect class="obj" x="58.5" y="63.69" width="3" height="7"/>
 <rect class="obj" x="49.5" y="142.69" width="12" height="9"/>
 <rect class="hid" x="53.5" y="145.69" width="4" height="6"/>
 <rect class="hid" x="54" y="146.69" width="3" height="9"/>
@@ -124,8 +124,8 @@
 <line class="dim" x1="37.5" y1="58.69" x2="63.5" y2="36.69" marker-start="url(#arw)"/><line class="dim" x1="63.5" y1="36.69" x2="69.5" y2="36.69"/><text class="dtx" x="70.7" y="37.79" text-anchor="start">UPS 3S board 60 x 93, STANDING</text>
 <line class="dim" x1="61.5" y1="151.69" x2="91.5" y2="177.69" marker-start="url(#arw)"/><line class="dim" x1="91.5" y1="177.69" x2="97.5" y2="177.69"/><text class="dtx" x="98.7" y="178.79" text-anchor="start">TPA2016 FLUSH on the rear wall</text>
 <line class="dim" x1="49.5" y1="142.69" x2="23.5" y2="168.69" marker-start="url(#arw)"/><line class="dim" x1="23.5" y1="168.69" x2="17.5" y2="168.69"/><text class="dtx" x="16.3" y="169.79" text-anchor="end">wall LUG 12x14x9</text>
-<line class="dim" x1="38.5" y1="69.69" x2="74.5" y2="45.69" marker-start="url(#arw)"/><line class="dim" x1="74.5" y1="45.69" x2="80.5" y2="45.69"/><text class="dtx" x="81.7" y="46.79" text-anchor="start">ReSpeaker Flex 52 x 70 x 20 deep at the XIAO</text>
-<line class="dim" x1="58.5" y1="96.29" x2="88.5" y2="84.29" marker-start="url(#arw)"/><line class="dim" x1="88.5" y1="84.29" x2="94.5" y2="84.29"/><text class="dtx" x="95.7" y="85.39" text-anchor="start">vertical, on 3 standoffs (110 wide over its connectors)</text>
+<line class="dim" x1="38.5" y1="63.69" x2="74.5" y2="39.69" marker-start="url(#arw)"/><line class="dim" x1="74.5" y1="39.69" x2="80.5" y2="39.69"/><text class="dtx" x="81.7" y="40.79" text-anchor="start">ReSpeaker Flex 52 x 70 x 20 deep at the XIAO</text>
+<line class="dim" x1="58.5" y1="90.29" x2="88.5" y2="78.29" marker-start="url(#arw)"/><line class="dim" x1="88.5" y1="78.29" x2="94.5" y2="78.29"/><text class="dtx" x="95.7" y="79.39" text-anchor="start">vertical, on 3 standoffs (110 wide over its connectors)</text>
 </g>
 </g>
 <g id="BOTTOM-PLATE" transform="translate(600,132)">
@@ -137,7 +137,7 @@
 <rect class="hid" x="145.6" y="1.2" width="45" height="22"/>
 <rect class="hid" x="55.02" y="1.2" width="86.36" height="10.7"/>
 <rect class="hid" x="117.2" y="34.7" width="60" height="24"/>
-<rect class="hid" x="64.2" y="37.2" width="26" height="20"/>
+<rect class="hid" x="64.2" y="21.2" width="26" height="20"/>
 <circle class="obj" cx="5.7" cy="33.2" r="1.7"/>
 <circle class="obj" cx="5.7" cy="33.2" r="3"/>
 <circle class="obj" cx="190.7" cy="33.2" r="1.7"/>
@@ -146,10 +146,10 @@
 <circle class="obj" cx="5.7" cy="51.2" r="3"/>
 <circle class="obj" cx="190.7" cy="51.2" r="1.7"/>
 <circle class="obj" cx="190.7" cy="51.2" r="3"/>
-<circle class="obj" cx="52.2" cy="52.7" r="1.7"/>
-<circle class="obj" cx="52.2" cy="52.7" r="3"/>
-<circle class="obj" cx="102.2" cy="52.7" r="1.7"/>
-<circle class="obj" cx="102.2" cy="52.7" r="3"/>
+<circle class="obj" cx="42.2" cy="52.7" r="1.7"/>
+<circle class="obj" cx="42.2" cy="52.7" r="3"/>
+<circle class="obj" cx="79.2" cy="52.7" r="1.7"/>
+<circle class="obj" cx="79.2" cy="52.7" r="3"/>
 <circle class="phan" cx="16" cy="16" r="6"/>
 <circle class="phan" cx="16" cy="42.4" r="6"/>
 <circle class="phan" cx="180.4" cy="16" r="6"/>
@@ -181,10 +181,10 @@
 <circle class="hid" cx="8.5" cy="54" r="2"/>
 <path class="obj" d="M188.5,47 H198.5 A1,1 0 0 1 199.5,48 V60 A1,1 0 0 1 198.5,61 H188.5 A1,1 0 0 1 187.5,60 V48 A1,1 0 0 1 188.5,47 Z"/>
 <circle class="hid" cx="193.5" cy="54" r="2"/>
-<path class="obj" d="M49,49.5 H61 A1,1 0 0 1 62,50.5 V60.5 A1,1 0 0 1 61,61.5 H49 A1,1 0 0 1 48,60.5 V50.5 A1,1 0 0 1 49,49.5 Z"/>
-<circle class="hid" cx="55" cy="55.5" r="2"/>
-<path class="obj" d="M99,49.5 H111 A1,1 0 0 1 112,50.5 V60.5 A1,1 0 0 1 111,61.5 H99 A1,1 0 0 1 98,60.5 V50.5 A1,1 0 0 1 99,49.5 Z"/>
-<circle class="hid" cx="105" cy="55.5" r="2"/>
+<path class="obj" d="M39,49.5 H51 A1,1 0 0 1 52,50.5 V60.5 A1,1 0 0 1 51,61.5 H39 A1,1 0 0 1 38,60.5 V50.5 A1,1 0 0 1 39,49.5 Z"/>
+<circle class="hid" cx="45" cy="55.5" r="2"/>
+<path class="obj" d="M76,49.5 H88 A1,1 0 0 1 89,50.5 V60.5 A1,1 0 0 1 88,61.5 H76 A1,1 0 0 1 75,60.5 V50.5 A1,1 0 0 1 76,49.5 Z"/>
+<circle class="hid" cx="82" cy="55.5" r="2"/>
 </g>
 <g id="du-dims">
 <line class="ext" x1="0" y1="0" x2="0" y2="-14"/><line class="ext" x1="202" y1="0" x2="202" y2="-14"/><line class="dim" x1="0" y1="-12" x2="202" y2="-12" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="101" y="-13.4" text-anchor="middle">202</text>
@@ -195,8 +195,8 @@
 <text class="dtx" x="193.5" y="37.2" text-anchor="middle">2</text>
 <text class="dtx" x="8.5" y="55.2" text-anchor="middle">3</text>
 <text class="dtx" x="193.5" y="55.2" text-anchor="middle">4</text>
-<text class="dtx" x="55" y="56.7" text-anchor="middle">5</text>
-<text class="dtx" x="105" y="56.7" text-anchor="middle">6</text>
+<text class="dtx" x="45" y="56.7" text-anchor="middle">5</text>
+<text class="dtx" x="82" y="56.7" text-anchor="middle">6</text>
 <line class="dim" x1="193.5" y1="36" x2="215.5" y2="10" marker-start="url(#arw)"/><line class="dim" x1="215.5" y1="10" x2="221.5" y2="10"/><text class="dtx" x="222.7" y="11.1" text-anchor="start">6x wall lug 12 x 14 x 9, Ø4 for M3 heat-set</text>
 <text class="note" x="101" y="94" text-anchor="middle">no lug on the FRONT edge - the speakers own both corners and the matrix owns the middle. It does not need one:</text>
 <text class="note" x="101" y="99" text-anchor="middle">the plate's front edge is captured between the seating ledge and the front module's bottom edge.</text>
@@ -219,10 +219,10 @@
 <text class="note" x="17" y="42.96" text-anchor="start">x 193.5, depth 54   -   7.5 clear of UPS 3S (upright)</text>
 <circle class="bal" cx="9.6" cy="49.46" r="3.6"/>
 <text class="dtx" x="9.6" y="50.96" text-anchor="middle">5</text>
-<text class="note" x="17" y="50.96" text-anchor="start">x 55, depth 55.5   -   5 clear of TPA2016 (floor)</text>
+<text class="note" x="17" y="50.96" text-anchor="start">x 45, depth 55.5   -   15 clear of TPA2016 (floor)</text>
 <circle class="bal" cx="9.6" cy="57.46" r="3.6"/>
 <text class="dtx" x="9.6" y="58.96" text-anchor="middle">6</text>
-<text class="note" x="17" y="58.96" text-anchor="start">x 105, depth 55.5   -   5 clear of TPA2016 (floor)</text>
+<text class="note" x="17" y="58.96" text-anchor="start">x 82, depth 55.5   -   5.5 clear of TPA2016 (floor)</text>
 </g>
 <g id="DETAIL-B" transform="translate(600,432)">
 <text class="blk" x="0" y="-20" text-anchor="start">DETAIL B   slot joint   5:1</text>

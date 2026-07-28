@@ -12,8 +12,17 @@ sheets import this, so they cannot drift apart:
 >>> (?) are UNCONFIRMED placeholders; measure before committing geometry.
 """
 import math
+import os
 
 from drawlib import n, rect, circ, line
+
+# ---- output layout ---------------------------------------------------------
+# Printable solids go in models/, drawings and cut files stay beside the code.
+# One definition, imported by every generator -- the alternative is six copies of
+# an os.path.join and a slow drift into three different output directories.
+HERE      = os.path.dirname(os.path.abspath(__file__))
+MODEL_DIR = os.path.join(HERE, "models")
+os.makedirs(MODEL_DIR, exist_ok=True)
 
 # ---- envelope --------------------------------------------------------------
 # ONLY D IS CHOSEN. W and H are both DERIVED from what has to fit on the front
@@ -551,15 +560,27 @@ TOF_Y       = ENC_Y  # same front-offset as the knob, so it sits alongside
 LP_D, LP_Y      = 4.0, 120.0        # BH1750 light pipe ("lux"), centred, above
                                     #   both boards now that the middle is free
 BARREL_D        = 11.0              # (?) clearance for a panel-mount DC-005
-BARREL_Y        = 95.0              # jack centre height, centred in width.
-                                    #   HIGH, because the two boards now fill
-                                    #   the wall wall-to-wall below y=76
+# >>> THE JACK IS LOW, NOT MID-WALL. A barrel lead entering half way up the back
+# >>> of a bedside object drapes across it; entering just above the desk it runs
+# >>> straight down behind. It was at y=95 only because the Flex started at y=16
+# >>> and the two big boards filled everything below. Lifting the Flex to y=22
+# >>> opens the whole strip under it, and the jack drops to just clear the plate.
+BARREL_Y        = 12.0              # jack centre, centred in width, LOW
 # Vents: TWO STACKS, high on the rear wall above both boards. Everything below
 # is now occupied wall-to-wall, so the free band is up in the arch.
-VENT_W, VENT_HH = 30.0, 2.5         # rear vent slots
-VENT_N, VENT_P  = 4, 7.0            # count, pitch, per stack
+# >>> THE VENTS ARE LOUVRED, AND SIZED SO YOU CANNOT SEE IN. 30 x 5 mm slots cut
+# >>> straight through are windows: from directly behind you look past the wall
+# >>> and straight at the UPS. Each slot is now 2.0 mm tall and RISES going
+# >>> inward by a full wall thickness, so a horizontal line of sight enters the
+# >>> outer opening and lands on the slot's own top face. You can only see in
+# >>> from below the machine, which is where nobody looks. Air still convects
+# >>> straight up through them.
+VENT_W, VENT_HH = 18.0, 1.0         # slot width, HALF-height (so 2.0 tall)
+VENT_N, VENT_P  = 6, 4.5            # count, pitch, per stack
 VENT_Y          = 100.0             # bottom slot
-VENT_X_OFF      = 48.0              # stack centre, either side of W/2
+VENT_X_OFF      = 42.0              # stack centre, either side of W/2
+VENT_RISE       = 2.5               # how far a slot climbs across the wall
+                                    #   (== WALL -> 45 deg, fully blocks level sight)
 
 # ---- internals shown for reference ----------------------------------------
 FOOT_D, FOOT_IN     = 12.0, 16.0         # rubber feet
@@ -744,10 +765,14 @@ _LX = WALL + LUG_L/2
 # Both rear lugs are LEFT of centre: the UPS stands on the floor from x=120 to
 # x=180, so the rear-right corner is spoken for. The plate is still carried at
 # six points round the perimeter, just not symmetrically.
+# >>> THE REAR PAIR MOVED OFF THE BARREL JACK. They were at x=55 and 105; the
+# >>> jack dropped to y=12 with a 20 mm land spanning x 91..111, and the tab at
+# >>> 105 sat directly behind it. The switch land takes x 16.5..35.5 and the UPS
+# >>> owns everything past x=120, which leaves x 36..90 -- so 45 and 82.
 SCREWS = [(_LX,     36.0), (W - _LX,     36.0),   # side walls, behind the speakers
           (_LX,     54.0), (W - _LX,     54.0),   # side walls, rear
-          (55.0,  D - WALL - LUG_L/2),            # rear wall, left
-          (105.0, D - WALL - LUG_L/2)]            # rear wall, between Flex + UPS
+          (45.0,  D - WALL - LUG_L/2),            # rear wall, left of the jack
+          (82.0,  D - WALL - LUG_L/2)]            # rear wall, right of the jack
 
 # ---- what goes where inside --------------------------------------------------
 # Waveshare UPS Module 3S: a 60 x 93 board with the three 18650 holders on it,
@@ -791,7 +816,10 @@ FLEX_STANDOFF  = 3.0                         # clears the solder side
 UPS_WALL_X             = 150.0    # UPS centre -- right of centre, clear of the
                                   #   right lug band at x 186.5..200.5
 FLEX_WALL_X            = 60.0     # Flex centre -- left, 5 mm off the UPS
-FLEX_WALL_Y            = 16.0     # bottom edge, ABOVE the lugs (they reach 13)
+# >>> RAISED FROM 16 TO 22 TO CLEAR THE BARREL JACK. The jack now sits at y=12
+# >>> with an 11 mm body; at 16 the Flex overlapped it. 22 also deepens the floor
+# >>> slot the amp lives in from 12 to 18 mm, which is pure gain.
+FLEX_WALL_Y            = 22.0     # bottom edge, above the jack and the lugs
 
 # The TPA2016 mounts FLUSH on the rear wall beside the UPS. Not a side wall:
 # the sides are only vertical below the springing line, and the speaker boxes
@@ -802,7 +830,11 @@ FLEX_WALL_Y            = 16.0     # bottom edge, ABOVE the lugs (they reach 13)
 # tucks in there, which is also the shortest run to both speakers. The rear wall
 # has no room left: Flex and UPS fill it wall-to-wall below y=97.
 AMP_W, AMP_D, AMP_H = 26.0, 20.0, 8.0        # (?) TPA2016 breakout
-AMP_X, AMP_DEPTH    = 80.0, 50.0             # floor, under the Flex
+# >>> MOVED FORWARD, OFF THE REAR TAB. At depth 50 the amp spanned 40..60 and the
+# >>> rear fixing tab at x=82 reaches forward to depth 49.5 -- a 10.5 mm overlap.
+# >>> Depth 34 puts it in the open floor band between the matrix (ends 14.7) and
+# >>> the tabs (start 49.5), which is also easier to get a screwdriver to.
+AMP_X, AMP_DEPTH    = 80.0, 34.0             # floor, forward of the rear tabs
 AMP_WALL_X, AMP_WALL_Y = AMP_X, AMP_H/2      # (kept for the drawings)
 
 # ---- explode offsets (drawing only) ---------------------------------------
@@ -1419,3 +1451,150 @@ def rear_wall_clearances():
 # ribbon_cap and _crescent_row_cap -- so it cannot be solved where it is
 # declared. Solve it here, once everything it needs exists.
 LED_ROW_PITCH = _solve_row_pitch()
+
+
+# ===========================================================================
+# BOARD MOUNTING -- the features every printed part needs so a PCB has
+# something flat and square to land on.
+# ===========================================================================
+# >>> TWO RULES DRIVE ALL OF THIS.
+# >>>
+# >>> 1. EVERY BOARD GETS A FLAT. The crown is a cylinder and the shell walls are
+# >>>    curved above the springing line; a PCB laid on either rocks on two edges
+# >>>    and its connectors end up at an angle to the hole they poke through. So
+# >>>    anything that mounts on a curved surface gets a local flat MILLED INTO
+# >>>    THE INSIDE -- never the outside, which stays smooth.
+# >>>
+# >>> 2. NO SCREW HEAD IS VISIBLE EXCEPT ON THE BOTTOM. Every boss is BLIND: it
+# >>>    stands proud of the inner surface and its pilot stops short of breaking
+# >>>    through. Screws go in from inside, towards the shell. The only fasteners
+# >>>    you can see on the finished machine are the six that pull the bottom
+# >>>    plate up into the dome.
+#
+# M2.5 self-tappers for boards; the bottom plate keeps M3 heat-set inserts,
+# because that is the joint that gets opened over and over.
+BOSS_SCREW   = 2.5
+BOSS_PILOT_D = 2.1        # self-tapping pilot in PETG/PLA
+BOSS_D       = 6.0        # boss outer diameter -- 1.95 wall round the pilot
+BOSS_MIN_WALL = 1.2       # least material left over a blind pilot
+BOSS_CHAMF   = 0.6        # lead-in chamfer on the boss top
+
+# A board sits on standoffs so its solder side clears the surface.
+STANDOFF_H   = 3.0
+
+# ---- local flats on curved surfaces ---------------------------------------
+# The flat is a shallow pocket cut into the INSIDE of the shell, deep enough to
+# swallow the curvature across the board plus a little margin, so the board lands
+# on a true plane. Depth is DERIVED from the sagitta -- see crown_sag().
+FLAT_MARGIN  = 0.4        # extra depth beyond the computed sagitta
+FLAT_EDGE    = 2.0        # flat oversize around the board footprint
+
+
+def crown_sag(width, a=None, b=None):
+    """How far the arch falls away across a chord of `width`, centred on the
+    apex-most point of the span. This is the depth a local flat has to remove.
+
+    A 25 mm board on a 101 x 74.7 arch only sags ~0.6 mm -- small, and exactly
+    the kind of small that leaves a board rocking and a connector skewed."""
+    a = ARCH_R if a is None else a
+    b = ARCH_RY if b is None else b
+    h = width / 2.0
+    if h >= a:
+        return b
+    return b - b * math.sqrt(1.0 - (h / a) ** 2)
+
+
+def flat_depth(width):
+    """Pocket depth for a local mounting flat across a board of `width`."""
+    return round(crown_sag(width) + FLAT_MARGIN, 2)
+
+
+# ---- crown-mounted boards --------------------------------------------------
+# The seesaw encoder sits under the knob; the ToF sits alongside it, turned
+# longwise front-to-back so its short edge clears the encoder board.
+ENC_FLAT_W   = ENC_PCB + 2 * FLAT_EDGE
+ENC_FLAT_D   = ENC_PCB + 2 * FLAT_EDGE
+ENC_HOLE_P   = 20.0       # (?) seesaw breakout mounting hole pitch -- MEASURE
+TOF_FLAT_W   = TOF_PCB_W + 2 * FLAT_EDGE
+TOF_FLAT_D   = TOF_PCB_D + 2 * FLAT_EDGE
+# >>> THE ToF's HOLES RUN FRONT-TO-BACK, NOT ACROSS. The board is mounted
+# >>> LONGWISE so its 17.8 mm edge clears the encoder -- so its 25.4 mm axis is
+# >>> the DEPTH, and that is the axis the mounting holes are separated on.
+# >>> Treating the pitch as an x separation put the holes at 114.1 and 134.1: one
+# >>> of them 2.9 mm INSIDE the encoder's boss, and BOTH of them outside the
+# >>> board's own 17.8 mm width. A hole pitch wider than the board it belongs to
+# >>> is impossible, and that was the tell.
+TOF_HOLE_P   = 20.0       # (?) along the DEPTH axis -- MEASURE
+TOF_HOLE_AXIS = "depth"   # which way the pair is separated
+ENC_HOLE_AXIS = "x"       # the encoder board is square; its pair runs across
+
+# ---- rear-wall boards ------------------------------------------------------
+# The RTC and the lux sensor had no defined mount at all until now; both are
+# STEMMA QT breakouts that need somewhere flat and square on the rear wall.
+RTC_PCB_W, RTC_PCB_H = 25.4, 25.4     # (?) DS3231 breakout -- MEASURE
+RTC_HOLE_P           = 20.0           # (?)
+# >>> THE RTC IS ON THE FLOOR, NOT THE REAR WALL. It was placed on the wall at
+# >>> (178, 108) and one of its four bosses fell OUTSIDE the shell -- the arch has
+# >>> curved in to a half-width of 73 by that height, and the boss wanted 87. A
+# >>> search over the whole wall then found NO position where a 25 mm board plus
+# >>> bosses clears the UPS, the Flex, both vent stacks, the barrel jack and the
+# >>> lux pipe: below y=97 the UPS and Flex fill it wall to wall, and above that
+# >>> the arch closes in faster than the vents get out of the way.
+# >>> The floor has a clear pocket between the matrix and the UPS, and it is a
+# >>> shorter I2C hop from the Flex than the wall was.
+RTC_ON_FLOOR         = True
+RTC_X, RTC_DEPTH     = 20.0, 44.0     # bottom plate, left of the amp,
+                                      #   behind the left speaker
+LUX_PCB_W, LUX_PCB_H = 20.0, 18.0     # (?) BH1750 breakout -- MEASURE
+LUX_HOLE_P           = 15.0           # (?)
+# The lux sensor looks through the light pipe, so its board is centred on it.
+LUX_WALL_X, LUX_WALL_Y = None, None   # resolved below, from the pipe
+
+# ---- panel-mount barrel jack ----------------------------------------------
+# A flat land on the INSIDE of the rear wall, so the jack's nut pulls up square
+# against a plane rather than a curve, plus clearance for the nut itself.
+BARREL_LAND_D = 20.0      # flat land diameter, inside face
+BARREL_NUT_D  = 16.0      # (?) across the nut's corners -- MEASURE
+
+# ---- UPS 5V power switch ---------------------------------------------------
+# >>> RESOLVED: rear wall, low and left. It was an open item from the original
+# >>> layout. Low-left is below the Flex and above the floor line, reachable
+# >>> without tipping the machine, invisible from the front, and it keeps the
+# >>> leads short to the UPS on the right. It does not compete with anything --
+# >>> that band was empty.
+# >>> IT IS A ROUND BUTTON, SO THE HOLE IS ROUND. The Waveshare switch is a
+# >>> panel-mount push button, not a rocker -- a rectangular cutout would leave
+# >>> four visible gaps around a circular bezel and nothing for its nut to pull
+# >>> against.
+SW_D         = 12.0       # (?) panel cutout diameter for the button -- MEASURE
+SW_NUT_D     = 16.0       # (?) across the nut, for the land -- MEASURE
+SW_WALL_X    = 26.0       # rear wall, left of the Flex
+SW_WALL_Y    = 12.0       # low, level with the jack
+SW_RIB       = 1.5        # retaining land around the opening, inside
+
+# ---- bottom plate ----------------------------------------------------------
+FOOT_POCKET_T = 1.0       # recess depth for a stick-on foot
+FOOT_CLR      = 0.4       # pocket oversize on the foot diameter
+AMP_HOLE_P    = 20.0      # (?) TPA2016 breakout hole pitch -- MEASURE
+
+
+def _resolve_lux():
+    global LUX_WALL_X, LUX_WALL_Y
+    LUX_WALL_X, LUX_WALL_Y = W / 2, LP_Y
+
+
+_resolve_lux()
+
+
+def rear_wall_boards():
+    """Every board that mounts on the rear wall, as
+    (name, centre_x, centre_y, w, h, hole_pitch). Used by the dome to place
+    bosses and by the clearance table to prove they do not overlap."""
+    return [
+        ("Flex",  FLEX_WALL_X, FLEX_WALL_Y + FLEX_H / 2, FLEX_PCB_W, FLEX_PCB_H,
+         None),
+        ("UPS",   UPS_WALL_X,  FLOOR_Y + UPS_H / 2,      UPS_W,      UPS_H,
+         None),
+        ("lux",   LUX_WALL_X,  LUX_WALL_Y,               LUX_PCB_W,  LUX_PCB_H,
+         LUX_HOLE_P),
+    ]

@@ -129,6 +129,40 @@ for d in PROSE:
     must_not(d, r"beside each flank|post beside each|nub per side", "pre-rotation mount")
     must_not(d, r"fade band", "the fade band")
 
+# --------------------------------------------------------- drawing drift
+# >>> THE SHEETS DRIFT SILENTLY, because a drawing that is wrong still renders.
+# >>> The rear view drew the UPS and the Flex on the CENTRELINE for several
+# >>> revisions after they went side by side, and no sheet drew the power switch
+# >>> or the crown bosses at all -- which is how an encoder boss and a ToF boss
+# >>> came to overlap by 2.9 mm without anyone seeing it. These rules assert that
+# >>> each generator at least REFERENCES the feature, so a new part cannot be
+# >>> added to the model and left off the drawings.
+DRAW = {r: load(r) for r in ("3d-print/gen_drawing.py",
+                             "3d-print/gen_internals.py")}
+
+
+def draws(doc, pattern, why):
+    if not re.search(pattern, DRAW.get(doc, "")):
+        problems.append(f"{doc}: does not draw {why}   /{pattern}/")
+
+
+def not_centred(doc, pattern, why):
+    """A rear-wall feature that is NOT on the centreline must not be drawn at
+    W/2. This is the exact bug the UPS and the Flex had."""
+    for i, line in enumerate(DRAW.get(doc, "").split("\n"), 1):
+        if re.search(pattern, line) and re.search(r"\bW\s*/\s*2\b", line):
+            problems.append(f"{doc}: {why} drawn on the centreline\n"
+                            f"      line {i}: {line.strip()[:88]}")
+
+
+draws("3d-print/gen_drawing.py", r"SW_WALL_X", "the UPS power switch")
+draws("3d-print/gen_drawing.py", r"ENC_HOLE_P", "the encoder crown bosses")
+draws("3d-print/gen_drawing.py", r"TOF_HOLE_P", "the ToF crown bosses")
+draws("3d-print/gen_drawing.py", r"LOUVRE", "the vents as louvres")
+draws("3d-print/gen_internals.py", r"SPK_POST_W", "the rotated speaker posts")
+not_centred("3d-print/gen_drawing.py", r"UPS_W", "the UPS")
+not_centred("3d-print/gen_drawing.py", r"FLEX_PCB_W|FLEX_HOLE_PX|FLEX_W\b", "the Flex")
+
 print(f"geometry: {g.W} x {g.D:g} x {g.H:.2f}   {g.CRES_PX} px {rows}   "
       f"pitch {g.LED_PITCH}/{g.LED_ROW_PITCH}   CROWN_K {g.CROWN_K}")
 print(f"checked:  {len(DOCS)} documents")

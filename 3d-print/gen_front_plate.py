@@ -29,7 +29,7 @@ imported.
 Needs manifold3d (robust CSG):
     .venv/bin/pip install manifold3d trimesh matplotlib
     .venv/bin/python gen_front_plate.py
-Outputs front-module.stl (+ section previews).
+Outputs models/front-module.stl (+ section previews beside the code).
 """
 import math
 import os
@@ -50,7 +50,7 @@ from enclosure_geom import (
     PAD_PROJ, PAD_W, PAD_DRAFT, PAD_Z0, PAD_RAMP, PAD_OFFSET_IN, PAD_PILOT_D,
     PAD_PILOT_Z, carrier_pads, DIFF_RY_G,
     pad_led_clearances,
-    pad_wall_margins,
+    pad_wall_margins, MODEL_DIR, HERE,
     SPK_FIT, SPK_X, SPK_Y, SPK_Y0, SPK_Y1, TRAY_D, TRAY_H, TRAY_REBATE, TRAY_W, TRAY_Y0,
     TRAY_Y1, W, mic_x,
 )

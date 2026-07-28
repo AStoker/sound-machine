@@ -34,7 +34,7 @@ number is imported or asserted.
 
 Needs manifold3d:
     .venv/bin/python gen_led_carrier.py
-Outputs led-carrier.stl (+ a preview).
+Outputs models/led-carrier.stl (+ a preview).
 """
 import math
 import os
@@ -48,7 +48,7 @@ from enclosure_geom import (
     DIFF_REBATE, DIFF_RY_G, LED_D, LED_PITCH, LED_ROW_PITCH, LED_STRIP_T,
     MIC_Y1, PAD_PILOT_D, PAD_W, STOP_H, STOP_T, STOP_W, STRIP_END_CLR, STRIP_W,
     W, carrier_pads, crescent_row_ys, crescent_rows, pad_clearances,
-    strip_stops, CARRIER_SCREW, pad_angle_bands,
+    strip_stops, CARRIER_SCREW, pad_angle_bands, MODEL_DIR, HERE,
 )
 
 SEG = 96
@@ -162,14 +162,13 @@ body = body - union(holes)
 # ---------------------------------------------------------------------------
 # EXPORT
 # ---------------------------------------------------------------------------
-HERE = os.path.dirname(os.path.abspath(__file__))
 
 
 def write_stl(solid, name):
     import struct
     m = solid.to_mesh()
     V, F = m.vert_properties[:, :3], m.tri_verts
-    with open(os.path.join(HERE, name), "wb") as f:
+    with open(os.path.join(MODEL_DIR, name), "wb") as f:
         f.write(b"\0" * 80)
         f.write(struct.pack("<I", len(F)))
         for a, b_, c in F:
@@ -265,7 +264,7 @@ chk("pads clear of the ribbons",      min(dr for _, _, _, dr in pad_clearances()
 
 try:
     import trimesh
-    tm = trimesh.load(os.path.join(HERE, "led-carrier.stl"))
+    tm = trimesh.load(os.path.join(MODEL_DIR, "led-carrier.stl"))
     say("")
     say(f"watertight={tm.is_watertight}  winding_ok={tm.is_winding_consistent}  "
         f"volume={tm.volume/1000:.1f} cm^3")

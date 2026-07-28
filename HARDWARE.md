@@ -361,8 +361,9 @@ cast-acrylic (Glowforge-cut). Access is via a bottom slide-in plate. Fusion 360.
 > `enclosure_geom.ell_dist()` now returns the true point-to-ellipse distance and
 > everything downstream measures with it.
 
-Parts: **dome** (open front + open bottom) · **front module** · **bottom plate**
-· **LED carrier** · a printed **pebble knob** on the crown for the encoder. The
+Parts, all generated as STLs in [`3d-print/models/`](3d-print/models/):
+**dome** (open front + open bottom, integral rear wall) · **front module** ·
+**bottom plate** · **LED carrier** · a printed **pebble knob** on the crown for the encoder. The
 front module carries the clock matrices itself, so `matrix-tray.stl` is no longer
 in the assembly — it survives as a standalone part.
 

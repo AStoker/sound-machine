@@ -11,11 +11,25 @@ source of truth.
 
 | Part | File | Status |
 |---|---|---|
-| **Front module** | [`front-module.stl`](front-module.stl) | printable **whole** — 194.8 × 148.1 × 21.3, 70.3 cm³ |
-| **LED carrier** | [`led-carrier.stl`](led-carrier.stl) | printable — 185.0 × 69.2 × 4.7, 25.2 cm³ |
+| **Front module** | [`front-module.stl`](models/front-module.stl) | printable **whole** — 194.8 × 148.1 × 21.3, 70.3 cm³ |
+| **LED carrier** | [`led-carrier.stl`](models/led-carrier.stl) | printable — 185.0 × 69.2 × 4.7, 25.2 cm³ |
 | **Diffuser** | [`diffuser.svg`](diffuser.svg) | Glowforge cut file, 1:1 mm — 3 mm opal acrylic, round-notched for the carrier pads |
-| Matrix tray | [`matrix-tray.stl`](matrix-tray.stl) | printable — **no longer in the assembly**, the front module carries the matrices itself |
-| Dome, bottom plate, knob | — | still to do |
+| **Dome** | [`dome.stl`](models/dome.stl) | printable — 202 × 155.7 × 64, 146.8 cm³ |
+| **Bottom plate** | [`bottom-plate.stl`](models/bottom-plate.stl) | printable — 196.4 × 58.4 × 6.6, 45.3 cm³ |
+| **Knob** | [`knob.stl`](models/knob.stl) | printable — Ø34 × 20, 13.2 cm³ |
+| Matrix tray | [`matrix-tray.stl`](models/matrix-tray.stl) | printable — **no longer in the assembly**, the front module carries the matrices itself |
+
+Every solid is watertight, one connected body, and fits a 220 bed.
+
+## Print orientations, and what each one costs
+
+| Part | Orientation | Why, and what it costs |
+|---|---|---|
+| Dome | **rear wall down** | The rear wall is the first layer — the flattest face and the one with the most features — and every boss on it then grows straight up off the bed. Cost: anything projecting inward off a SIDE wall or the CROWN is horizontal, so the four side lugs and the two crown mounts each need a 45° gusset. |
+| Front module | **face down** | The facade is the bottom layer, and it is the one surface anyone sees. Everything else grows upward off the bed. |
+| Bottom plate | **underside down** | Counterbores and foot pockets open downward and print as plain holes from layer one; the bosses grow upward. The underside is also what you see picking the machine up. |
+| LED carrier | **strip side down** | A warped carrier is a varying air gap, and that shows through the diffuser. |
+| Knob | **base down** | The base cut is the bed. The steepest overhang is the very first layer, at 42.5° from vertical — inside the support-free limit, which the run checks. |
 
 Envelope: **202 × 64 × 155.7**. Both printed parts fit a **220 bed whole** — the
 front module used to be 250.8 wide and had to split; rotating the speakers and
@@ -31,6 +45,8 @@ for f in ('enclosure-drawing','enclosure-internals','enclosure-wiring'):
 # solids (need manifold3d; trimesh + networkx for the mesh validation)
 ../.venv/bin/pip install manifold3d trimesh networkx matplotlib
 ../.venv/bin/python gen_front_plate.py && ../.venv/bin/python gen_led_carrier.py
+../.venv/bin/python gen_dome.py && ../.venv/bin/python gen_bottom_plate.py
+../.venv/bin/python gen_knob.py
 python3 gen_diffuser.py && python3 gen_tray.py
 python3 check_docs.py            # prose vs geometry -> ALL SYNCED
 ```
@@ -41,10 +57,16 @@ Code layout — **no sheet and no solid invents a dimension**:
 enclosure_geom.py   every parameter, every derived value, the part outlines
 drawlib.py          SVG primitives, dimensions, leaders, sheet chrome
 gen_drawing.py      sheet 1        gen_internals.py    sheet 2
-gen_wiring.py       sheet 3        gen_tray.py         matrix-tray.stl
-gen_front_plate.py  front-module.stl
-gen_led_carrier.py  led-carrier.stl
-gen_diffuser.py     diffuser.svg      check_docs.py   prose vs geometry
+gen_wiring.py       sheet 3        gen_tray.py         models/matrix-tray.stl
+gen_front_plate.py  models/front-module.stl
+gen_led_carrier.py  models/led-carrier.stl
+gen_diffuser.py     diffuser.svg   check_docs.py  prose vs geometry
+gen_dome.py         models/dome.stl
+gen_bottom_plate.py models/bottom-plate.stl
+gen_knob.py         models/knob.stl
+
+models/             ALL printable solids live here. Drawings, cut files and
+                    previews stay beside the code.
 ```
 
 > ### ⚠️ One file, one definition — this has bitten twice
@@ -372,7 +394,7 @@ rather than nudging `CARRIER_FIX_DEG` by eye.**
 > and note that its front face has **per-pixel light tunnels**, which the front
 > module deliberately does not.
 
-`matrix-tray.stl` — a mount that holds **two butted Adafruit IS31FL3731 16×9
+`models/matrix-tray.stl` — a mount that holds **two butted Adafruit IS31FL3731 16×9
 CharliePlex matrices *and* their two driver backpacks** as one solid unit, with
 a **flat front face** (for mounting flush against cloth) and all retention on
 the back. No screws, no heat-set inserts — it snaps together.
@@ -412,7 +434,7 @@ can't fall apart and the wires aren't stressed.
 
 ## Print & assemble
 
-1. Import `matrix-tray.stl` into OrcaSlicer. Print **front-face-down** on the
+1. Import `models/matrix-tray.stl` into OrcaSlicer. Print **front-face-down** on the
    bed — gives the smoothest flat face against the cloth, and the posts/fingers
    print upward with no supports.
 2. Push each **matrix** in from the back until its two holes snap onto the
@@ -442,7 +464,7 @@ posts are `POST_D` (loosen if they bind in the Ø2.0 holes).
 ```sh
 python3 -m venv venv
 venv/bin/pip install manifold3d trimesh matplotlib scipy
-venv/bin/python gen_tray.py       # writes matrix-tray.stl (+ section preview)
+venv/bin/python gen_tray.py       # writes models/matrix-tray.stl (+ section preview)
 ```
 
 All dimensions are parameters at the top of `gen_tray.py`.
@@ -718,3 +740,54 @@ projection** (4 mm assumed — worth ±4 mm of body width per mm, see the table
 above), the **UPS depth with cells fitted** (~24 assumed), the **mic array board
 width**, the **diffuser air gap**, and **where the sensor chip sits on your
 VL53L0X breakout**.
+
+
+---
+
+# Dome, bottom plate, knob
+
+## Two rules everything inside obeys
+
+**Every board gets a flat.** The crown is a cylinder and the walls curve above
+the springing line, so a PCB laid on either rocks on two edges and skews whatever
+connector pokes through. Anything mounting on a curved surface sits in a shallow
+pocket milled into the **inside** — never the outside, which stays smooth. Depth
+is derived from the arch's own sagitta (`enclosure_geom.flat_depth()`), which is
+only 0.59 mm across the encoder board and 0.29 mm across the ToF: small, and
+exactly the kind of small that leaves a board rocking.
+
+**No screw enters from outside.** Every boss is blind — it stands proud of the
+inner surface and its pilot stops `BOSS_MIN_WALL` short of the skin. Screws go in
+from inside, towards the shell. The only fasteners visible on the finished
+machine are the six that pull the bottom plate up, and they are counterbored
+below the feet so it rests on rubber, not steel.
+
+M2.5 self-tappers into printed bosses for the boards; the bottom plate keeps M3
+heat-set inserts, because that is the joint opened over and over.
+
+> ### ⚠️ The rear wall is FULL, and the RTC had to leave it
+> The DS3231 was placed on the rear wall at (178, 108) and one of its four bosses
+> landed **outside the shell** — the arch has curved in to a half-width of 73 mm
+> by that height and the boss wanted 87. A search over the entire wall then found
+> **no** position where a 25 mm board plus bosses clears the UPS, the Flex, both
+> vent stacks, the barrel jack and the lux pipe: below y=97 the two big boards
+> fill it wall to wall, and above that the arch closes in faster than the vents
+> get out of the way.
+>
+> It moved to the **floor**, on the bottom plate left of the amp — which is also
+> a shorter I2C hop from the Flex than the wall was.
+
+> ### ⚠️ Three things the dome got wrong, all caught by the mesh check
+> - **Bosses grew the wrong way.** They ran in +z, into the rear wall's own
+>   material, so each pilot ended up drilled inside solid plastic — a sealed void
+>   with no opening. Eleven of them turned up as eleven extra connected bodies
+>   with *negative* volume.
+> - **Gussets in the wrong axis.** Printed rear-wall-down the vertical axis is
+>   DEPTH, so a lug's unsupported face is the one at larger z. The first version
+>   built ramps downward in y, where nothing was unsupported, and pushed them into
+>   the bottom plate's space at the same time.
+> - **Gussets left the building.** Unclamped, the rear-most pair ran from z=61 out
+>   to z=73 — through the rear wall and 8.6 mm into open air. The part's bounding
+>   box read 72.6 deep against a 64 mm design depth, which is the only reason it
+>   surfaced. There is now a containment guard and a bbox assertion, matching the
+>   front module's.

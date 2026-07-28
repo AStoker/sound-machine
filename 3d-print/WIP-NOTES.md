@@ -1,6 +1,6 @@
 # WIP — resume here
 
-**All five generators are `ALL CLEAR`, and `check_docs.py` is `ALL SYNCED`.**
+**All nine generators are `ALL CLEAR`, and `check_docs.py` is `ALL SYNCED`.**
 Firmware and all four documents are in sync with the geometry.
 Nothing is committed.
 
@@ -319,3 +319,224 @@ drawn across the notch mouth; and arc endpoints taken from the tangent alone, so
 they were not on the circle. Verified by area against closed form, a
 self-intersection sweep, and a pad-clearance check — the last of which failed
 once for comparing SVG-space points against model-space pads.
+
+
+## Parts 1, 3 and 5 — dome, bottom plate, knob
+
+All solids now live in **`models/`**; drawings, cut files and previews stay
+beside the code. `enclosure_geom.MODEL_DIR` is the one definition.
+
+| part | file | size | vol |
+|---|---|---|---|
+| dome | `models/dome.stl` | 202 × 155.7 × 64 | 146.8 cm³ |
+| front module | `models/front-module.stl` | 194.8 × 148.1 × 18.8 | 71.4 cm³ |
+| bottom plate | `models/bottom-plate.stl` | 196.4 × 58.4 × 6.6 | 45.3 cm³ |
+| LED carrier | `models/led-carrier.stl` | 186.1 × 69.8 × 4.7 | 25.8 cm³ |
+| knob | `models/knob.stl` | Ø34 × 20 | 13.2 cm³ |
+
+All watertight, one connected body each, all on a 220 bed.
+
+### Decisions taken
+- **Power switch**: rear wall, low and left. Open since the original layout; that
+  band was empty (below the Flex at y=16, above the floor) and it keeps the leads
+  short to the UPS.
+- **Feet**: recessed pockets, 12 Ø × 1 deep. Locates them and guarantees they
+  cannot be stuck over a screw counterbore.
+- **Board fixings**: M2.5 self-tappers into printed bosses. The bottom plate
+  keeps M3 heat-set inserts — that joint gets opened repeatedly.
+
+### The RTC had to leave the rear wall
+Placed at (178, 108) one of its four bosses landed **outside the shell** — the
+arch is down to a 73 mm half-width there and the boss wanted 87. A search over
+the whole wall then found **no** position clearing the UPS, Flex, both vent
+stacks, the jack and the lux pipe. It is on the **floor** now, left of the amp,
+which is also a shorter I2C hop.
+
+### Three dome bugs, all caught by the mesh check
+1. **Bosses grew into the wall** (+z instead of −z), so every pilot was drilled
+   inside solid plastic — sealed voids, which showed up as eleven extra connected
+   bodies with *negative* volume.
+2. **Gussets in the wrong axis.** Printed rear-wall-down the vertical axis is
+   DEPTH; the first version ramped in y, where nothing was unsupported, and
+   pushed into the bottom plate's space.
+3. **Gussets escaped the envelope** — the rear pair ran 8.6 mm out behind the
+   machine. Bounding box read 72.6 against a 64 design depth. There is now a
+   containment guard and a bbox assertion, matching the front module's.
+
+Plus: crown bosses floated because the flat cut removed the ceiling they hung
+from, leaving coplanar faces. Fixed by cutting the flats first and letting the
+bosses overlap into the remaining material.
+
+### Still to measure
+`ENC_HOLE_P`, `TOF_HOLE_P`, `RTC_HOLE_P`, `AMP_HOLE_P`, `LUX_HOLE_P` are all
+`(?)` guesses at 20/15 mm, and `SW_W`/`SW_H`, `BARREL_NUT_D`, `RTC_PCB_*`,
+`LUX_PCB_*` likewise. **Every board mount depends on them.** Measure before
+printing the dome or the plate — the crown mounts especially, since a wrong hole
+pitch there means reprinting the whole shell.
+
+
+## Rear wall and bottom, reworked
+
+Five corrections, all from looking at the part rather than the numbers:
+
+- **Barrel jack moved LOW** (y 95 → 12), centred in width. A lead entering half
+  way up the back of a bedside object drapes across it. This forced the **Flex up
+  from y=16 to y=22** to clear it — which also deepens the amp's floor slot from
+  12 to 18 mm, pure gain.
+- **The switch is round.** It is a panel-mount push button, not a rocker; a
+  rectangular cutout left four gaps around a circular bezel and nothing flat and
+  concentric for its nut. Now Ø12 with a Ø19 land.
+- **Vents are louvred and much smaller** — 18 × 2.0 instead of 30 × 5, twelve
+  instead of eight, and each slot RISES a full wall thickness going inward. A
+  level line of sight enters the outer opening and lands on the slot's own top
+  face; you can only see in from ~35° below. Verified on the built solid: 9/9
+  level sight-lines blocked, and the channel open along its own axis.
+- **Touch pads are pockets, not holes.** The first version cut the full wall and
+  put two 22 mm windows in the top of the machine. It now removes the annulus
+  between the inner surface and `d_outline(TOUCH_WALL)`, thinning 2.5 → 1.6 and
+  leaving the outer skin untouched. Verified by probing along the arch normal.
+- **The bottom is a continuous LIP with local TABS**, not six free-standing
+  blocks with stepped ramps under them. The lip is the seating ledge the plate
+  already lands on; a tab is that lip made locally taller where a screw goes.
+  The screw runs UP through the plate into the tab. It also prints better: the
+  lip is a continuous fin over the full depth, so only the tabs' bed-facing ends
+  need a ramp, and the rear tabs need nothing at all.
+
+### Three modelling traps, all now guarded
+1. **An invalid manifold in a union destroys everything.** manifold3d signals
+   failure with volume 0 and an *infinite* bounding box; unioning one yields
+   nothing, and the dome silently exported a 0-triangle STL. `union()` now
+   validates every part and raises with the offending index.
+2. **Subtracting two outlines with the same `ybot`** puts coincident edges on
+   their flat bottoms. Fine at full width; once a ramp step shrinks the annulus
+   to ~2 mm it degenerates. `YBOT_OUT` / `YBOT_IN` keep them apart.
+3. **The perimeter band does not exist across the bottom middle.** Both outlines
+   run to the floor there, so their difference is empty — and the two rear tabs
+   at x=55 and 105 sit exactly in that gap. They are plain blocks on the rear
+   wall now.
+
+A check that samples the wrong line is worse than no check: the louvre's axis
+rises `VENT_RISE` across `WALL + 1`, not at 45°, and a 45° ray reported it
+blocked when it was open.
+
+
+## Dome, second correction pass
+
+- **Rear tabs moved off the barrel jack** (x 55/105 → 45/82). The jack dropped to
+  y=12 with a 20 mm land spanning x 91..111 and the tab at 105 sat right behind
+  it. That in turn pushed the **amp forward** (depth 50 → 34): the tab at 82
+  reaches to depth 49.5 and the amp spanned 40..60, a 10.5 mm overlap.
+- **The tabs now have screw holes.** They were cut with `cyl()` — a *Z*-axis
+  cylinder — using each tab's DEPTH as though it were a height. The "hole" was a
+  horizontal bore floating in the wrong place and the tabs were solid. The screw
+  comes UP through the plate, so the hole runs along **y**.
+- **The side-tab notch is gone.** It was never designed: the profile intersected
+  the perimeter band with a rect spanning the WHOLE width, so one tab produced
+  material on BOTH flanks and the bottom corner radius carved a notch out of
+  each. Now one clean block per side.
+- **Round holes.** The encoder shaft, the ToF pinhole and the knob's seating pad
+  were all built with `slab()`, which extrudes an (x,y) section along z — fine
+  for the rear wall, square for anything aimed at the crown. New `ycyl()` helper
+  puts them on the vertical axis. Verified by measuring each bore on its axes
+  *and* its diagonal.
+- **No more floating ToF tabs, and no crown flats at all.** A flat is the lens
+  between a plane and the curved inner surface, and it has a knife edge where
+  they meet. Cutting one severed its own bosses — they reach up through it — and
+  every attempt to trim the cut around them left coincident or near-tangent
+  faces: two bodies, then a non-watertight mesh that three parameter sweeps could
+  not clear. It was not buying anything either: across the encoder's 20 mm hole
+  pitch the crown falls **0.367 mm**, so an unflattened board tilts 1.05°, moving
+  the shaft 0.28 mm over its 15 mm bore against 0.50 mm of clearance. Both boards
+  now simply follow the arch, each boss tip the same short standoff below its own
+  local ceiling — which is what was wanted for the ToF anyway. The knob still
+  lands square on its own round pocket in the **outer** skin.
+
+### `manifold3d` conventions, learned the hard way
+- `rotate()` is applied about the ORIGIN. Rotate first, translate second.
+- `rotate((-90, 0, 0))` maps +z to +y.
+- An invalid result has volume 0 and an **infinite** bounding box, and unioning
+  one destroys everything downstream. `union()` validates and raises.
+- Subtracting two outlines that share a `ybot` puts coincident edges on their
+  flat bottoms; thin results degenerate.
+
+Six new checks guard all of this: bore roundness on axes vs diagonal, one run of
+material per side tab, and a screw hole up every tab.
+
+
+## Third correction pass — tabs, crown, drawings
+
+**Six distinct tabs, and the ramps are what the "notch" was.** Each side tab had
+a 45° support ramp trailing it toward the bed, `LUG_L` deep. The two side tabs
+sit only 4 mm apart (spans 29..43 and 47..61), so a 12 mm ramp off the first ran
+straight through the second and the pair merged into one long blob with a step in
+it. There is no room for both: 32.5 mm of usable depth against 40 mm of
+tab-plus-ramp.
+
+The ramps are gone. Those six now overhang, and that is the right trade — they
+are small, they sit at the **open bottom** of the shell, and support under them
+is the most accessible support anywhere in the part. A merged blob you cannot
+fix; two minutes with pliers you can.
+
+**The ToF's hole pair was on the wrong axis.** The board is mounted LONGWISE so
+its narrow edge clears the encoder, which means its holes are separated along the
+**depth**. Treated as an x separation, one ToF boss landed 2.9 mm *inside* an
+encoder boss — and both sat outside the board's own 17.8 mm width. A hole pitch
+wider than the board it belongs to is impossible; that was the tell. Now 10.5 mm
+of clearance.
+
+**Drawings.** Three things were never on any sheet, and one was drawn wrong:
+
+- the **power switch** — not drawn at all;
+- the **crown bosses** — not drawn at all, which is precisely why the ToF/encoder
+  overlap went unseen;
+- the **vents** — drawn as plain rectangles with no hint they are louvres;
+- the **UPS and the Flex** — drawn on the CENTRELINE in both the front and rear
+  views, several revisions after they went side by side.
+
+All fixed, and `check_docs.py` now has drawing-drift rules: each generator must
+*reference* the switch, the crown bosses, the louvres and the rotated speaker
+posts, and no off-centre rear-wall board may be drawn at `W/2`. That last rule
+caught a second stale UPS in the front view immediately after being written.
+
+Six more geometric checks on the dome: bore roundness measured on axes *and*
+diagonal, one run of material per side tab, exactly two separate tabs per side
+wall, crown bosses not intersecting, and each hole pitch fitting its own board.
+
+
+## Fourth pass — the rail, and the groove that was blocked
+
+**One rail per side, not two tabs — a straight reversal.** Six distinct tabs
+sounded right and, printed rear-wall-down, was wrong: two separate shelves on the
+same wall leave an unsupportable island between them, in a pocket you cannot
+reach into once the shell is up.
+
+A single rail spanning both screws and running back to meet the **rear wall** is
+strictly better. In this orientation it is a continuous vertical fin growing off
+the bed, so it has **no overhang at all** and needs no support — where even the
+two-tab version needed some. It is stiffer, and it still gives two screw points
+per side. The rear pair stay separate blocks; they project forward off the rear
+wall, which is straight up off the bed.
+
+> The check that asserted "exactly 2 separate tabs" now asserts "ONE continuous
+> rail that reaches the rear wall". Worth noting a check can encode a decision
+> that later turns out wrong — it is not automatically right just because it is
+> automated.
+
+**The seating ledge was blocking the front module.** It ran the full depth, and
+across the groove it reached `WALL + SEAT_W` = 5.5 mm in while the module's edge
+sits at `REVEAL` = 3.6 — so it stuck **1.9 mm into the module's path** and the
+module could not slide up at all. It blocked the single assembly move the whole
+joint exists for, and every other check passed while it did.
+
+The ledge now starts at `LIP_T + SLOT_W`, behind the groove. Nothing is lost: the
+plate's front edge was never carried by the ledge — it is captured between the
+ledge behind it and the front module's own bottom edge in front, exactly as the
+notes always said.
+
+**New check: the module's swept travel.** Its outline, extruded through the
+groove's z band and dragged from below the shell up to its seated height, must
+intersect zero dome material. Verified it fails correctly: putting the ledge back
+across the groove reports 16 mm³ in the way.
+
+That is the check this part most needed and never had. Fit was being inferred
+from static clearances; nothing tested the *motion*.

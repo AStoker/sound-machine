@@ -69,7 +69,8 @@ def front_internals():
     for sx in (SPK_X, W-SPK_X):
         o.append(rect(sx-SPK_BODY_W/2, fy(SPK_Y1), SPK_BODY_W, SPK_BODY_H, "hid", 2))
     o.append(rect(W/2-MIC_PCB_W/2, fy(MIC_Y+MIC_PCB_H/2), MIC_PCB_W, MIC_PCB_H, "hid"))
-    o.append(rect(W/2-UPS_W/2, fy(BP_T+UPS_H), UPS_W, UPS_H, "hid"))
+    # the UPS stands RIGHT of centre, not on the centreline
+    o.append(rect(UPS_WALL_X-UPS_W/2, fy(BP_T+UPS_H), UPS_W, UPS_H, "hid"))
     return o
 
 
@@ -156,6 +157,18 @@ def top_dome():
     o.append(circ(W/2, D-ENC_Y, ENC_SHAFT_D, "hid"))
     o.append(circ(W/2, D-ENC_Y, KNOB_BOSS_D, "phan"))
     o.append(circ(TOF_X, D-TOF_Y, TOF_HOLE_D))
+    # >>> THE CROWN MOUNTING BOSSES, seen from above. They were not on any sheet,
+    # >>> which is why an encoder boss and a ToF boss could overlap by 2.9 mm
+    # >>> unnoticed: the ToF's hole pair had been placed on the X axis when the
+    # >>> board is mounted LONGWISE and its holes run front-to-back. Drawn here,
+    # >>> that is the kind of thing you see at a glance.
+    for _s in (-1, 1):
+        o.append(circ(W/2 + _s*ENC_HOLE_P/2, D - ENC_Y, BOSS_D, "hid"))
+        o.append(circ(TOF_X, D - (TOF_Y + _s*TOF_HOLE_P/2), BOSS_D, "hid"))
+    o.append(rect(W/2 - ENC_PCB/2, D - ENC_Y - ENC_PCB/2, ENC_PCB, ENC_PCB,
+                  "phan", 1))
+    o.append(rect(TOF_X - TOF_PCB_W/2, D - TOF_Y - TOF_PCB_D/2,
+                  TOF_PCB_W, TOF_PCB_D, "phan", 1))
     for tx in touch_x():                       # copper pads, inside face
         o.append(rect(tx - TOUCH_PAD_W/2, D - TOUCH_DEPTH - TOUCH_PAD_L/2,
                       TOUCH_PAD_W, TOUCH_PAD_L, "hid", 3))
@@ -257,21 +270,30 @@ def rear_dome():
     o.append(path(d_profile(WALL, max(R_BOT - WALL, 1)), "hid"))      # inner wall
     o.append(circ(W/2, fy(LP_Y), LP_D))                               # lux
     o.append(circ(W/2, fy(BARREL_Y), BARREL_D))                       # barrel jack
+    # the UPS 5V switch -- a ROUND panel button, low and left
+    o.append(circ(SW_WALL_X, fy(SW_WALL_Y), SW_D))
+    o.append(circ(SW_WALL_X, fy(SW_WALL_Y), SW_NUT_D, "phan"))
     for vx in vent_x():                      # two stacks, flanking the UPS
         for i in range(VENT_N):
-            o.append(rect(vx - VENT_W/2, fy(vent_y(i)) - VENT_HH/2,
-                          VENT_W, VENT_HH, "obj", VENT_HH/2))
+            o.append(rect(vx - VENT_W/2, fy(vent_y(i)) - VENT_HH,
+                          VENT_W, 2*VENT_HH, "obj", VENT_HH))
     return o
 
 
 def rear_internals():
     """What is mounted ON the rear wall, seen through it."""
-    o = [rect(W/2 - UPS_W/2, fy(BP_T + UPS_H), UPS_W, UPS_H, "hid"),
-         rect(AMP_WALL_X - AMP_W/2, fy(AMP_WALL_Y + AMP_D/2), AMP_W, AMP_D, "hid")]
+    # >>> THE UPS AND THE FLEX ARE NOT CENTRED, AND HAVE NOT BEEN FOR A WHILE.
+    # >>> This view drew both on W/2 long after they went SIDE BY SIDE -- UPS
+    # >>> right at x=150, Flex left at x=60 -- so the sheet showed them stacked
+    # >>> on top of each other in the middle of a wall they no longer share that
+    # >>> way. Draw them where rear_wall_items() says they are.
+    o = [rect(UPS_WALL_X - UPS_W/2, fy(BP_T + UPS_H), UPS_W, UPS_H, "hid"),
+         rect(AMP_X - AMP_W/2, fy(AMP_H + AMP_D/2), AMP_W, AMP_D, "phan")]
     # Flex: the 52-wide BARE BOARD, then the 110 envelope its connectors need
-    o.append(rect(W/2 - FLEX_PCB_W/2, fy(FLEX_WALL_Y + FLEX_PCB_H),
+    o.append(rect(FLEX_WALL_X - FLEX_PCB_W/2, fy(FLEX_WALL_Y + FLEX_PCB_H),
                   FLEX_PCB_W, FLEX_PCB_H, "hid"))
-    o.append(rect(W/2 - FLEX_W/2, fy(FLEX_WALL_Y + FLEX_H), FLEX_W, FLEX_H, "phan"))
+    o.append(rect(FLEX_WALL_X - FLEX_W/2, fy(FLEX_WALL_Y + FLEX_H),
+                  FLEX_W, FLEX_H, "phan"))
     for hx, hy in flex_holes():                       # 4x M3, 45 x 63 pitch
         o.append(circ(hx, fy(hy), FLEX_HOLE_D, "obj"))
         o.append(circ(hx, fy(hy), FLEX_BOSS_D, "phan"))
@@ -292,30 +314,34 @@ def rear_dims():
     o.append(leader(W/2 + LP_D/2, fy(LP_Y), 62, 62,
                     f"{chr(216)}{dt(LP_D)} light pipe - BH1750 lux"))
     o.append(leader(vent_x()[1] + VENT_W/2, fy(vent_y(VENT_N - 1)), 30, -26,
-                    f"2x {VENT_N} vent slot {dt(VENT_W)} x {dt(VENT_HH)} @ "
-                    f"{dt(VENT_P)} - FLANKING the UPS, clear of the Flex"))
+                    f"2x {VENT_N} LOUVRE {dt(VENT_W)} x {dt(2*VENT_HH)} @ "
+                    f"{dt(VENT_P)} - rises {dt(VENT_RISE)} inward, so a level "
+                    f"line of sight is blocked"))
+    o.append(leader(SW_WALL_X - SW_NUT_D/2, fy(SW_WALL_Y), -26, 34,
+                    f"{chr(216)}{dt(SW_D)} UPS 5V switch - ROUND panel button, "
+                    f"on a {chr(216)}{dt(SW_NUT_D + 2*SW_RIB)} land", "end"))
     o.append(dim_h(vent_x()[1] - VENT_W/2, vent_x()[1] + VENT_W/2,
                    fy(vent_y(0)) + 10, dt(VENT_W), ext=fy(vent_y(0))))
     o.append(dim_h(W/2, vent_x()[1], fy(vent_y(VENT_N-1)) - 9, dt(VENT_X_OFF)))
-    o.append(leader(W/2 - UPS_W/2, fy(BP_T + UPS_H*0.30), -16, 18,
+    o.append(leader(UPS_WALL_X - UPS_W/2, fy(BP_T + UPS_H*0.30), -16, 18,
                     f"UPS 3S {dt(UPS_W)} x {dt(UPS_H)}, standing (jack lands here)",
                     "end"))
-    o.append(leader(W/2 + FLEX_PCB_W/2, fy(FLEX_WALL_Y + FLEX_PCB_H), 40, -30,
+    o.append(leader(FLEX_WALL_X + FLEX_PCB_W/2, fy(FLEX_WALL_Y + FLEX_PCB_H), 40, -30,
                     f"ReSpeaker Flex board {dt(FLEX_PCB_W)} x {dt(FLEX_PCB_H)} x "
                     f"{dt(FLEX_D)} deep - VERTICAL on this wall, above the UPS"))
-    o.append(leader(W/2 + FLEX_W/2, fy(FLEX_WALL_Y + FLEX_H*0.62), 34, -46,
+    o.append(leader(FLEX_WALL_X + FLEX_W/2, fy(FLEX_WALL_Y + FLEX_H*0.62), 34, -46,
                     f"{dt(FLEX_W)} envelope - the 3.5 mm jack and the mic ribbon "
                     "overhang the short edges"))
-    o.append(dim_h(W/2 - FLEX_HOLE_PX/2, W/2 + FLEX_HOLE_PX/2,
+    o.append(dim_h(FLEX_WALL_X - FLEX_HOLE_PX/2, FLEX_WALL_X + FLEX_HOLE_PX/2,
                    fy(FLEX_WALL_Y + FLEX_H/2), dt(FLEX_HOLE_PX)))
-    o.append(leader(W/2 - FLEX_HOLE_PX/2, fy(FLEX_WALL_Y + FLEX_H/2 + FLEX_HOLE_PY/2),
+    o.append(leader(FLEX_WALL_X - FLEX_HOLE_PX/2, fy(FLEX_WALL_Y + FLEX_H/2 + FLEX_HOLE_PY/2),
                     -30, -18,
                     f"4x M{n(FLEX_HOLE_D)} boss @ {dt(FLEX_HOLE_PX)} x "
                     f"{dt(FLEX_HOLE_PY)}, {dt(FLEX_STANDOFF)} standoff", "end"))
     o.append(leader(AMP_WALL_X - AMP_W/2, fy(AMP_WALL_Y), -22, 34,
                     f"TPA2016 {dt(AMP_W)} x {dt(AMP_D)}, FLUSH"))
-    o.append(txt(W/2, H + 38, "lux + barrel jack CENTRED on the width; "
-                 "vents moved to the flanks to stay clear of the Flex board",
+    o.append(txt(W/2, H + 38, "lux CENTRED on the width; "
+                 "UPS right + Flex left, side by side; jack and switch LOW",
                  "note", "middle"))
     return o
 
