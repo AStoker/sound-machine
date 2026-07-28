@@ -1,108 +1,145 @@
 # WIP — resume here
 
-Mid-redesign. **Sheets 1–3 are done and `ALL CLEAR`. `gen_front_plate.py` has 6
-failures left.** Nothing is committed.
+**All four generators are `ALL CLEAR`.** The six `gen_front_plate.py` failures
+are fixed — root cause below. Nothing is committed. Docs still stale (last
+section).
 
-## What changed and why
+## The six failures were one bug, and it was not where the notes were looking
 
-Goal was to get the **dome** printable in one piece on a **Flashforge Adventurer
-5M Pro (220 cube)**. It was 258 wide. Proven impossible at 258: best of ~40,000
-orientations was still 9.2 mm over.
+`gen_front_plate.py` contained **the whole build twice.** Lines 120–323 were a
+copy of 324–541: same header, same `body = slab(outline2(), 0.0, FP_T)`, same
+`cuts`, same `adds`. Python ran both, and the second copy *reassigned* `body`,
+so the first copy's output was silently discarded.
 
-Three changes got there, all of them yours:
+The two copies differed in exactly one block — the speaker mount. The **dead**
+copy had it correctly rotated. The **live** copy still had the pre-rotation
+version: posts on the flanks at
+`px = sx ± (SPK_BODY_W/2 + SPK_FIT + pw/2)` → **x = 5.25 / 56.95** and mirrors
+at **145.05 / 196.75**, with locating ribs top and bottom where the nubs now
+live.
 
-1. **Speakers rotated 90°.** The box is 50 × 45 with a nub centred on each 45 mm
-   face; standing it on its side puts those nubs **top and bottom**, which takes
-   the mounting post out of the WIDTH chain and puts it in the height (where
-   there was slack). It also narrows the body 50 → 45. Acoustically free.
-2. **Mic array moved above the speakers**, so the middle of the facade only has
-   to hold the 86 mm matrix pair, not the 110 mm array.
-3. **Crown flattened to a half-ellipse**, `CROWN_K = 0.72`. Necessary because
-   `H = CRES_Y + k·W/2` — with a true semicircle the narrower body made the
-   front nearly square (1.07:1). Note removing LEDs does *not* affect height;
-   that was a dead end.
+That is why the previous session's probe kept finding walls at x ≈ 5.1 / 58.8
+after the file "confirmed" the ribs were removed: the fix had been applied to
+the dead copy. Outboard pair stood in the dome's groove band, inboard pair stood
+inside the matrix footprint — four of the six failures, plus the containment
+guard and the clip-clear probes.
+
+**Fixed by deleting the duplicate** (the surviving copy is the one with the
+stiffening section, which the dead copy lacked) and rotating the mount properly:
+posts above and below on the body centreline, no ribs on any face. Two screws
+top and bottom fix x, y and rotation between them.
+
+> If a probe ever reports a wall at x ≈ 5 or ≈ 57 again, check the speaker mount
+> block first — and check the file only builds `body` once.
+
+### A second, real collision surfaced underneath it
+
+The **short inboard stiffening ribs** ran at `y = SPK_Y ± RIB_T/2`. That was safe
+when the matrix sat on the floor. The clock is now *centred on the speakers*, so
+`SPK_Y` **is** the matrix mid-height and each rib ran straight through the
+boards — 49.8 mm³ into the matrix envelope, into 288 LEDs, and through the end
+clips' hook zone. Four failures, one rib.
+
+There is nowhere left to put them: speaker seat to end-clip outer face is
+0.77 mm. Replaced with a **second spine in the band below the matrix**, mirroring
+the one above it. Symmetric pair braces the plate better than one spine plus two
+stubs, and that band is genuinely empty.
+
+## What changed this session
+
+### 1. The mic array came down 6.35 mm
+
+`MIC_Y0` was `SPK_SEAT_Y1 + SPK_MIC_GAP` — the top of the *nub post*. It never
+needed to be. The post is `SPK_POST_W` = 10 mm wide and stands on the speaker's
+**centreline**, x = 31.1 and 170.9; the mic PCB is 110 mm centred, x = 46–156.
+They overlap in y by 3.35 mm and **never in x**, with 9.9 mm to spare
+(`CLR_POST_MIC`). So the array only has to clear the speaker **body**.
+
+`MIC_Y0` is now `SPK_Y1 + SPK_MIC_GAP`: 70.7 → **64.35**.
+
+> Post width is set by the nub, not the body. Scaling it off the body
+> (0.60 × 45 = 27 wide) reaches x = 44.6 and hands the whole saving straight
+> back. `SPK_POST_W = SPK_NUB_H + 2·SPK_POST_WALL`.
+
+### 2. CROWN_K 0.72 → 0.74, and the crescent solver now measures properly
+
+At 0.72 the top LED body sat **0.58 mm outside the diffuser**. Every check read
+clear because they all measured horizontally (chord) and vertically (apex) — and
+on an ellipse the binding case is **diagonal**, an outer pixel two rows down from
+the apex where the boundary is falling away fast.
+
+`ell_dist()` now returns true point-to-ellipse distance (bisected stationary
+condition), and `crescent_rows()` allocates on that instead of a chord inset,
+with rows forced **non-increasing** bottom-first. Without that constraint the
+solver returns things like 10/10/9/10 — every pixel legal, silhouette obviously
+wrong.
+
+0.74 spends 2.02 mm of the 6.35 on the crescent and banks the other 4.33 as a
+shorter shell. `crescent_clearance()` reports the tightest gap; keep it positive
+and comfortably so — `LED_D`, `STRIP_W` and `DIFF_MARGIN` are all still `(?)`.
+
+### 3. Checks that were measuring the wrong thing
+
+- `CLR_SPK_MIC` was `MIC_Y0 - SPK_SEAT_Y1`. Now `MIC_Y0 - SPK_Y1` — body to
+  array, vertical.
+- `CLR_NUB_MIC` was the same y check. The array passes *beside* the post now,
+  not above it, so it aliases `CLR_POST_MIC` — an **x** check.
+- The `left / right locating rib` presence probes are gone. Those ribs do not
+  exist on the rotated mount; they had been passing by accidentally hitting the
+  stiffening rib at `SPK_Y`. Replaced with an **outboard flank must be bare**
+  probe (the 1 mm `SPK_FLANK` budget butts onto the dome's rib keep-out, so
+  anything appearing there jams assembly). The inboard flank is deliberately not
+  probed — the matrix end clip lives there by design and its clearance is
+  measured in the table.
 
 ### Result
 
 | | before | now |
 |---|---|---|
-| envelope | 258 × 64 × 189.6 | **202 × 64 × 160** |
-| front aspect | 1.36:1 | 1.26:1 |
-| dome on a 220 bed | no (split needed) | **fits whole** |
-| front module | 250.8 × 179, split in 2 | **194.8 × 152.4, whole** |
-| tip angle | 28.0° | 27.6° |
+| envelope | 202 × 64 × 160.02 | **202 × 64 × 155.69** |
+| front aspect | 1.26:1 | 1.30:1 |
+| MIC_Y0 / MIC_Y1 | 70.7 / 82.7 | **64.35 / 76.35** |
+| CRES_Y | 87.3 | **80.95** |
+| crescent ellipse | 89 × 60.72 | **89 × 62.74** |
+| LED rows | 10/10/10/8/7/3 | **11/10/10/8/7/2** |
+| min LED → diffuser | **−0.58 (overhang)** | **+2.11** |
+| front module | 194.8 × 152.4 | **194.8 × 148.1** |
+| dome on a 220 bed | whole | whole, 25.2 / 71.9 to spare |
 
-`CROWN_K` is 0.72, not the 0.70 you picked: at 0.70 the crescent held exactly
-48 px at 100 % fill with the strip rows edge-to-edge. 0.72 buys a 6th row and
-92 % fill for 2 mm of height, and 1.26:1 vs 1.28:1 is invisible. Flagged rather
-than silently applied.
+Front module mesh: watertight, winding OK, 68.3 cm³, 13 578 triangles.
 
-### Knock-on changes already made
+The apex row is **2 px**, down from 3. That was the accepted cost of favouring
+height at K = 0.74 — K = 0.76 would have restored 10/10/10/8/7/3 with 3.35 mm
+clearance for 2 mm more height, if the 2-pixel apex reads badly on a test print.
 
-- Crescent is an **ellipse** (89 × 60.7). Row pitch is now **derived** (11.0),
-  floored at `STRIP_W + 1` because the strip is a ~10 mm ribbon. 6 rows,
-  **10/10/10/8/7/3 = 48**. **No fade band** any more — the LED field *is* the
-  diffuser, per your "keep 48 px" choice.
-- **UPS and Flex no longer stack** (93 + 70 > 157.5 interior). They sit **side
-  by side** on the rear wall — UPS right (x 120–180, on the floor), Flex left
-  (x 5–115, lifted to y=16 so it clears the fixing lugs).
-- **Barrel jack is now a panel-mount part** on a flying lead, so it stays
-  centred even though the UPS moved off centre.
-- **TPA2016 moved to the floor**, tucked in the 12 mm slot under the lifted
-  Flex. Rear wall has no room left.
-- **Both rear fixing lugs are left of centre** (x 55 and 105) — the UPS owns the
-  rear-right corner of the floor.
-- The front-module **split is now conditional** (`NEEDS_SPLIT`) and currently
-  OFF. The seam logic is retained because its placement was hard-won; it
-  re-enables automatically if anything pushes the part back over the bed.
+## Next
 
-## The 6 remaining failures (all `gen_front_plate.py`)
+**`packages/lighting.yaml` is now wrong and it is a one-line fix.** Line 274
+still carries the pre-rotation circular-arc layout:
 
-Run: `../.venv/bin/python gen_front_plate.py`
-
-```
-FAIL  220.15   matrix pair envelope (front -> back face, holes excepted)
-FAIL   10.06   288 LEDs vs facade / pads / posts
-FAIL 1341.00   dome groove band - flanks + arc must stay plain
-FAIL  solid    clip end L clear below the back face
-FAIL  solid    clip end R clear below the back face
-FAIL   -2.69   nothing trimmed by the containment guard
+```cpp
+static const uint8_t leds_per_row[] = {10, 10, 9, 8, 7, 4};
 ```
 
-These are almost certainly **one root cause**, not six. A grid probe located the
-offending material:
+Should be:
 
-- **Matrix envelope:** a continuous column at **x ≈ 58.8**, spanning the full
-  matrix height (y 23–47), at z = 5.4. Mirrored at x ≈ 136.8–142.8.
-  `mtx_x0 = 57.82`, so it is just *inside* the matrix footprint.
-- **Groove band:** at **x = 5.1 and 196.9**, spanning y 8–60, at z = 6.
-  That is above the 4 mm facade, so it is a *boss*, not the plate.
+```cpp
+static const uint8_t leds_per_row[] = {11, 10, 10, 8, 7, 2};
+```
 
-Ruled out already:
-- speaker flank ribs — confirmed removed from the file
-- the end clips — their beams sit at x 55.4–57.6, outboard of the matrix, and
-  their hooks are above `MTX_ZB`
-- the spine — its y range is 53.8–60.4, wrong band for the x≈58.8 hits
-- matrix posts/pads — correct positions, and the envelope test punches the holes
-
-**Next step:** find what generates a wall at x ≈ 5.1 / 58.8 and z > 4. Suspect
-something in `adds` still built from the pre-rotation speaker model (a
-`SPK_SEAT_W`/`SPK_RING_W` leftover), or the `half_disc` skirt. Bisect by
-commenting out entries in `adds` one group at a time and re-running the probe —
-the diagnostic loop is in the shell history, or re-create it with a
-`Manifold.cube` probe against `part_body`.
-
-Also stale once that is fixed: the feature probes still say "left/right
-locating rib" but those ribs are gone — they are currently passing by
-coincidentally hitting the spine.
-
-## Docs NOT yet updated
+Row chords are now **177.8 / 173.8 / 163.7 / 146.6 / 119.2 / 70.6 mm** at an
+**11.0 mm** row pitch (not 16.7 — the flattened crown forces it to the
+`STRIP_W + 1` floor). The comment block at lines 234 and 261–274 quotes the old
+192/188/178/160/133/85 chords and claims "row 5 is 4 pixels, not 1" — both
+stale. Capacity is 52 px over 6 rows, 48 fitted = 92.3 % full.
 
 `HARDWARE.md` and `3d-print/README.md` still describe the **258-wide, split**
-design throughout: side nubs, array flanked by speakers, semicircular crown,
-R117/R96 crescent with a 21 mm fade band, two-piece front module. All of that is
-now wrong. `packages/lighting.yaml` still carries the old 6-row layout on a
-circular arc and needs the new **10/10/10/8/7/3** at an 11.0 mm row pitch.
+design: side nubs, array flanked by speakers, semicircular crown, R117/R96
+crescent with a 21 mm fade band, two-piece front module. All wrong.
+
+Also still open from before: `SPK_NUB_PROJ`, `SPK_NUB_W`, `SPK_NUB_H`, `STRIP_W`
+and `CLOTH_T` are all unmeasured `(?)`. `SPK_NUB_H` now sets `SPK_POST_W`, which
+is what buys the mic clearance — measure it before printing.
 
 ## Verify everything with
 
@@ -111,4 +148,5 @@ python3 gen_drawing.py && python3 gen_internals.py && python3 gen_wiring.py
 ../.venv/bin/python gen_front_plate.py
 ```
 
-Each ends in `ALL CLEAR` or a problem count.
+Each ends in `ALL CLEAR` or a problem count. `gen_front_plate.py` additionally
+prints a trimesh validation line if trimesh is installed.

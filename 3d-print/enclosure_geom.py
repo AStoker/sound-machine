@@ -36,11 +36,20 @@ WALL      = 2.5      # dome wall
 # 1.36:1 it started as. Flattening the crown is the ONLY lever on height, so the
 # arch is now a half-ELLIPSE: horizontal semi-axis W/2, vertical CROWN_K x W/2.
 #
-# 0.72 restores a 1.26:1 front and takes 30 mm off the height. It is also not
-# purely a looks number: it sets how much crescent there is to lay LEDs on, and
-# 0.70 held exactly 48 px at 100% fill with the strip rows edge to edge. 0.72
-# buys a sixth row and 92% fill for 2 mm of height.
-CROWN_K   = 0.72
+# It is also not purely a looks number: it sets how much crescent there is to
+# lay LEDs on. 0.70 held exactly 48 px with the strip rows edge to edge; 0.72
+# bought a sixth row.
+#
+# >>> 0.72 WAS NOT ENOUGH. Measured as a true distance to the ellipse rather
+# >>> than by chord and apex, the top LED body at 0.72 sat 0.58 mm OUTSIDE the
+# >>> diffuser -- the old checks missed it because they measure horizontally and
+# >>> vertically, and the binding case on an ellipse is diagonal. Dropping the
+# >>> mic array (see MIC_Y0) freed 6.35 mm of height; 0.74 spends 2.02 of it on
+# >>> the crescent, which turns that -0.58 into +2.1 mm of real clearance, and
+# >>> banks the other 4.33 as a shorter shell. Front aspect goes 1.26:1 ->
+# >>> 1.31:1. The margin is reported as CRES_CLR at the bottom of the run --
+# >>> keep it positive.
+CROWN_K   = 0.74
 RIM_MIN_LOOK = 12.0  # smallest rim we'd accept on looks alone
 # RIM_MIN itself is DERIVED further down: the diffusion cavity wall stands off
 # the back of the crescent, and it has to clear the dome's retaining rib, which
@@ -225,6 +234,19 @@ SPK_FIT       = 0.35 # per side, body to its locating rib / post
 # and below the body, instead of on the flanks. SPK_FIT is in here because the
 # post sits OUTSIDE the fit gap, not inside it.
 SPK_POST_H = SPK_FIT + SPK_NUB_PROJ + SPK_POST_WALL
+# The post's own two dimensions, now that it stands above/below the body rather
+# than beside it. Both are set BY THE NUB, not by the body: SPK_NUB_H is the
+# nub's 6 mm dimension, which ran up the 45 mm side before the rotation and runs
+# ACROSS, in x, after it.
+#
+# >>> THIS IS WHAT LETS THE MIC ARRAY COME DOWN. The post is 10 mm wide on the
+# >>> speaker's CENTRELINE (x = 31.1 and 170.9); the 110 mm mic PCB spans
+# >>> x = 46..156. They never meet, so the array only has to clear the speaker
+# >>> BODY in y, not the post -- which is the whole 6.35 mm. Scaling the post
+# >>> off the body instead (0.60 x 45 = 27 wide) would reach x = 44.6 and give
+# >>> that saving straight back. See CLR_POST_MIC.
+SPK_POST_W   = SPK_NUB_H + 2 * SPK_POST_WALL     # across, in x
+SPK_POST_H_Y = SPK_NUB_PROJ + SPK_POST_WALL      # up, in y
 # The flanks now only need clearance to slide the box in: the two screws (top
 # and bottom) fully locate it in x, y and rotation, so no side ribs. That is the
 # whole saving -- SPK_SEAT_W used to be 6.35 per flank.
@@ -269,7 +291,17 @@ SPK_NUB_Y_HI = SPK_Y1 + SPK_NUB_PROJ/2
 # half of the width saving: its 110 mm no longer has to fit between two driver
 # boxes, so the middle of the facade only has to hold the 86 mm matrix pair.
 # The cost is height, and the flattened crown pays it back with interest.
-MIC_Y0   = SPK_SEAT_Y1 + SPK_MIC_GAP
+#
+# >>> IT CLEARS THE BODY, NOT THE POST. This used to sit on SPK_SEAT_Y1 -- the
+# >>> top of the nub post -- which lifted it a further SPK_POST_H = 6.35 for no
+# >>> reason. The post is only SPK_POST_W = 10 mm wide and it stands on the
+# >>> speaker's CENTRELINE, at x = 31.1 and 170.9. The mic PCB is 110 mm centred,
+# >>> x = 46..156. The two overlap in y and never in x, so the array only has to
+# >>> clear the speaker BODY. That is the 6.35 mm; CROWN_K spends 2.02 of it on
+# >>> LED clearance and the shell keeps the other 4.33.
+# >>> The x clearance this rests on is CLR_POST_MIC -- if that ever goes
+# >>> negative this reverts to SPK_SEAT_Y1.
+MIC_Y0   = SPK_Y1 + SPK_MIC_GAP
 MIC_Y1   = MIC_Y0 + MIC_PCB_H
 # THE CLOCK is flanked by the speakers, centred on them -- with the array gone
 # from this band there is no reason to keep it hard down on the floor, and
@@ -362,11 +394,23 @@ SPK_NUB_Y = SPK_Y                            # (kept: the drawings ask for one)
 
 # Clearances the stack cannot enforce (all checked at the bottom of the run):
 CLR_SPK_TRAY = (W/2 - TRAY_W/2) - (SPK_X + SPK_BODY_W/2)     # body -> matrix
-CLR_SPK_MIC  = MIC_Y0 - SPK_SEAT_Y1                          # post -> array
+CLR_SPK_MIC  = MIC_Y0 - SPK_Y1                               # BODY -> array, y
 CLR_SPK_EDGE = (SPK_X - SPK_BODY_W/2 - SPK_FLANK) - REVEAL   # body -> edge
 CLR_SPK_CRES = CRES_Y - SPK_SEAT_Y1                          # post -> crescent
 CLR_NUB_EDGE = (SPK_X - SPK_BODY_W/2) - (REVEAL + BOSS_EDGE)
-CLR_NUB_MIC  = CLR_SPK_MIC
+# >>> THE NUB CHECK IS AN X CHECK NOW, NOT A Y CHECK. It used to be
+# >>> MIC_Y0 - SPK_SEAT_Y1: the array had to sit above the post. It does not any
+# >>> more -- it passes BESIDE it -- so the meaningful clearance is horizontal.
+# >>> Defined just below as CLR_POST_MIC; aliased here so the drawings keep
+# >>> reporting a "nub -> mic array" line, but reporting the right one.
+# >>> THE ONE THAT PAYS FOR THE LOWERED MIC ARRAY. The upper nub post and the
+# >>> mic PCB now overlap in y on purpose; this is the x gap that makes that
+# >>> safe. Negative means the post is fouling the array and MIC_Y0 has to go
+# >>> back to clearing SPK_SEAT_Y1.
+CLR_POST_MIC = (W/2 - MIC_PCB_W/2) - (SPK_X + SPK_POST_W/2)
+CLR_NUB_MIC  = CLR_POST_MIC
+# Does the post actually overlap the array in y? If not, CLR_POST_MIC is moot.
+POST_MIC_Y_OVERLAP = min(SPK_SEAT_Y1, MIC_Y1) - max(SPK_Y1 + SPK_FIT, MIC_Y0)
 SPK_W_MAX    = W/2 - TRAY_W/2 - REVEAL - BOSS_EDGE - 2*SPK_FLANK
 
 # ---- top surface controls --------------------------------------------------
@@ -730,11 +774,61 @@ def crescent_row_ys(n_rows=None):
     return ys
 
 
+def ell_dist(px, py, a, b):
+    """TRUE distance from (px, py) to the ellipse boundary (semi-axes a, b).
+
+    >>> THE CHORD IS NOT THE CLEARANCE. Every earlier version measured how far
+    >>> an LED sat from the ellipse HORIZONTALLY (the chord) and, at the apex,
+    >>> VERTICALLY. On a circle those agree with the real distance; on an
+    >>> ellipse they do not, and the binding case is the diagonal one -- an
+    >>> outer pixel two rows down from the apex, where the boundary is falling
+    >>> away steeply. That is how the 0.72 crown shipped a top row whose LED body
+    >>> stood 0.58 mm OUTSIDE the diffuser while every chord check read clear.
+    >>> Everything downstream now measures with this instead.
+
+    Bisects the stationary condition of the squared distance on the first
+    quadrant; the ellipse is symmetric so |px| is enough.
+    """
+    px, py = abs(px), abs(py)
+    lo, hi = 0.0, math.pi / 2
+
+    def dF(t):
+        s, c = math.sin(t), math.cos(t)
+        return (b*b - a*a) * s * c + a * px * s - b * py * c
+
+    if dF(hi) <= 0.0:
+        t = hi
+    elif dF(lo) >= 0.0:
+        t = lo
+    else:
+        for _ in range(60):
+            mid = (lo + hi) / 2
+            if dF(mid) < 0.0:
+                lo = mid
+            else:
+                hi = mid
+        t = (lo + hi) / 2
+    return math.hypot(px - a * math.cos(t), py - b * math.sin(t))
+
+
+def led_clearance(n, y, a=None, b=None):
+    """Gap between the OUTERMOST LED body in an n-pixel row at height y and the
+    diffuser ellipse. Negative means the package pokes out past the acrylic."""
+    a = LED_R if a is None else a
+    b = LED_RY if b is None else b
+    return ell_dist((n - 1) * LED_PITCH / 2, y, a, b) - LED_D / 2
+
+
 def _crescent_row_cap(y):
-    """Most pixels that fit in the row at height y, keeping the outer pixel
-    LED_D/2 clear of the ellipse (so the whole body stays inside the box)."""
-    usable = 2 * (ell_half_chord(y, LED_R, LED_RY) - LED_D / 2)
-    return max(int(usable // LED_PITCH) + 1, 1)
+    """Most pixels that fit in the row at height y with the outer LED BODY still
+    inside the diffuser -- true distance, not the chord."""
+    n = 0
+    for k in range(1, 40):
+        if led_clearance(k, y) >= 0.0:
+            n = k
+        else:
+            break
+    return max(n, 1)
 
 
 def crescent_rows():
@@ -752,6 +846,18 @@ def crescent_rows():
     pixels then trace a curve concentric with the crescent, which is what makes
     it read as a crescent rather than a stack of rows.
 
+    >>> THE MARGIN IS A TRUE DISTANCE TO THE ELLIPSE, NOT A CHORD INSET. See
+    >>> ell_dist. Measuring it horizontally lets the diagonal rows creep out
+    >>> past the acrylic while the table still reads clear, and it also makes
+    >>> the outer pixels trace an offset chord rather than an offset ellipse --
+    >>> so the lit field bulges at the shoulders even when the count is right.
+    >>>
+    >>> ROWS ARE FORCED NON-INCREASING. Bottom-first, each row may hold no more
+    >>> than the one below it. Without it the solver will happily return
+    >>> 10/10/9/10/... -- every pixel legal, and an obviously wrong silhouette,
+    >>> because a row that sits just under a pitch boundary picks up a pixel its
+    >>> neighbour just missed.
+
     Returns (chord_width, count, strip_run) per row, bottom-first.
     """
     ys = crescent_row_ys()
@@ -760,28 +866,59 @@ def crescent_rows():
     chord = [2 * ell_half_chord(y, LED_R, LED_RY) for y in ys]
 
     def at_margin(m):
-        return [min(max(int((c - 2*m) // LED_PITCH) + 1, 0), k)
-                for c, k in zip(chord, cap)]
+        out = [0] * n_rows
+        for i, y in enumerate(ys):
+            k = 0
+            for n in range(1, cap[i] + 1):
+                if led_clearance(n, y) >= m:
+                    k = n
+                else:
+                    break
+            out[i] = k
+        for i in range(1, n_rows):            # non-increasing, bottom-first
+            out[i] = min(out[i], out[i - 1])
+        return out
 
     lo, hi = 0.0, LED_R              # bisect: bigger M -> fewer pixels
     for _ in range(60):
         mid = (lo + hi) / 2
-        if sum(at_margin(mid)) > CRES_PX:
+        if sum(at_margin(mid)) >= CRES_PX:
             lo = mid
         else:
             hi = mid
-    cnt = at_margin(hi)
+    cnt = at_margin(lo)
 
-    short = CRES_PX - sum(cnt)       # spend the remainder on the shortest rows
-    while short > 0:
-        cand = [i for i in range(n_rows) if cnt[i] < cap[i]]
+    # Bisection lands on the largest margin that still SEATS CRES_PX, so the
+    # count is >= the target; give the surplus back from whichever row has the
+    # most room left, keeping the sequence non-increasing.
+    while sum(cnt) > CRES_PX:
+        cand = [i for i in range(n_rows)
+                if cnt[i] > 0 and (i == n_rows - 1 or cnt[i] - 1 >= cnt[i + 1])]
         if not cand:
             break
-        i = max(cand, key=lambda j: chord[j] - cnt[j] * LED_PITCH)
+        i = max(cand, key=lambda j: led_clearance(cnt[j], ys[j]))
+        cnt[i] -= 1
+
+    short = CRES_PX - sum(cnt)       # ...or top it up, if the crescent is tight
+    while short > 0:
+        cand = [i for i in range(n_rows)
+                if cnt[i] < cap[i] and (i == 0 or cnt[i] + 1 <= cnt[i - 1])]
+        if not cand:
+            break
+        i = max(cand, key=lambda j: led_clearance(cnt[j] + 1, ys[j]))
         cnt[i] += 1
         short -= 1
     return [(chord[i], cnt[i], max(cnt[i] - 1, 0) * LED_PITCH)
             for i in range(n_rows)]
+
+
+def crescent_clearance():
+    """The tightest LED-body-to-diffuser gap anywhere in the field. This is the
+    number that has to stay positive -- and comfortably so, since LED_D, STRIP_W
+    and DIFF_MARGIN are all still marked (?)."""
+    ys = crescent_row_ys()
+    return min((led_clearance(c, y)
+                for (_, c, _), y in zip(crescent_rows(), ys) if c), default=0.0)
 
 
 def crescent_px():

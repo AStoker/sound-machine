@@ -41,6 +41,7 @@ from enclosure_geom import (
     MTX_STACK_GAP, ARCH_RY, CRES_RY, LED_RY, CROWN_K, SPK_POST_H, SPK_FLANK,
     BOSS_EDGE, LIP, REVEAL, RIB_W, R_BOT, SPK_BODY_H, SPK_BODY_W, SPK_GRILLE, SPK_NUB_PROJ,
     SPK_NUB_SCREW, SPK_NUB_Y, SPK_NUB_Z, SPK_POST_WALL, SPK_RING_W, SPK_SEAT_W,
+    SPK_NUB_H, SPK_NUB_W, SPK_POST_W, SPK_POST_H_Y, CLR_POST_MIC,
     SPK_FIT, SPK_X, SPK_Y, SPK_Y0, SPK_Y1, TRAY_D, TRAY_H, TRAY_REBATE, TRAY_W, TRAY_Y0,
     TRAY_Y1, W, mic_x,
 )
@@ -278,228 +279,33 @@ for sgn in (-1, 1):
     adds.append(cyl(W / 2 + sgn * MIC_BOSS_X, MIC_Y, MIC_Z0,
                     MIC_Z0 + MIC_CHAN_D + 2.0, MIC_BOSS_D))
 
-# --- speaker locating ribs + the nub posts ----------------------------------
-# THE SPEAKERS ARE ROTATED 90 DEG, so the nubs are TOP AND BOTTOM. That flips
-# the whole mount: the posts are now above and below the body (costing height,
-# where there is slack) and the FLANKS are bare, which is what took 46 mm out of
-# the width and let both parts print whole. Ribs go down the flanks now -- the
-# opposite of before, when the flanks were where the nubs were.
-# NO ribs on the flanks. The width chain budgets SPK_FLANK = 1.0 there -- pure
-# clearance -- and a rib would land inside the dome's rib band. It is not needed
-# anyway: two screws top and bottom fix x, y and rotation between them.
+# --- speaker nub posts (TOP AND BOTTOM) -------------------------------------
+# >>> THE SPEAKERS ARE ROTATED 90 DEG, so the nubs are TOP AND BOTTOM and the
+# >>> posts go WITH THEM. This block used to build the posts on the FLANKS, at
+# >>> px = sx +/- (SPK_BODY_W/2 + SPK_FIT + pw/2) -- x = 5.25 / 56.95 and their
+# >>> mirrors. That is a leftover from the pre-rotation speaker model and it was
+# >>> the single root cause of six separate failures: the outboard pair stood in
+# >>> the dome's groove band and the inboard pair stood inside the matrix
+# >>> footprint. If a probe ever finds a wall at x ~ 5 or ~ 57 again, look here
+# >>> first.
+#
+# NO RIBS, on any face. Two screws on the body's vertical centreline fix x, y
+# and rotation between them, so nothing else is needed -- and there is nowhere
+# to put a rib anyway: the width chain budgets SPK_FLANK = 1.0 per flank as pure
+# clearance, and a 1 mm fin there would land in the dome's retaining-rib band.
+#
+# The nub lands SPK_NUB_Z behind the speaker's front face, and that face sits on
+# the back of the facade -- so the post top is at FP_T + SPK_NUB_Z and the screw
+# goes in FROM BEHIND, through the nub, into the post.
+#
+# >>> POST WIDTH IS SET BY THE NUB, NOT BY THE BODY. A post scaled off the body
+# >>> (0.60 x SPK_BODY_W = 27) reaches x = 44.6, which is 1.4 mm from the mic
+# >>> PCB now that the array has come down. SPK_POST_W is nub + wall = 10, which
+# >>> keeps it ~10 mm clear -- see CLR_POST_MIC in the clearance table.
 for sx in (SPK_X, W - SPK_X):
-    # The nub lands SPK_NUB_Z behind the speaker's front face, and that face
-    # sits on the back of the facade -- so the post top is at FP_T+NUB_Z and the
-    # screw goes in FROM BEHIND, through the nub, into the post.
-    ph = SPK_NUB_PROJ + SPK_POST_WALL
-    for sgn, ybase in ((-1, SPK_Y0 - SPK_FIT - ph), (1, SPK_Y1 + SPK_FIT)):
-        adds.append(slab(rect2(sx - SPK_BODY_W * 0.30, ybase,
-                               SPK_BODY_W * 0.60, ph),
-                         FP_T, FP_T + SPK_NUB_Z))
-
-# --- stiffening -------------------------------------------------------------
-RIB_H       = 5.0     # general stiffening rib height
-RIB_T       = 2.0
-
-# --- the print seam ---------------------------------------------------------
-# The module is 250.8 wide; the target bed is 220. No rotation helps (this is a
-# D, so rotating only grows the bounding box) and the 45 deg tilt that does fit
-# would stand the facade up on supports. So it splits -- see the long note at
-# the split itself for where the seam can and cannot go.
-BED       = 220.0     # Flashforge Adventurer 5M Pro
-SPLIT_X   = 73.8      # seam, centred in the one usable corridor
-LAP_W     = 5.0       # tongue length -- sized to fit that corridor, not chosen
-LAP_Z     = FP_T / 2  # the step: front half / back half of a 4 mm plate
-LAP_CLR   = 0.25      # clearance on every mating face
-PEG_D     = 2.5       # alignment pegs on the lap face
-PEG_H     = 1.5
-PEG_Y     = [15.0, 30.0, 56.0, 169.0]   # where the seam has material both sides
-_L0, _L1  = SPLIT_X - LAP_W / 2, SPLIT_X + LAP_W / 2
-# SPLIT ONLY IF IT HAS TO. Rotating the speakers and lifting the mic array took
-# the module to 194.8 x 152.4, which fits a 220 bed whole -- so the seam is off.
-# It stays in the code because the seam location was hard-won, and any change
-# that pushes the part back over the bed turns it on again automatically.
-NEEDS_SPLIT = max(W - 2*REVEAL, H - REVEAL - BP_T) > BED
-
-_out = []
-
-
-def say(s):
-    _out.append(s)
-    print(s)
-
-
-# ---------------------------------------------------------------------------
-# 2D helpers. Everything is built in DRAWING coordinates -- x 0..W from the
-# left, y 0..H measured UP -- so the imported constants drop straight in.
-# ---------------------------------------------------------------------------
-def poly(pts):
-    """CrossSection from a point list, forced counter-clockwise."""
-    a = 0.5 * sum(pts[i][0] * pts[(i + 1) % len(pts)][1]
-                  - pts[(i + 1) % len(pts)][0] * pts[i][1]
-                  for i in range(len(pts)))
-    return CrossSection([pts if a > 0 else pts[::-1]])
-
-
-def rect2(x0, y0, w, h):
-    return poly([(x0, y0), (x0 + w, y0), (x0 + w, y0 + h), (x0, y0 + h)])
-
-
-def disc2(cx, cy, r):
-    return CrossSection.circle(r, SEG).translate((cx, cy))
-
-
-def half_disc(cx, cy, r, skirt=0.0, ry=None):
-    """Upper half of an ELLIPSE -- the crescent shape, flat side DOWN at cy.
-    The crown is flattened (CROWN_K), so `r` is the horizontal semi-axis and
-    `ry` the vertical. `skirt` extends the flat side downward, which is how the
-    cavity wall gets a bottom to close against."""
-    ry = r if ry is None else ry
-    pts = [(cx + r, cy)]
-    for i in range(1, SEG):
-        t = math.pi * i / SEG
-        pts.append((cx + r * math.cos(t), cy + ry * math.sin(t)))
-    pts.append((cx - r, cy))
-    if skirt > 0:
-        pts += [(cx - r, cy - skirt), (cx + r, cy - skirt)]
-    return poly(pts)
-
-
-def outline2():
-    """The module outline: a 'D' on its long flat side. Straight flanks, a
-    semicircular top of radius ARCH_R-REVEAL concentric with the crescent, and
-    a flat bottom that lands on the bottom plate."""
-    x0, x1 = REVEAL, W - REVEAL
-    yb, ys = BP_T, ARCH_Y
-    r, rry = ARCH_R - REVEAL, ARCH_RY - REVEAL
-    rb = max(R_BOT - REVEAL, 0.8)          # bottom corners
-    pts = [(x0 + rb, yb)]
-    for i in range(9):                     # bottom-right corner
-        t = -math.pi / 2 + (math.pi / 2) * i / 8
-        pts.append((x1 - rb + rb * math.cos(t), yb + rb + rb * math.sin(t)))
-    pts.append((x1, ys))
-    for i in range(1, SEG):                # the arc
-        t = math.pi * i / SEG
-        pts.append((W / 2 + r * math.cos(t), ys + rry * math.sin(t)))
-    pts.append((x0, ys))
-    for i in range(9):                     # bottom-left corner
-        t = math.pi + (math.pi / 2) * i / 8
-        pts.append((x0 + rb + rb * math.cos(t), yb + rb + rb * math.sin(t)))
-    return poly(pts)
-
-
-def slab(cs, z0, z1):
-    return cs.extrude(z1 - z0).translate((0, 0, z0))
-
-
-def cyl(cx, cy, z0, z1, d):
-    return (Manifold.cylinder(z1 - z0, d / 2, d / 2, SEG)
-            .translate((cx, cy, z0)))
-
-
-def union(parts):
-    out = Manifold()
-    for p in parts:
-        out = out + p
-    return out
-
-
-# ---------------------------------------------------------------------------
-# BODY
-# ---------------------------------------------------------------------------
-body = slab(outline2(), 0.0, FP_T)
-
-# --- crescent ---------------------------------------------------------------
-# The cavity wall stands proud of the back face; the acrylic pocket and the air
-# gap are one bore through it, open at the back so the acrylic and then the LED
-# carrier go in from behind.
-cav_wall = (half_disc(W / 2, CRES_Y, CAV_R, skirt=CAV_WALL, ry=CAV_RY)
-            - half_disc(W / 2, CRES_Y, DIFF_R, ry=DIFF_RY))
-body = body + slab(cav_wall, 0.0, CAV_Z)
-
-cuts = []
-cuts.append(slab(half_disc(W / 2, CRES_Y, DIFF_R, ry=DIFF_RY), DIFF_LIP, CAV_Z + 1))
-cuts.append(slab(half_disc(W / 2, CRES_Y, CRES_R, ry=CRES_RY), -1.0, DIFF_LIP))
-
-# --- clock: ONE open aperture, no per-pixel holes ---------------------------
-# The matrices seat on the BACK FACE, not in a pocket. A pocket would locate the
-# PAIR; the two boards are only loosely soldered to each other, so each one is
-# located by its OWN posts instead and the pair is clamped by clips all round.
-cuts.append(slab(rect2(W / 2 - CLK_W / 2, CLK_Y - CLK_H / 2, CLK_W, CLK_H),
-                 -1.0, FP_T + 1.0))
-MTX_X0 = W / 2 - TRAY_W / 2                # left edge of the butted pair
-MTX_Z0 = FP_T + MTX_STANDOFF               # matrix front face
-MTX_ZB = MTX_Z0 + MTX_PCB_T                # matrix back face -- clips hook here
-BP_Z0  = MTX_ZB + MTX_STACK_GAP            # backpack front
-BP_ZB  = BP_Z0 + MTX_BP_T                  # backpack back
-
-# --- speakers ---------------------------------------------------------------
-for sx in (SPK_X, W - SPK_X):
-    cuts.append(cyl(sx, SPK_Y, -1.0, FP_T + 1, SPK_GRILLE))
-
-# --- mic array --------------------------------------------------------------
-mic_ch_w = MIC_PCB_W + 2 * MIC_FIT
-mic_ch_h = MIC_PCB_H + 2 * MIC_FIT
-MIC_Z0 = FP_T - MIC_CHAN_D
-cuts.append(slab(rect2(W / 2 - mic_ch_w / 2, MIC_Y0 - MIC_FIT,
-                       mic_ch_w, mic_ch_h), MIC_Z0, FP_T + 1))
-
-body = body - union(cuts)
-
-# ---------------------------------------------------------------------------
-# ADDITIVE FEATURES (all behind the facade, all growing upward off the bed)
-# ---------------------------------------------------------------------------
-adds = []
-
-# --- matrix locating posts + seating pads, ONE SET PER BOARD ----------------
-# Per board: two posts through its diagonal O2.0 holes, and two plain pads on
-# the other diagonal so it seats on four points and cannot rock.
-mtx_posts, mtx_pads = [], []
-for b in range(MTX_N):
-    bx = MTX_X0 + b * MTX_BOARD_W
-    for hx, hy in MTX_HOLES:
-        px, py = bx + hx, TRAY_Y0 + hy
-        mtx_posts.append((px, py))
-        adds.append(cyl(px, py, FP_T, MTX_Z0 + MTX_PCB_T + 0.1, MTX_POST_D))
-        adds.append(Manifold.cylinder(MTX_POST_TIP, MTX_POST_D / 2,
-                                      MTX_POST_D * 0.2, SEG)
-                    .translate((px, py, MTX_Z0 + MTX_PCB_T + 0.1)))
-    # Pads go in the board's TOP and BOTTOM margins at mid-width, NOT on the
-    # free corners: the corners are inside the LED field's bounding box, and a
-    # pad there lands on the outermost LEDs. Only the strips above the top row
-    # and below the bottom row are genuinely clear.
-    for hy in (MTX_PAD_EDGE, MTX_BOARD_H - MTX_PAD_EDGE):
-        px, py = bx + MTX_BOARD_W / 2, TRAY_Y0 + hy
-        mtx_pads.append((px, py))
-        adds.append(cyl(px, py, FP_T, MTX_Z0, MTX_PAD_D))
-
-# --- gasket lands, then the ports straight through them ---------------------
-for mxc in mic_x():
-    adds.append(cyl(mxc, MIC_Y, MIC_Z0, MIC_Z0 + MIC_LAND_H,
-                    MIC_PORT_D + 2 * MIC_GASKET))
-# --- mic board fixing bosses ------------------------------------------------
-for sgn in (-1, 1):
-    adds.append(cyl(W / 2 + sgn * MIC_BOSS_X, MIC_Y, MIC_Z0,
-                    MIC_Z0 + MIC_CHAN_D + 2.0, MIC_BOSS_D))
-
-# --- speaker locating ribs (top and bottom only) ----------------------------
-# NOT a full corral: the side nubs stick out 4 mm at mid-height, so a rib down
-# the flanks would foul them. Top+bottom ribs locate in y, the two posts locate
-# in x, and that is the whole job.
-for sx in (SPK_X, W - SPK_X):
-    rw = SPK_BODY_W + 2 * SPK_FIT + 2 * SPK_RING_W
-    for yr in (SPK_Y0 - SPK_FIT - SPK_RING_W, SPK_Y1 + SPK_FIT):
-        adds.append(slab(rect2(sx - rw / 2, yr, rw, SPK_RING_W),
-                         FP_T, FP_T + SPK_RIB_H))
-    # --- the side-nub posts -------------------------------------------------
-    # The nub lands SPK_NUB_Z behind the speaker's front face, and the front
-    # face sits on the back of the facade -- so the post top is at FP_T+NUB_Z
-    # and the screw goes in FROM BEHIND, through the nub, into the post.
-    pw = SPK_NUB_PROJ + SPK_POST_WALL
-    for sgn in (-1, 1):
-        px = sx + sgn * (SPK_BODY_W / 2 + SPK_FIT + pw / 2)
-        adds.append(slab(rect2(px - pw / 2, SPK_NUB_Y - SPK_BODY_H * 0.30,
-                               pw, SPK_BODY_H * 0.60),
+    for ybase in (SPK_Y0 - SPK_FIT - SPK_POST_H_Y, SPK_Y1 + SPK_FIT):
+        adds.append(slab(rect2(sx - SPK_POST_W / 2, ybase,
+                               SPK_POST_W, SPK_POST_H_Y),
                          FP_T, FP_T + SPK_NUB_Z))
 
 # --- stiffening -------------------------------------------------------------
@@ -523,20 +329,25 @@ SPINE_Y1 = SPK_Y1 - 1.0
 SPINE_X0 = SPK_X + SPK_BODY_W/2 + SPK_FIT + 1.0
 adds.append(slab(rect2(SPINE_X0, SPINE_Y0, W - 2*SPINE_X0, SPINE_Y1 - SPINE_Y0),
                  FP_T, FP_T + RIB_H))
-#  2. Short ribs INBOARD from each speaker towards the clock. Outboard there is
-#     no room -- an earlier version ran them out past the module edge.
-#     A rib is SKIPPED if it would cross the print seam: it would come out as a
-#     1 mm fin on one half, which is worse than no rib.
-for sx in (SPK_X, W - SPK_X):
-    sgn = 1 if sx < W / 2 else -1
-    x0 = sx + sgn * (SPK_BODY_W / 2 + SPK_SEAT_W)
-    x1 = sx + sgn * (SPK_BODY_W / 2 + SPK_SEAT_W + 11.0)
-    lo, hi = min(x0, x1), max(x0, x1)
-    if hi > SPLIT_X - LAP_W/2 - 1 and \
-       lo < SPLIT_X + LAP_W/2 + 1:
-        continue                       # the seam runs through it
-    adds.append(slab(rect2(lo, SPK_Y - RIB_T / 2, hi - lo, RIB_T),
-                     FP_T, FP_T + RIB_H))
+#  2. A SECOND SPINE in the matching band BELOW the matrix.
+#
+# >>> THIS REPLACES THE OLD "SHORT RIBS INBOARD FROM EACH SPEAKER". Those ran at
+# >>> y = SPK_Y +/- RIB_T/2, reaching 11 mm in from each speaker towards the
+# >>> clock. That was safe when the matrix sat hard down on the floor. It is not
+# >>> any more: the clock is now CENTRED ON THE SPEAKERS (see TRAY_Y0), so
+# >>> SPK_Y *is* the matrix mid-height, and each rib ran straight through the
+# >>> boards -- 49.8 mm^3 into the matrix envelope, into 288 LEDs, and through
+# >>> the end clips' hook zone. Four separate failures, one rib.
+# >>>
+# >>> There is nowhere to put them any more: from the speaker seat to the end
+# >>> clip's outer face is 0.77 mm. So the stiffening moves to the band BELOW
+# >>> the matrix, which is the mirror of the spine above it and is genuinely
+# >>> empty -- and a symmetric pair of spines braces the plate better than one
+# >>> spine plus two stubs did.
+SPINE2_Y0 = BP_T + BOSS_EDGE                       # clear the back-face keep-out
+SPINE2_Y1 = TRAY_Y0 - CLIP_GAP - CLIP_T - 1.0      # clear the bottom clips
+adds.append(slab(rect2(SPINE_X0, SPINE2_Y0, W - 2*SPINE_X0, SPINE2_Y1 - SPINE2_Y0),
+                 FP_T, FP_T + RIB_H))
 
 body = body + union(adds)
 
@@ -843,10 +654,28 @@ for _sx in (SPK_X, W - SPK_X):
     for _py, _w in ((SPK_Y0 - SPK_FIT - (SPK_NUB_PROJ+SPK_POST_WALL)/2, "lower"),
                     (SPK_Y1 + SPK_FIT + (SPK_NUB_PROJ+SPK_POST_WALL)/2, "upper")):
         probe(f"speaker {side} {_w} nub post", _sx, _py, FP_T + 1.0)
-    for _xr, _w in ((_sx - SPK_BODY_W/2 - SPK_FIT - SPK_RING_W/2, "left"),
-                    (_sx + SPK_BODY_W/2 + SPK_FIT + SPK_RING_W/2, "right")):
-        probe(f"speaker {side} {_w} locating rib", _xr, SPK_Y, FP_T + 2.0)
-probe("stiffening spine", W / 2, (SPINE_Y0 + SPINE_Y1) / 2, FP_T + 2.0)
+    # >>> THE OLD "left / right locating rib" PROBES ARE GONE. There are no
+    # >>> flank ribs on the rotated mount -- two screws top and bottom locate the
+    # >>> body completely. The probes survived the rotation and passed by
+    # >>> accident, hitting the stiffening rib that used to run at SPK_Y.
+    #
+    # What has to be checked instead is the OUTBOARD flank, and checked the
+    # other way round: it must be BARE. The width chain budgets SPK_FLANK = 1.0
+    # there and nothing else, and it butts straight onto the dome's retaining-rib
+    # keep-out -- so anything that appears in that 1 mm jams the module on
+    # assembly. Probe the middle of the gap.
+    #
+    # The INBOARD flank is deliberately not probed either way: the matrix end
+    # clip lives in that band by design, and how close it comes to the speaker
+    # seat is measured properly in the clearance table.
+    _fo = _sx - (SPK_BODY_W/2 + SPK_FLANK/2) if _sx < W/2 else \
+          _sx + (SPK_BODY_W/2 + SPK_FLANK/2)
+    probe(f"speaker {side} OUTBOARD flank stays bare", _fo, SPK_Y, FP_T + 2.0,
+          want=False)
+probe("stiffening spine (above matrix)", W / 2,
+      (SPINE_Y0 + SPINE_Y1) / 2, FP_T + 2.0)
+probe("stiffening spine (below matrix)", W / 2,
+      (SPINE2_Y0 + SPINE2_Y1) / 2, FP_T + 2.0)
 probe("cavity wall at the apex", W / 2, CRES_Y + DIFF_RY + CAV_WALL / 2, CAV_Z - 1)
 _clip_spec = ([("end L", "x", mtx_x0, -1, (mtx_y0 + mtx_y1) / 2),
                ("end R", "x", mtx_x1, +1, (mtx_y0 + mtx_y1) / 2)]

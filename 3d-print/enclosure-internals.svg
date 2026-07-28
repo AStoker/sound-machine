@@ -31,105 +31,105 @@
 <text class="blk" x="0" y="-46" text-anchor="start">FRONT MODULE</text>
 <text class="lbl" x="0" y="-34" text-anchor="start">from BEHIND (mirrored) - one printed part</text>
 <g id="fm-body">
-<path class="obj" d="M3.6,156.02 V72.72 A97.4,69.12 0 0 1 198.4,72.72 V156.02 Z"/>
-<path class="phan" d="M3.6,156.02 V72.72 A97.4,69.12 0 0 1 198.4,72.72 V156.02 Z"/>
-<path class="obj" d="M10.5,72.72 A90.5,62.22 0 0 1 191.5,72.72 Z"/>
-<path class="obj" d="M8.5,72.72 A92.5,64.22 0 0 1 193.5,72.72 Z"/>
-<rect class="phan" x="57.82" y="109.7" width="86.36" height="27.94"/>
-<line class="phan" x1="101" y1="109.7" x2="101" y2="137.64"/>
-<path class="hid" d="M61,112.17 H141 A2,2 0 0 1 143,114.17 V133.17 A2,2 0 0 1 141,135.17 H61 A2,2 0 0 1 59,133.17 V114.17 A2,2 0 0 1 61,112.17 Z"/>
-<circle class="obj" cx="59.725" cy="111.605" r="0.925"/>
-<circle class="obj" cx="99.095" cy="135.735" r="0.925"/>
-<circle class="obj" cx="102.905" cy="111.605" r="0.925"/>
-<circle class="obj" cx="142.275" cy="135.735" r="0.925"/>
-<rect class="obj" x="76.41" y="140.09" width="6" height="2.2"/>
-<rect class="obj" x="76.41" y="107.25" width="6" height="2.2"/>
-<rect class="obj" x="119.59" y="140.09" width="6" height="2.2"/>
-<rect class="obj" x="119.59" y="107.25" width="6" height="2.2"/>
-<rect class="obj" x="55.37" y="120.67" width="2.2" height="6"/>
-<rect class="obj" x="144.18" y="120.67" width="2.2" height="6"/>
-<path class="obj" d="M10.6,92.32 H51.6 A3,3 0 0 1 54.6,95.32 V145.32 A3,3 0 0 1 51.6,148.32 H10.6 A3,3 0 0 1 7.6,145.32 V95.32 A3,3 0 0 1 10.6,92.32 Z"/>
-<path class="obj" d="M10.6,98.67 H51.6 A2,2 0 0 1 53.6,100.67 V146.67 A2,2 0 0 1 51.6,148.67 H10.6 A2,2 0 0 1 8.6,146.67 V100.67 A2,2 0 0 1 10.6,98.67 Z"/>
-<circle class="hid" cx="31.1" cy="123.67" r="20"/>
-<path class="obj" d="M4.6,119.17 H8.6 A1,1 0 0 1 9.6,120.17 V127.17 A1,1 0 0 1 8.6,128.17 H4.6 A1,1 0 0 1 3.6,127.17 V120.17 A1,1 0 0 1 4.6,119.17 Z"/>
-<circle class="hid" cx="6.6" cy="123.67" r="1.5"/>
-<line class="obj" x1="7.6" y1="106.67" x2="-6.4" y2="106.67"/>
-<path class="obj" d="M53.6,119.17 H57.6 A1,1 0 0 1 58.6,120.17 V127.17 A1,1 0 0 1 57.6,128.17 H53.6 A1,1 0 0 1 52.6,127.17 V120.17 A1,1 0 0 1 53.6,119.17 Z"/>
-<circle class="hid" cx="55.6" cy="123.67" r="1.5"/>
-<line class="obj" x1="54.6" y1="106.67" x2="68.6" y2="106.67"/>
-<path class="obj" d="M150.4,92.32 H191.4 A3,3 0 0 1 194.4,95.32 V145.32 A3,3 0 0 1 191.4,148.32 H150.4 A3,3 0 0 1 147.4,145.32 V95.32 A3,3 0 0 1 150.4,92.32 Z"/>
-<path class="obj" d="M150.4,98.67 H191.4 A2,2 0 0 1 193.4,100.67 V146.67 A2,2 0 0 1 191.4,148.67 H150.4 A2,2 0 0 1 148.4,146.67 V100.67 A2,2 0 0 1 150.4,98.67 Z"/>
-<circle class="hid" cx="170.9" cy="123.67" r="20"/>
-<path class="obj" d="M144.4,119.17 H148.4 A1,1 0 0 1 149.4,120.17 V127.17 A1,1 0 0 1 148.4,128.17 H144.4 A1,1 0 0 1 143.4,127.17 V120.17 A1,1 0 0 1 144.4,119.17 Z"/>
-<circle class="hid" cx="146.4" cy="123.67" r="1.5"/>
-<line class="obj" x1="147.4" y1="106.67" x2="133.4" y2="106.67"/>
-<path class="obj" d="M193.4,119.17 H197.4 A1,1 0 0 1 198.4,120.17 V127.17 A1,1 0 0 1 197.4,128.17 H193.4 A1,1 0 0 1 192.4,127.17 V120.17 A1,1 0 0 1 193.4,119.17 Z"/>
-<circle class="hid" cx="195.4" cy="123.67" r="1.5"/>
-<line class="obj" x1="194.4" y1="106.67" x2="208.4" y2="106.67"/>
-<path class="obj" d="M46,76.32 H156 A1,1 0 0 1 157,77.32 V89.32 A1,1 0 0 1 156,90.32 H46 A1,1 0 0 1 45,89.32 V77.32 A1,1 0 0 1 46,76.32 Z"/>
-<circle class="hid" cx="51.5" cy="83.32" r="1.25"/>
-<circle class="phan" cx="51.5" cy="83.32" r="2.25"/>
-<circle class="hid" cx="84.5" cy="83.32" r="1.25"/>
-<circle class="phan" cx="84.5" cy="83.32" r="2.25"/>
-<circle class="hid" cx="117.5" cy="83.32" r="1.25"/>
-<circle class="phan" cx="117.5" cy="83.32" r="2.25"/>
-<circle class="hid" cx="150.5" cy="83.32" r="1.25"/>
-<circle class="phan" cx="150.5" cy="83.32" r="2.25"/>
+<path class="obj" d="M3.6,151.69 V74.74 A97.4,71.14 0 0 1 198.4,74.74 V151.69 Z"/>
+<path class="phan" d="M3.6,151.69 V74.74 A97.4,71.14 0 0 1 198.4,74.74 V151.69 Z"/>
+<path class="obj" d="M10.5,74.74 A90.5,64.24 0 0 1 191.5,74.74 Z"/>
+<path class="obj" d="M8.5,74.74 A92.5,66.24 0 0 1 193.5,74.74 Z"/>
+<rect class="phan" x="57.82" y="105.37" width="86.36" height="27.94"/>
+<line class="phan" x1="101" y1="105.37" x2="101" y2="133.31"/>
+<path class="hid" d="M61,107.84 H141 A2,2 0 0 1 143,109.84 V128.84 A2,2 0 0 1 141,130.84 H61 A2,2 0 0 1 59,128.84 V109.84 A2,2 0 0 1 61,107.84 Z"/>
+<circle class="obj" cx="59.725" cy="107.275" r="0.925"/>
+<circle class="obj" cx="99.095" cy="131.405" r="0.925"/>
+<circle class="obj" cx="102.905" cy="107.275" r="0.925"/>
+<circle class="obj" cx="142.275" cy="131.405" r="0.925"/>
+<rect class="obj" x="76.41" y="135.76" width="6" height="2.2"/>
+<rect class="obj" x="76.41" y="102.92" width="6" height="2.2"/>
+<rect class="obj" x="119.59" y="135.76" width="6" height="2.2"/>
+<rect class="obj" x="119.59" y="102.92" width="6" height="2.2"/>
+<rect class="obj" x="55.37" y="116.34" width="2.2" height="6"/>
+<rect class="obj" x="144.18" y="116.34" width="2.2" height="6"/>
+<path class="obj" d="M10.6,87.99 H51.6 A3,3 0 0 1 54.6,90.99 V140.99 A3,3 0 0 1 51.6,143.99 H10.6 A3,3 0 0 1 7.6,140.99 V90.99 A3,3 0 0 1 10.6,87.99 Z"/>
+<path class="obj" d="M10.6,94.34 H51.6 A2,2 0 0 1 53.6,96.34 V142.34 A2,2 0 0 1 51.6,144.34 H10.6 A2,2 0 0 1 8.6,142.34 V96.34 A2,2 0 0 1 10.6,94.34 Z"/>
+<circle class="hid" cx="31.1" cy="119.34" r="20"/>
+<path class="obj" d="M4.6,114.84 H8.6 A1,1 0 0 1 9.6,115.84 V122.84 A1,1 0 0 1 8.6,123.84 H4.6 A1,1 0 0 1 3.6,122.84 V115.84 A1,1 0 0 1 4.6,114.84 Z"/>
+<circle class="hid" cx="6.6" cy="119.34" r="1.5"/>
+<line class="obj" x1="7.6" y1="102.34" x2="-6.4" y2="102.34"/>
+<path class="obj" d="M53.6,114.84 H57.6 A1,1 0 0 1 58.6,115.84 V122.84 A1,1 0 0 1 57.6,123.84 H53.6 A1,1 0 0 1 52.6,122.84 V115.84 A1,1 0 0 1 53.6,114.84 Z"/>
+<circle class="hid" cx="55.6" cy="119.34" r="1.5"/>
+<line class="obj" x1="54.6" y1="102.34" x2="68.6" y2="102.34"/>
+<path class="obj" d="M150.4,87.99 H191.4 A3,3 0 0 1 194.4,90.99 V140.99 A3,3 0 0 1 191.4,143.99 H150.4 A3,3 0 0 1 147.4,140.99 V90.99 A3,3 0 0 1 150.4,87.99 Z"/>
+<path class="obj" d="M150.4,94.34 H191.4 A2,2 0 0 1 193.4,96.34 V142.34 A2,2 0 0 1 191.4,144.34 H150.4 A2,2 0 0 1 148.4,142.34 V96.34 A2,2 0 0 1 150.4,94.34 Z"/>
+<circle class="hid" cx="170.9" cy="119.34" r="20"/>
+<path class="obj" d="M144.4,114.84 H148.4 A1,1 0 0 1 149.4,115.84 V122.84 A1,1 0 0 1 148.4,123.84 H144.4 A1,1 0 0 1 143.4,122.84 V115.84 A1,1 0 0 1 144.4,114.84 Z"/>
+<circle class="hid" cx="146.4" cy="119.34" r="1.5"/>
+<line class="obj" x1="147.4" y1="102.34" x2="133.4" y2="102.34"/>
+<path class="obj" d="M193.4,114.84 H197.4 A1,1 0 0 1 198.4,115.84 V122.84 A1,1 0 0 1 197.4,123.84 H193.4 A1,1 0 0 1 192.4,122.84 V115.84 A1,1 0 0 1 193.4,114.84 Z"/>
+<circle class="hid" cx="195.4" cy="119.34" r="1.5"/>
+<line class="obj" x1="194.4" y1="102.34" x2="208.4" y2="102.34"/>
+<path class="obj" d="M46,78.34 H156 A1,1 0 0 1 157,79.34 V91.34 A1,1 0 0 1 156,92.34 H46 A1,1 0 0 1 45,91.34 V79.34 A1,1 0 0 1 46,78.34 Z"/>
+<circle class="hid" cx="51.5" cy="85.34" r="1.25"/>
+<circle class="phan" cx="51.5" cy="85.34" r="2.25"/>
+<circle class="hid" cx="84.5" cy="85.34" r="1.25"/>
+<circle class="phan" cx="84.5" cy="85.34" r="2.25"/>
+<circle class="hid" cx="117.5" cy="85.34" r="1.25"/>
+<circle class="phan" cx="117.5" cy="85.34" r="2.25"/>
+<circle class="hid" cx="150.5" cy="85.34" r="1.25"/>
+<circle class="phan" cx="150.5" cy="85.34" r="2.25"/>
 </g>
 <g id="fm-dims">
-<line class="ctr" x1="101" y1="-10" x2="101" y2="166.02"/>
-<line class="ext" x1="0" y1="160.02" x2="0" y2="188.02"/><line class="ext" x1="202" y1="160.02" x2="202" y2="188.02"/><line class="dim" x1="0" y1="186.02" x2="202" y2="186.02" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="101" y="184.62" text-anchor="middle">194.8</text>
-<line class="ext" x1="71" y1="3.6" x2="-24" y2="3.6"/><line class="ext" x1="71" y1="156.02" x2="-24" y2="156.02"/><line class="dim" x1="-22" y1="3.6" x2="-22" y2="156.02" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="-23.4" y="79.81" text-anchor="middle" transform="rotate(-90 -23.4 79.81)">152.4</text>
-<line class="dim" x1="35.84" y1="29.788" x2="17.84" y2="15.788" marker-start="url(#arw)"/><line class="dim" x1="17.84" y1="15.788" x2="11.84" y2="15.788"/><text class="dtx" x="10.64" y="16.888" text-anchor="end">diffuser pocket 90.5x62.2 x 3.2 deep</text>
-<line class="dim" x1="62.15" y1="14.922" x2="48.15" y2="-11.078" marker-start="url(#arw)"/><line class="dim" x1="48.15" y1="-11.078" x2="42.15" y2="-11.078"/><text class="dtx" x="40.95" y="-9.978" text-anchor="end">cavity wall 2</text>
-<line class="dim" x1="154.4" y1="35.074" x2="198.4" y2="17.074" marker-start="url(#arw)"/><line class="dim" x1="198.4" y1="17.074" x2="204.4" y2="17.074"/><text class="dtx" x="205.6" y="18.174" text-anchor="start">48 px on a 11 row pitch, 6 rows - the strip fills the diffuser, no fade band</text>
-<line class="dim" x1="79.41" y1="137.64" x2="53.41" y2="179.64" marker-start="url(#arw)"/><line class="dim" x1="53.41" y1="179.64" x2="47.41" y2="179.64"/><text class="dtx" x="46.21" y="180.74" text-anchor="end">2x matrix - 4 posts + 6 clips, see note h</text>
-<line class="dim" x1="187.585" y1="106.985" x2="217.585" y2="76.985" marker-start="url(#arw)"/><line class="dim" x1="217.585" y1="76.985" x2="223.585" y2="76.985"/><text class="dtx" x="224.785" y="78.085" text-anchor="start">2x Seeed 45x50x22</text>
-<line class="dim" x1="195.4" y1="123.67" x2="227.4" y2="143.67" marker-start="url(#arw)"/><line class="dim" x1="227.4" y1="143.67" x2="233.4" y2="143.67"/><text class="dtx" x="234.6" y="144.77" text-anchor="start">side post - see note g</text>
-<line class="dim" x1="46" y1="83.32" x2="24" y2="113.32" marker-start="url(#arw)"/><line class="dim" x1="24" y1="113.32" x2="18" y2="113.32"/><text class="dtx" x="16.8" y="114.42" text-anchor="end">mic flex channel 2 deep, 1 gasket land per port</text>
-<line class="dim" x1="3.6" y1="112.005" x2="-16.4" y2="78.005" marker-start="url(#arw)"/><line class="dim" x1="-16.4" y1="78.005" x2="-22.4" y2="78.005"/><text class="dtx" x="-23.6" y="79.105" text-anchor="end">4.5 of edge runs in the dome groove</text>
-<line class="dim" x1="131" y1="156.02" x2="171" y2="178.02" marker-start="url(#arw)"/><line class="dim" x1="171" y1="178.02" x2="177" y2="178.02"/><text class="dtx" x="178.2" y="179.12" text-anchor="start">bottom edge lands on the bottom plate = the datum</text>
+<line class="ctr" x1="101" y1="-10" x2="101" y2="161.69"/>
+<line class="ext" x1="0" y1="155.69" x2="0" y2="183.69"/><line class="ext" x1="202" y1="155.69" x2="202" y2="183.69"/><line class="dim" x1="0" y1="181.69" x2="202" y2="181.69" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="101" y="180.29" text-anchor="middle">194.8</text>
+<line class="ext" x1="71" y1="3.6" x2="-24" y2="3.6"/><line class="ext" x1="71" y1="151.69" x2="-24" y2="151.69"/><line class="dim" x1="-22" y1="3.6" x2="-22" y2="151.69" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="-23.4" y="77.645" text-anchor="middle" transform="rotate(-90 -23.4 77.645)">148.1</text>
+<line class="dim" x1="35.84" y1="30.414" x2="17.84" y2="16.414" marker-start="url(#arw)"/><line class="dim" x1="17.84" y1="16.414" x2="11.84" y2="16.414"/><text class="dtx" x="10.64" y="17.514" text-anchor="end">diffuser pocket 90.5x64.2 x 3.2 deep</text>
+<line class="dim" x1="62.15" y1="15.124" x2="48.15" y2="-10.876" marker-start="url(#arw)"/><line class="dim" x1="48.15" y1="-10.876" x2="42.15" y2="-10.876"/><text class="dtx" x="40.95" y="-9.776" text-anchor="end">cavity wall 2</text>
+<line class="dim" x1="154.4" y1="35.841" x2="198.4" y2="17.841" marker-start="url(#arw)"/><line class="dim" x1="198.4" y1="17.841" x2="204.4" y2="17.841"/><text class="dtx" x="205.6" y="18.941" text-anchor="start">48 px on a 11 row pitch, 6 rows - the strip fills the diffuser, no fade band</text>
+<line class="dim" x1="79.41" y1="133.31" x2="53.41" y2="175.31" marker-start="url(#arw)"/><line class="dim" x1="53.41" y1="175.31" x2="47.41" y2="175.31"/><text class="dtx" x="46.21" y="176.41" text-anchor="end">2x matrix - 4 posts + 6 clips, see note h</text>
+<line class="dim" x1="187.585" y1="102.655" x2="217.585" y2="72.655" marker-start="url(#arw)"/><line class="dim" x1="217.585" y1="72.655" x2="223.585" y2="72.655"/><text class="dtx" x="224.785" y="73.755" text-anchor="start">2x Seeed 45x50x22</text>
+<line class="dim" x1="195.4" y1="119.34" x2="227.4" y2="139.34" marker-start="url(#arw)"/><line class="dim" x1="227.4" y1="139.34" x2="233.4" y2="139.34"/><text class="dtx" x="234.6" y="140.44" text-anchor="start">side post - see note g</text>
+<line class="dim" x1="46" y1="85.34" x2="24" y2="115.34" marker-start="url(#arw)"/><line class="dim" x1="24" y1="115.34" x2="18" y2="115.34"/><text class="dtx" x="16.8" y="116.44" text-anchor="end">mic flex channel 2 deep, 1 gasket land per port</text>
+<line class="dim" x1="3.6" y1="111.167" x2="-16.4" y2="77.167" marker-start="url(#arw)"/><line class="dim" x1="-16.4" y1="77.167" x2="-22.4" y2="77.167"/><text class="dtx" x="-23.6" y="78.267" text-anchor="end">4.5 of edge runs in the dome groove</text>
+<line class="dim" x1="131" y1="151.69" x2="171" y2="173.69" marker-start="url(#arw)"/><line class="dim" x1="171" y1="173.69" x2="177" y2="173.69"/><text class="dtx" x="178.2" y="174.79" text-anchor="start">bottom edge lands on the bottom plate = the datum</text>
 </g>
 </g>
 <g id="SECTION-AA" transform="translate(400,122)">
 <text class="blk" x="0" y="-46" text-anchor="start">SECTION A-A</text>
 <text class="lbl" x="0" y="-34" text-anchor="start">on the centreline, front at left</text>
 <g id="sec-dome">
-<path class="obj" d="M4,0 H60 A4,4 0 0 1 64,4 V156.02 A4,4 0 0 1 60,160.02 H4 A4,4 0 0 1 0,156.02 V4 A4,4 0 0 1 4,0 Z"/>
-<path class="obj" d="M4,2.5 H60 A1.5,1.5 0 0 1 61.5,4 V156.02 A1.5,1.5 0 0 1 60,157.52 H4 A1.5,1.5 0 0 1 2.5,156.02 V4 A1.5,1.5 0 0 1 4,2.5 Z"/>
+<path class="obj" d="M4,0 H60 A4,4 0 0 1 64,4 V151.69 A4,4 0 0 1 60,155.69 H4 A4,4 0 0 1 0,151.69 V4 A4,4 0 0 1 4,0 Z"/>
+<path class="obj" d="M4,2.5 H60 A1.5,1.5 0 0 1 61.5,4 V151.69 A1.5,1.5 0 0 1 60,153.19 H4 A1.5,1.5 0 0 1 2.5,151.69 V4 A1.5,1.5 0 0 1 4,2.5 Z"/>
 <rect class="obj" x="0" y="0" width="2" height="7.5"/>
 <rect class="obj" x="6.4" y="0" width="2.5" height="5.5"/>
 </g>
 <g id="sec-front-module">
-<rect class="obj" x="2" y="3.6" width="4" height="152.42"/>
-<rect class="obj" x="6" y="12" width="3" height="60.72"/>
-<rect class="hid" x="21.2" y="12" width="3" height="60.72"/>
-<line class="obj" x1="24.2" y1="12" x2="24.2" y2="72.72"/>
-<rect class="hid" x="6" y="109.7" width="10.7" height="27.94"/>
-<rect class="obj" x="6" y="77.32" width="2" height="12"/>
+<rect class="obj" x="2" y="3.6" width="4" height="148.09"/>
+<rect class="obj" x="6" y="12" width="3" height="62.74"/>
+<rect class="hid" x="21.2" y="12" width="3" height="62.74"/>
+<line class="obj" x1="24.2" y1="12" x2="24.2" y2="74.74"/>
+<rect class="hid" x="6" y="105.37" width="10.7" height="27.94"/>
+<rect class="obj" x="6" y="79.34" width="2" height="12"/>
 </g>
 <g id="sec-internals">
-<rect class="obj" x="2.8" y="156.02" width="58.4" height="4"/>
-<rect class="hid" x="37.5" y="63.02" width="24" height="93"/>
-<rect class="hid" x="53.5" y="146.02" width="8" height="20"/>
-<rect class="hid" x="38.5" y="74.02" width="20" height="70"/>
-<rect class="obj" x="58.5" y="137.02" width="3" height="7"/>
-<rect class="obj" x="58.5" y="74.02" width="3" height="7"/>
-<rect class="obj" x="49.5" y="147.02" width="12" height="9"/>
-<rect class="hid" x="53.5" y="150.02" width="4" height="6"/>
-<rect class="hid" x="54" y="151.02" width="3" height="9"/>
+<rect class="obj" x="2.8" y="151.69" width="58.4" height="4"/>
+<rect class="hid" x="37.5" y="58.69" width="24" height="93"/>
+<rect class="hid" x="53.5" y="141.69" width="8" height="20"/>
+<rect class="hid" x="38.5" y="69.69" width="20" height="70"/>
+<rect class="obj" x="58.5" y="132.69" width="3" height="7"/>
+<rect class="obj" x="58.5" y="69.69" width="3" height="7"/>
+<rect class="obj" x="49.5" y="142.69" width="12" height="9"/>
+<rect class="hid" x="53.5" y="145.69" width="4" height="6"/>
+<rect class="hid" x="54" y="146.69" width="3" height="9"/>
 </g>
 <g id="sec-dims">
 <line class="ext" x1="0" y1="0" x2="0" y2="-22"/><line class="ext" x1="64" y1="0" x2="64" y2="-22"/><line class="dim" x1="0" y1="-20" x2="64" y2="-20" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="32" y="-21.4" text-anchor="middle">64</text>
-<line class="ext" x1="64" y1="0" x2="88" y2="0"/><line class="ext" x1="64" y1="160.02" x2="88" y2="160.02"/><line class="dim" x1="86" y1="0" x2="86" y2="160.02" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="84.6" y="80.01" text-anchor="middle" transform="rotate(-90 84.6 80.01)">160</text>
+<line class="ext" x1="64" y1="0" x2="88" y2="0"/><line class="ext" x1="64" y1="155.69" x2="88" y2="155.69"/><line class="dim" x1="86" y1="0" x2="86" y2="155.69" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="84.6" y="77.845" text-anchor="middle" transform="rotate(-90 84.6 77.845)">155.7</text>
 <line class="ext" x1="2" y1="12" x2="2" y2="2"/><line class="ext" x1="24.2" y1="12" x2="24.2" y2="2"/><line class="dim" x1="2" y1="4" x2="24.2" y2="4" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="13.1" y="2.6" text-anchor="middle">22.2 front module</text>
-<line class="dim" x1="9.2" y1="39.324" x2="21.2" y2="39.324" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="15.2" y="37.924" text-anchor="middle">12 air</text>
-<line class="dim" x1="24.2" y1="54.504" x2="54.2" y2="34.504" marker-start="url(#arw)"/><line class="dim" x1="54.2" y1="34.504" x2="60.2" y2="34.504"/><text class="dtx" x="61.4" y="35.604" text-anchor="start">clear of the UPS by 13.3</text>
-<line class="dim" x1="37.5" y1="63.02" x2="63.5" y2="41.02" marker-start="url(#arw)"/><line class="dim" x1="63.5" y1="41.02" x2="69.5" y2="41.02"/><text class="dtx" x="70.7" y="42.12" text-anchor="start">UPS 3S board 60 x 93, STANDING</text>
-<line class="dim" x1="61.5" y1="156.02" x2="91.5" y2="182.02" marker-start="url(#arw)"/><line class="dim" x1="91.5" y1="182.02" x2="97.5" y2="182.02"/><text class="dtx" x="98.7" y="183.12" text-anchor="start">TPA2016 FLUSH on the rear wall</text>
-<line class="dim" x1="49.5" y1="147.02" x2="23.5" y2="173.02" marker-start="url(#arw)"/><line class="dim" x1="23.5" y1="173.02" x2="17.5" y2="173.02"/><text class="dtx" x="16.3" y="174.12" text-anchor="end">wall LUG 12x14x9</text>
-<line class="dim" x1="38.5" y1="74.02" x2="74.5" y2="50.02" marker-start="url(#arw)"/><line class="dim" x1="74.5" y1="50.02" x2="80.5" y2="50.02"/><text class="dtx" x="81.7" y="51.12" text-anchor="start">ReSpeaker Flex 52 x 70 x 20 deep at the XIAO</text>
-<line class="dim" x1="58.5" y1="100.62" x2="88.5" y2="88.62" marker-start="url(#arw)"/><line class="dim" x1="88.5" y1="88.62" x2="94.5" y2="88.62"/><text class="dtx" x="95.7" y="89.72" text-anchor="start">vertical, on 3 standoffs (110 wide over its connectors)</text>
+<line class="dim" x1="9.2" y1="40.233" x2="21.2" y2="40.233" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="15.2" y="38.833" text-anchor="middle">12 air</text>
+<line class="dim" x1="24.2" y1="55.918" x2="54.2" y2="35.918" marker-start="url(#arw)"/><line class="dim" x1="54.2" y1="35.918" x2="60.2" y2="35.918"/><text class="dtx" x="61.4" y="37.018" text-anchor="start">clear of the UPS by 13.3</text>
+<line class="dim" x1="37.5" y1="58.69" x2="63.5" y2="36.69" marker-start="url(#arw)"/><line class="dim" x1="63.5" y1="36.69" x2="69.5" y2="36.69"/><text class="dtx" x="70.7" y="37.79" text-anchor="start">UPS 3S board 60 x 93, STANDING</text>
+<line class="dim" x1="61.5" y1="151.69" x2="91.5" y2="177.69" marker-start="url(#arw)"/><line class="dim" x1="91.5" y1="177.69" x2="97.5" y2="177.69"/><text class="dtx" x="98.7" y="178.79" text-anchor="start">TPA2016 FLUSH on the rear wall</text>
+<line class="dim" x1="49.5" y1="142.69" x2="23.5" y2="168.69" marker-start="url(#arw)"/><line class="dim" x1="23.5" y1="168.69" x2="17.5" y2="168.69"/><text class="dtx" x="16.3" y="169.79" text-anchor="end">wall LUG 12x14x9</text>
+<line class="dim" x1="38.5" y1="69.69" x2="74.5" y2="45.69" marker-start="url(#arw)"/><line class="dim" x1="74.5" y1="45.69" x2="80.5" y2="45.69"/><text class="dtx" x="81.7" y="46.79" text-anchor="start">ReSpeaker Flex 52 x 70 x 20 deep at the XIAO</text>
+<line class="dim" x1="58.5" y1="96.29" x2="88.5" y2="84.29" marker-start="url(#arw)"/><line class="dim" x1="88.5" y1="84.29" x2="94.5" y2="84.29"/><text class="dtx" x="95.7" y="85.39" text-anchor="start">vertical, on 3 standoffs (110 wide over its connectors)</text>
 </g>
 </g>
 <g id="BOTTOM-PLATE" transform="translate(600,132)">
@@ -302,7 +302,7 @@
 <line class="tb" x1="0" y1="42" x2="238" y2="42"/>
 <line class="tb" x1="119" y1="42" x2="119" y2="58"/>
 <text class="note" x="6" y="51.92" text-anchor="start">UNITS mm   SCALE 1:1 (details 5:1)</text>
-<text class="note" x="125" y="51.92" text-anchor="start">202 W x 64 D x 160 H</text>
+<text class="note" x="125" y="51.92" text-anchor="start">202 W x 64 D x 155.7 H</text>
 <line class="tb" x1="0" y1="58" x2="238" y2="58"/>
 <line class="tb" x1="119" y1="58" x2="119" y2="74"/>
 <text class="note" x="6" y="67.92" text-anchor="start">GENERATED BY 3d-print/gen_internals.py</text>

@@ -662,8 +662,13 @@ if __name__ == "__main__":
     checks = [
         ("speaker -> floor",            SPK_Y0 - FLOOR_Y),
         ("speaker seat -> crescent",    CLR_SPK_CRES),
-        ("speaker -> mic array (horiz)", CLR_SPK_MIC),
-        ("speaker NUB -> mic array",    CLR_NUB_MIC),
+        # The array clears the speaker BODY vertically and the nub POST
+        # horizontally -- it passes beside the post, not above it, which is
+        # where the 6.35 mm of height came from. Two different axes on purpose.
+        ("speaker body -> mic array (vert)", CLR_SPK_MIC),
+        ("speaker NUB POST -> mic array (horiz)", CLR_NUB_MIC),
+        ("  ...post/array y-overlap it covers", POST_MIC_Y_OVERLAP),
+        ("min LED body -> diffuser edge", crescent_clearance()),
         ("speaker NUB -> plate edge",   CLR_NUB_EDGE),
         ("speaker -> plate edge",       SPK_X - SPK_BODY_W/2 - REVEAL),
         ("speaker -> tray (horiz)",     CLR_SPK_TRAY),
