@@ -1543,7 +1543,14 @@ RTC_HOLE_P           = 20.0           # (?)
 # >>> The floor has a clear pocket between the matrix and the UPS, and it is a
 # >>> shorter I2C hop from the Flex than the wall was.
 RTC_ON_FLOOR         = True
-RTC_X, RTC_DEPTH     = 20.0, 44.0     # bottom plate, left of the amp,
+# >>> MOVED AGAIN: (20, 44) put two of its four bosses ON TOP of the left-hand
+# >>> fixing screws -- 4.5 mm of overlap. The position had been searched against
+# >>> the floor items and the plate edges, and NOT against the six screws, which
+# >>> are the one thing on that plate you cannot move. (26.3, 43.7) is the best
+# >>> the floor offers: 2.0 mm to the nearest floor item, 1.8 to the nearest
+# >>> counterbore, 1.8 to the plate edge. It is tight because the floor genuinely
+# >>> is -- speakers front, matrix middle, UPS rear-right, amp centre.
+RTC_X, RTC_DEPTH     = 26.3, 43.7     # bottom plate, left of the amp,
                                       #   behind the left speaker
 LUX_PCB_W, LUX_PCB_H = 20.0, 18.0     # (?) BH1750 breakout -- MEASURE
 LUX_HOLE_P           = 15.0           # (?)

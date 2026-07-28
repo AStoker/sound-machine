@@ -540,3 +540,83 @@ across the groove reports 16 mm³ in the way.
 
 That is the check this part most needed and never had. Fit was being inferred
 from static clearances; nothing tested the *motion*.
+
+
+## The spines became ribs — and found a worse bug
+
+The two "unused protrusions" above and below the matrix were stiffening spines,
+doing a real job (the 4 mm facade has two sealed speaker boxes bolted to it and
+will drum) but shaped by the leftover space rather than by the job: 5 mm-proud
+PADS filling their whole band, 92 × 6.6 and 92 × 10.9.
+
+Now **three 3 × 9 ribs** — one above, two below. Per 10 mm of length a 9 mm solid
+pad gives I = 608 mm⁴ for 90 mm² of material; a 3 × 9 rib on the same plate gives
+**917 for 67**. Half again the stiffness for a quarter less plastic.
+
+Two things went wrong on the way, both caught:
+
+- **Two ribs at 1/3 and 2/3 of the lower band left a 0.65 mm gap** — narrower
+  than a nozzle, so it prints as one blob with a defect down the middle and
+  stiffens like a single fat rib. Pushed to the band's edges the gap is 4.9 mm.
+  There is a check on it now.
+- **The presence probes sampled the band's midpoint**, which was solid only
+  because the old pad filled the whole band. They aim at the ribs now, plus one
+  probe asserting the space between them is *open* — which is the entire point of
+  the change.
+
+### And the one that mattered: the exported file was not the validated model
+
+Chasing a 0.6 cm³ discrepancy between the volume the run reported and the volume
+of the file turned up this: **`gen_front_plate.py` kept its own `base` pointing at
+the script directory.** When solids moved into `models/`, every other generator
+followed and that one did not. It had been writing `3d-print/front-module.stl`
+while `models/front-module.stl` sat there **three hours stale** — 19032 faces
+against the run's 19046.
+
+Every check passed the whole time. They were all validating a solid in memory
+that never reached the disk.
+
+**`verify_exports.py`** now re-runs each generator, reads back what it actually
+wrote, and compares the face count against what the run claimed — and fails on
+any solid found outside `models/`. Verified it catches the original bug by
+re-breaking the path.
+
+> Checks had been added for geometry, for prose, and for drawings. The last link
+> — model to file — was the one nobody was watching, and it is the only one where
+> being wrong means printing the wrong part.
+
+
+## The RTC was sitting on a screw
+
+Two of the RTC's four standoffs overlapped the left-hand fixing screws by
+**4.5 mm** — the screw's clearance hole bored straight through them.
+
+The cause is the same one as last time, one level down. When the RTC was moved to
+the floor its position was searched against the **floor items** (speakers, matrix,
+UPS, amp) and the **plate edges**. Nobody compared it to the six **screws** —
+which are the one thing on that plate that cannot move, since the dome's tabs set
+them. Moved to (26.3, 43.7): 2.0 mm to the nearest floor item, 1.8 to the nearest
+counterbore, 1.8 to the plate edge. Tight because the floor genuinely is.
+
+### Stop writing checks one pair at a time
+
+Three bugs on this part have now been the same shape: A was checked against B and
+C, and nobody compared it to D. So the plate now enumerates **every feature with a
+footprint** — screw holes, counterbores, foot pockets, board bosses — and compares
+all of them: 22 features, 165 pairs. A new feature joins the list and is checked
+against everything else for free.
+
+**It has to know about Z.** The first version compared footprints only and
+instantly "found" a foot pocket overlapping a boss — which is fine: the pocket is
+cut 1 mm from *below*, the boss stands on *top*, and there is 3 mm of plate
+between them. A planar check on a part with features on both faces reports
+collisions that do not exist, and a check that cries wolf is worse than no check,
+because you start ignoring it. Each feature carries its z span now and only
+overlapping spans are compared.
+
+Note the two radii are not interchangeable either: the **counterbore** (r=3) only
+reaches 2 mm up from the underside, but the **clearance hole** (r=1.7) runs the
+full thickness — so it is the hole, not the counterbore, that reaches a boss on
+the top face. Checking the wrong one of those two would have passed.
+
+Verified both ways: putting the RTC back at (20, 44) reports −3.20 mm and fails.

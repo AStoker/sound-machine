@@ -218,6 +218,60 @@ _edge = min(min(hx - (WALL + BP_CLR), (W - WALL - BP_CLR) - hx,
                 hy - (WALL + BP_CLR), (D - WALL - BP_CLR) - hy)
             for _n, hx, hy in board_holes) - BOSS_D / 2
 chk("every floor boss lands on the plate", _edge)
+
+# >>> BOSSES vs THE SIX FIXING SCREWS -- the check that was missing. The RTC's
+# >>> position had been searched against the floor items and the plate edges, but
+# >>> nothing compared it to the screws, and two of its four bosses ended up
+# >>> sitting ON a counterbore with 4.5 mm of overlap. The screws are the one
+# >>> thing on this plate that cannot move: they are set by the dome's tabs.
+_scr = min(math.hypot(hx - sx, hy - sd) - BOSS_D / 2 - SCREW_CBORE / 2
+           for _n, hx, hy in board_holes for sx, sd in SCREWS)
+chk("floor bosses clear the fixing screw counterbores", _scr)
+
+# >>> AND NOW EVERY PAIR, EXHAUSTIVELY -- BUT IN 3D. Three separate bugs on this
+# >>> part were the same shape: feature A was checked against B and C, and nobody
+# >>> ever compared it to D. Feet vs counterbores was checked; bosses vs the screw
+# >>> holes was not, and two bosses ended up bored through.
+# >>>
+# >>> IT HAS TO KNOW ABOUT Z. The first version compared footprints only and
+# >>> immediately "found" a foot pocket overlapping a boss -- which is fine: the
+# >>> pocket is cut 1 mm from BELOW and the boss stands on TOP, with 3 mm of plate
+# >>> between them. A planar check on a part with features on both faces reports
+# >>> collisions that do not exist, and that is how a check loses its authority.
+# >>> Each feature therefore carries its z span, and only overlapping spans are
+# >>> compared.
+_feat = []
+for sx, sd in SCREWS:
+    # the clearance hole runs the FULL thickness -- it is what reaches a boss
+    _feat.append((f"screwhole({sx:.0f},{sd:.0f})", sx, sd, SCREW_CLR / 2,
+                  -1.0, BP_T + 1.0))
+    _feat.append((f"cbore({sx:.0f},{sd:.0f})", sx, sd, SCREW_CBORE / 2,
+                  -1.0, SCREW_CB_T))
+for fx, fy in FEET:
+    _feat.append((f"foot({fx:.0f},{fy:.0f})", fx, fy,
+                  (FOOT_D + 2 * FOOT_CLR) / 2, -1.0, FOOT_POCKET_T))
+for _n, hx, hy in board_holes:
+    _feat.append((f"{_n}boss({hx:.0f},{hy:.0f})", hx, hy, BOSS_D / 2,
+                  BP_T, BP_T + AMP_STAND + BOSS_CHAMF))
+
+_worst_pair, _who, _pairs = 1e9, "", 0
+for _i in range(len(_feat)):
+    for _j in range(_i + 1, len(_feat)):
+        _na, _ax, _ay, _ar, _az0, _az1 = _feat[_i]
+        _nb, _bx, _by, _br, _bz0, _bz1 = _feat[_j]
+        if _na.split("(")[0] == _nb.split("(")[0] == "cbore":
+            pass
+        if min(_az1, _bz1) - max(_az0, _bz0) <= 0:
+            continue                       # they never meet in z
+        if (_ax, _ay) == (_bx, _by):
+            continue                       # concentric by design (hole in cbore)
+        _pairs += 1
+        _g = math.hypot(_ax - _bx, _ay - _by) - _ar - _br
+        if _g < _worst_pair:
+            _worst_pair, _who = _g, f"{_na} <-> {_nb}"
+say(f"  ---- {_worst_pair:8.2f}   tightest pair anywhere: {_who}")
+chk(f"every feature pair that shares depth clears "
+    f"({len(_feat)} features, {_pairs} pairs)", _worst_pair)
 chk("amp board clears the lifted Flex above it", FLEX_WALL_Y - AMP_H)
 chk("amp bosses clear the plate edge (depth)",
     (D - WALL - BP_CLR) - (AMP_DEPTH + AMP_D / 2))

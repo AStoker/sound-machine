@@ -48,7 +48,8 @@ for f in ('enclosure-drawing','enclosure-internals','enclosure-wiring'):
 ../.venv/bin/python gen_dome.py && ../.venv/bin/python gen_bottom_plate.py
 ../.venv/bin/python gen_knob.py
 python3 gen_diffuser.py && python3 gen_tray.py
-python3 check_docs.py            # prose vs geometry -> ALL SYNCED
+python3 check_docs.py            # prose vs geometry  -> ALL SYNCED
+python3 verify_exports.py        # STLs on disk vs the models -> ALL EXPORTS MATCH
 ```
 
 Code layout — **no sheet and no solid invents a dimension**:
@@ -60,7 +61,8 @@ gen_drawing.py      sheet 1        gen_internals.py    sheet 2
 gen_wiring.py       sheet 3        gen_tray.py         models/matrix-tray.stl
 gen_front_plate.py  models/front-module.stl
 gen_led_carrier.py  models/led-carrier.stl
-gen_diffuser.py     diffuser.svg   check_docs.py  prose vs geometry
+gen_diffuser.py     diffuser.svg   check_docs.py     prose vs geometry
+                                   verify_exports.py file vs model
 gen_dome.py         models/dome.stl
 gen_bottom_plate.py models/bottom-plate.stl
 gen_knob.py         models/knob.stl

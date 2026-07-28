@@ -107,8 +107,17 @@ MIC_BOSS_D  = 5.0     # M3 pilot boss beside the channel
 MIC_BOSS_X  = 40.0
 MIC_PILOT_D = 2.5
 # --- stiffening -------------------------------------------------------------
-RIB_H       = 5.0     # general stiffening rib height
-RIB_T       = 2.0
+# >>> A RIB GETS ITS STIFFNESS FROM HEIGHT, NOT FOOTPRINT. These were 5 mm-proud
+# >>> PADS filling the whole band between features -- 92 x 6.6 and 92 x 10.9 --
+# >>> which is what a stiffener looks like when it is shaped by the space left
+# >>> over rather than by the job. Per 10 mm of length a 9 mm solid pad gives
+# >>> I = 608 mm^4 for 90 mm^2 of material; a 3 x 9 rib on the same 4 mm plate
+# >>> gives I = 917 for 67. Half again the stiffness, a quarter less plastic, and
+# >>> it reads as a deliberate feature instead of an unexplained plateau.
+# >>> There is room: nothing sits behind either band until the matrix backpack at
+# >>> z = 12.8, and that is at a different height entirely.
+RIB_H       = 9.0     # stiffening rib height off the back face
+RIB_T       = 3.0     # rib thickness, along y
 
 # --- the print seam ---------------------------------------------------------
 # The module is 250.8 wide; the target bed is 220. No rotation helps (this is a
@@ -448,7 +457,9 @@ for sx in (SPK_X, W - SPK_X):
 SPINE_Y0 = TRAY_Y1 + CLIP_GAP + CLIP_T + 1.0
 SPINE_Y1 = SPK_Y1 - 1.0
 SPINE_X0 = SPK_X + SPK_BODY_W/2 + SPK_FIT + 1.0
-adds.append(slab(rect2(SPINE_X0, SPINE_Y0, W - 2*SPINE_X0, SPINE_Y1 - SPINE_Y0),
+# a rib CENTRED in the band, not a pad filling it
+_sy = (SPINE_Y0 + SPINE_Y1) / 2 - RIB_T / 2
+adds.append(slab(rect2(SPINE_X0, _sy, W - 2*SPINE_X0, RIB_T),
                  FP_T, FP_T + RIB_H))
 #  2. A SECOND SPINE in the matching band BELOW the matrix.
 #
@@ -467,8 +478,21 @@ adds.append(slab(rect2(SPINE_X0, SPINE_Y0, W - 2*SPINE_X0, SPINE_Y1 - SPINE_Y0),
 # >>> spine plus two stubs did.
 SPINE2_Y0 = BP_T + BOSS_EDGE                       # clear the back-face keep-out
 SPINE2_Y1 = TRAY_Y0 - CLIP_GAP - CLIP_T - 1.0      # clear the bottom clips
-adds.append(slab(rect2(SPINE_X0, SPINE2_Y0, W - 2*SPINE_X0, SPINE2_Y1 - SPINE2_Y0),
-                 FP_T, FP_T + RIB_H))
+# >>> THE LOWER BAND IS WIDE ENOUGH FOR TWO. It spans 10.9 mm against the upper
+# >>> band's 6.6, and two ribs brace a panel better than one twice as thick --
+# >>> they break the unsupported span into three instead of two.
+# >>> SPACED TO THE BAND'S EDGES, NOT AT THIRDS. Placing two ribs at 1/3 and 2/3
+# >>> of a 10.9 mm band leaves 0.65 mm between them -- narrower than a nozzle, so
+# >>> it prints as one blob with a defect down the middle and stiffens like a
+# >>> single fat rib. Pushed to the edges the gap is 4.9 mm, they brace two
+# >>> separate lines of the panel, and each one is a clean 3 mm wall.
+RIB_MIN_GAP = 2.0
+_n2 = 2 if (SPINE2_Y1 - SPINE2_Y0) >= 2 * RIB_T + RIB_MIN_GAP else 1
+_rib2_y = ([SPINE2_Y0, SPINE2_Y1 - RIB_T] if _n2 == 2
+           else [(SPINE2_Y0 + SPINE2_Y1) / 2 - RIB_T / 2])
+for _sy2 in _rib2_y:
+    adds.append(slab(rect2(SPINE_X0, _sy2, W - 2*SPINE_X0, RIB_T),
+                     FP_T, FP_T + RIB_H))
 
 body = body + union(adds)
 
@@ -620,7 +644,13 @@ else:
 # ---------------------------------------------------------------------------
 # EXPORT
 # ---------------------------------------------------------------------------
-base = os.path.dirname(os.path.abspath(__file__))
+# >>> WRITE TO MODEL_DIR. This file kept its own `base` pointing at the script
+# >>> directory, so when solids moved into models/ every other generator followed
+# >>> and this one did not. It carried on exporting to 3d-print/front-module.stl
+# >>> while models/front-module.stl sat there STALE -- the run said "wrote 19046
+# >>> triangles", the file in models/ had 19032, and every downstream measurement
+# >>> was of a part three hours out of date.
+base = MODEL_DIR
 
 
 def write_stl(solid, name):
@@ -853,10 +883,20 @@ for _px, _py, _deg in carrier_pads():
         _z = PAD_Z0 + PAD_RAMP * _f
         probe(f"pad @ {_deg:.0f} deg ramp touches the wall at z={_z:.1f}",
               _x + _ox * PAD_OFFSET_IN, _y + _oy * PAD_OFFSET_IN, _z)
-probe("stiffening spine (above matrix)", W / 2,
-      (SPINE_Y0 + SPINE_Y1) / 2, FP_T + 2.0)
-probe("stiffening spine (below matrix)", W / 2,
-      (SPINE2_Y0 + SPINE2_Y1) / 2, FP_T + 2.0)
+# >>> PROBE THE RIB, NOT THE BAND. These sampled the band's midpoint, which was
+# >>> solid only because the old pad filled the whole band. A rib occupies a
+# >>> slice of it, so the probe has to know where the rib actually is.
+probe("stiffening rib (above matrix)", W / 2,
+      (SPINE_Y0 + SPINE_Y1) / 2, FP_T + RIB_H - 1.0)
+for _i, _sy2 in enumerate(_rib2_y):
+    probe(f"stiffening rib {_i} (below matrix)", W / 2,
+          _sy2 + RIB_T / 2, FP_T + RIB_H - 1.0)
+if len(_rib2_y) == 2:
+    probe("...and they are two SEPARATE ribs", W / 2,
+          (_rib2_y[0] + RIB_T + _rib2_y[1]) / 2, FP_T + RIB_H - 1.0, want=False)
+# ...and the band between ribs must now be OPEN, which is the whole point
+probe("band above the matrix is no longer a solid pad", W / 2,
+      SPINE_Y0 + 0.8, FP_T + RIB_H - 1.0, want=False)
 probe("cavity wall at the apex", W / 2, CRES_Y + DIFF_RY + CAV_WALL / 2, CAV_Z - 1)
 _clip_spec = ([("end L", "x", mtx_x0, -1, (mtx_y0 + mtx_y1) / 2),
                ("end R", "x", mtx_x1, +1, (mtx_y0 + mtx_y1) / 2)]
@@ -1009,6 +1049,9 @@ checks = [
     ("bbox y == the module outline", 0.01 - abs(bb[4] - bb[1] - (H - REVEAL - BP_T))),
     ("nothing trimmed by the containment guard", 0.01 - trimmed),
     ("spine clear of the matrix clips", SPINE_Y0 - (TRAY_Y1 + CLIP_GAP + CLIP_T)),
+    ("gap between the two lower ribs is printable",
+     (_rib2_y[1] - (_rib2_y[0] + RIB_T)) - RIB_MIN_GAP if len(_rib2_y) == 2
+     else 0.0),
     ("spine clear of the speaker tops", SPK_Y1 - SPINE_Y1),
     ("spine clear of the speakers (x)", SPINE_X0 - (SPK_X + SPK_BODY_W/2 + SPK_FIT)),
 ]
