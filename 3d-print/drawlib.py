@@ -46,7 +46,13 @@ def line(x1, y1, x2, y2, cls="obj"):
 
 def semi(cx, cy, r, cls="obj"):
     """Semicircle, flat side down, sitting on y=cy."""
-    return path(f"M{n(cx-r)},{n(cy)} A{n(r)},{n(r)} 0 0 1 {n(cx+r)},{n(cy)} Z", cls)
+    return semi_e(cx, cy, r, r, cls)
+
+
+def semi_e(cx, cy, a, b, cls="obj"):
+    """Half-ELLIPSE, flat side down, sitting on y=cy. Semi-axes a across, b up.
+    The crown is a flattened arch, not a semicircle -- see CROWN_K."""
+    return path(f"M{n(cx-a)},{n(cy)} A{n(a)},{n(b)} 0 0 1 {n(cx+a)},{n(cy)} Z", cls)
 
 
 def txt(x, y, s, cls="note", anchor="start", rot=None):

@@ -29,6 +29,18 @@ from drawlib import n, rect, circ
 # >>> crescent -- the numbers are printed at the bottom of the run.
 D         = 64.0
 WALL      = 2.5      # dome wall
+# THE CROWN IS A FLATTENED ARCH, NOT A SEMICIRCLE.
+# A true "D" has H = CRES_Y + W/2 -- the arch height is locked to half the width
+# and nothing else can touch it. Once the width came down to 202 (see the
+# speaker note below) that made the front nearly square, 1.07:1, against the
+# 1.36:1 it started as. Flattening the crown is the ONLY lever on height, so the
+# arch is now a half-ELLIPSE: horizontal semi-axis W/2, vertical CROWN_K x W/2.
+#
+# 0.72 restores a 1.26:1 front and takes 30 mm off the height. It is also not
+# purely a looks number: it sets how much crescent there is to lay LEDs on, and
+# 0.70 held exactly 48 px at 100% fill with the strip rows edge to edge. 0.72
+# buys a sixth row and 92% fill for 2 mm of height.
+CROWN_K   = 0.72
 RIM_MIN_LOOK = 12.0  # smallest rim we'd accept on looks alone
 # RIM_MIN itself is DERIVED further down: the diffusion cavity wall stands off
 # the back of the crescent, and it has to clear the dome's retaining rib, which
@@ -145,6 +157,8 @@ CRES_PX   = 48       # FIXED -- this is the strip you have. The crescent
                      #   RADIUS scales with the body, so the row layout has
                      #   to be re-solved to spend exactly 48 pixels on it.
 LED_D     = 5.2      # SK6812 package, drawn indicatively
+STRIP_W   = 10.0     # (?) physical ribbon width of a 60 LED/m strip -- this is
+                     #   the floor on the ROW pitch; any closer and rows overlap
 # ROW pitch is the one spacing we actually control: within a row the strip fixes
 # it at LED_PITCH, but the gap BETWEEN rows is ours to choose. Earlier revisions
 # derived it by stretching however many rows we had across the full radius,
@@ -174,8 +188,16 @@ CLK_W     = 84.0     # clock aperture (LED span 81.3 + margin)
 CLK_H     = 23.0     #   "        "   (LED span 20.3 + margin)
 # Seeed Mono Enclosed Speaker 4R 5W (SS114993346): the body is a SQUARE-ish
 # sealed box, not a bare round driver. 50 x 45 x 22, round cone inside.
-SPK_BODY_W = 50.0    # body width  -- datasheet
-SPK_BODY_H = 45.0    # body height -- datasheet
+# >>> THE SPEAKERS ARE ROTATED 90 DEGREES. The box is 50 x 45 with a nub in the
+# >>> centre of each of the two 45 mm faces. Standing it on its side puts those
+# >>> nubs TOP AND BOTTOM instead of left and right, which takes the mounting
+# >>> post out of the WIDTH chain and puts it in the height -- where there is
+# >>> slack. It also narrows the body from 50 to 45. Between them that is 46 mm
+# >>> off the width, which is what lets the dome and the front module each print
+# >>> as ONE PIECE on a 220 bed. Acoustically it is free: a sealed box with a
+# >>> round driver does not care which way up it is.
+SPK_BODY_W = 45.0    # body width  as mounted (the datasheet's 45 mm face)
+SPK_BODY_H = 50.0    # body height as mounted (the datasheet's 50 mm face)
 SPK_BODY_D = 22.0    # body depth  -- datasheet
 SPK_GRILLE = 40.0    # (?) open cone diameter, inside the 45 body height
 SPK_RING_W = 3.0     # raised baffle seat around each speaker body
@@ -199,13 +221,17 @@ SPK_NUB_H    = 6.0   # (?) nub size up the side       -- MEASURE
 SPK_NUB_SCREW = 3.0  # (?) M3 through the nub
 SPK_POST_WALL = 2.0  # material outboard of the screw, in the module post
 SPK_FIT       = 0.35 # per side, body to its locating rib / post
-# The seat has to be wide enough for the post beside the nub, so it is derived
-# from the nub, not chosen. This is what actually sets the speaker's footprint.
-# SPK_FIT is in here because the post sits OUTSIDE the fit gap, not inside it --
-# leaving it out made the derivation 0.35 short and put the post into the dome's
-# rib band.
-SPK_SEAT_W = max(SPK_RING_W, SPK_FIT + SPK_NUB_PROJ + SPK_POST_WALL)
-SPK_MOUNT_W = SPK_BODY_W + 2 * SPK_NUB_PROJ      # widest point of the speaker
+# The nub+post budget. With the speaker rotated this is spent VERTICALLY, above
+# and below the body, instead of on the flanks. SPK_FIT is in here because the
+# post sits OUTSIDE the fit gap, not inside it.
+SPK_POST_H = SPK_FIT + SPK_NUB_PROJ + SPK_POST_WALL
+# The flanks now only need clearance to slide the box in: the two screws (top
+# and bottom) fully locate it in x, y and rotation, so no side ribs. That is the
+# whole saving -- SPK_SEAT_W used to be 6.35 per flank.
+SPK_FLANK  = 1.0
+SPK_SEAT_W = SPK_FLANK            # what the WIDTH chain spends per flank
+SPK_MOUNT_H = SPK_BODY_H + 2 * SPK_NUB_PROJ      # tallest point, nubs included
+SPK_MOUNT_W = SPK_BODY_W                         # the flanks are now plain
 # ---- ReSpeaker Flex linear 4-mic array, in the band above the clock -------
 MIC_N      = 4
 MIC_PITCH  = 33.0    # reSpeaker Flex Linear-4: 33 mm spacing -- Seeed wiki
@@ -230,101 +256,118 @@ SPK_MIC_GAP = 3.0    # gap between a speaker seat and the mic array
 GAP_CRES  = 2.0      # crescent baseline clears the mic strip
 
 FLOOR_Y  = BP_T                              # top face of the bottom plate
-# THE CLUSTER: the matrix pair with the mic array above it. The pairing still
-# drives the LAYOUT (they share the facade's middle band, drivers flanking), but
-# it no longer drives the HEIGHT -- the speaker seats do. So the gaps above and
-# below the matrix are spent on clip roots rather than squeezed to nothing.
-TRAY_Y0  = FLOOR_Y + TRAY_GAP
-TRAY_Y1  = TRAY_Y0 + TRAY_H
-MIC_Y0   = TRAY_Y1 + GAP_MIC                 # tight above the clock
-MIC_Y1   = MIC_Y0 + MIC_PCB_H
-# The speaker boxes FLANK that cluster, so they clear it horizontally and never
-# push the mic band up. Their raised seat has to clear the bottom plate.
-SPK_SEAT_Y0 = FLOOR_Y + SPK_CLR
-SPK_Y0      = SPK_SEAT_Y0 + SPK_RING_W
+# THE SPEAKERS come first now: with the nubs rotated to top and bottom, their
+# posts are what the vertical stack has to carry, and they are what the mic
+# array has to clear.
+SPK_SEAT_Y0 = FLOOR_Y + SPK_CLR              # bottom of the lower post
+SPK_Y0      = SPK_SEAT_Y0 + SPK_POST_H
 SPK_Y1      = SPK_Y0 + SPK_BODY_H
-SPK_SEAT_Y1 = SPK_Y1 + SPK_RING_W
-# The nubs are centred on the side, so they add nothing vertically -- they only
-# push the seat out sideways, which is handled in the width derivation below.
-SPK_NUB_Y   = (SPK_Y0 + SPK_Y1) / 2
+SPK_SEAT_Y1 = SPK_Y1 + SPK_POST_H            # top of the upper post
+SPK_NUB_Y_LO = SPK_Y0 - SPK_NUB_PROJ/2       # nub centres, below and above
+SPK_NUB_Y_HI = SPK_Y1 + SPK_NUB_PROJ/2
+# THE MIC ARRAY sits ABOVE the speakers, not between them. That is the other
+# half of the width saving: its 110 mm no longer has to fit between two driver
+# boxes, so the middle of the facade only has to hold the 86 mm matrix pair.
+# The cost is height, and the flattened crown pays it back with interest.
+MIC_Y0   = SPK_SEAT_Y1 + SPK_MIC_GAP
+MIC_Y1   = MIC_Y0 + MIC_PCB_H
+# THE CLOCK is flanked by the speakers, centred on them -- with the array gone
+# from this band there is no reason to keep it hard down on the floor, and
+# centring it reads better against the drivers either side.
+TRAY_Y0  = (SPK_Y0 + SPK_Y1)/2 - TRAY_H/2
+TRAY_Y1  = TRAY_Y0 + TRAY_H
 # CRES_Y is the LED ROW CENTRE, so the bottom row hangs LED_D/2 below it.
-# Without that term the bottom row of pixels buries itself in the speaker
-# seats -- which is exactly what "losing the bottom pixels" looks like.
 CRES_Y   = max(MIC_Y1, SPK_SEAT_Y1) + GAP_CRES + LED_D/2
 ARCH_Y   = CRES_Y                            # concentric: same centre
 
-# W: plate edge | clr | speaker body | clr | mic array ... mirrored.
-# The 110 array is wider than the 91 tray, so the array sets the middle.
-# edge | BOSS_EDGE | seat+post | body | seat+post | gap | half the mic array
-# SPK_SEAT_W (not SPK_RING_W) is the lateral budget each flank needs, because
-# the mounting nub and its post live there.
-#
-# >>> The edge term is BOSS_EDGE, not SPK_CLR. The speaker seat is a BOSS on the
-# >>> back face, so what it has to clear is the dome's retaining rib band, not
-# >>> the module outline. Using the 1 mm driver clearance here put the outboard
-# >>> post 4.35 mm inside the rib -- the module would not have slid into the
-# >>> dome, and nothing in the 2D views could show it.
-W_FROM_SPK  = 2 * (REVEAL + BOSS_EDGE + SPK_SEAT_W + SPK_BODY_W + SPK_SEAT_W
-                   + SPK_MIC_GAP + MIC_PCB_W/2)
-W_FROM_TRAY = 2 * (REVEAL + BOSS_EDGE + SPK_SEAT_W + SPK_BODY_W + SPK_SEAT_W
+# W: edge | boss keep-out | clr | speaker body | clr | gap | half the MATRIX.
+# With the array lifted clear, the matrix pair (86) sets the middle instead of
+# the array (110), and the flanks cost 1.0 of clearance instead of a 6.35 post.
+W_FROM_SPK  = 2 * (REVEAL + BOSS_EDGE + SPK_FLANK + SPK_BODY_W + SPK_FLANK
                    + SPK_MIC_GAP + TRAY_W/2)
-W        = 2 * math.ceil(max(W_FROM_SPK, W_FROM_TRAY) / 2)   # <<< DERIVED width
-ARCH_R   = W/2                               # arc radius = half the width
-H        = ARCH_Y + ARCH_R                   # <<< DERIVED height
+# ...but the array still has to fit the shell somewhere, so it sets a floor.
+W_FROM_MIC  = 2 * (REVEAL + BOSS_EDGE + MIC_PCB_W/2)
+W_FROM_TRAY = W_FROM_SPK
+W        = 2 * math.ceil(max(W_FROM_SPK, W_FROM_MIC) / 2)    # <<< DERIVED width
+
+# The crown is a half-ELLIPSE (see CROWN_K): ARCH_R across, ARCH_RY up.
+ARCH_R   = W/2                               # horizontal semi-axis
+ARCH_RY  = CROWN_K * ARCH_R                  # vertical semi-axis
+H        = ARCH_Y + ARCH_RY                  # <<< DERIVED height
+
+# The diffuser is the same ellipse, inset by the rim on both axes.
+CRES_R   = ARCH_R - RIM_MIN                  # diffuser, horizontal semi-axis
+CRES_RY  = ARCH_RY - RIM_MIN                 # diffuser, vertical semi-axis
+CRES_RIM = RIM_MIN
 
 
-def cres_capacity(r):
-    """How many pixels a crescent of radius r holds, at LED_ROW_PITCH rows and
-    LED_PITCH columns, with every LED BODY inside the box. Returns (total, rows)
-    where rows is the per-row capacity list, bottom-first."""
+def ell_half_chord(y, a=None, b=None):
+    """Half-width of the crescent ellipse at height y above its baseline."""
+    a = CRES_R if a is None else a
+    b = CRES_RY if b is None else b
+    return a * max(1.0 - (y/b)**2, 0.0) ** 0.5
+
+
+def cres_capacity(pitch, a=None, b=None):
+    """How many pixels the crescent holds at a given ROW pitch, with every LED
+    BODY inside the box. Returns (total, per-row list)."""
+    a = CRES_R if a is None else a
+    b = CRES_RY if b is None else b
     caps, y = [], LED_D / 2
-    apex = r - LED_D / 2
-    while y <= apex + 1e-9:
-        usable = 2 * (max(r**2 - y**2, 0.0) ** 0.5 - LED_D / 2)
+    while y <= b - LED_D/2 + 1e-9:
+        usable = 2 * (ell_half_chord(y, a, b) - LED_D/2)
         caps.append(max(int(usable // LED_PITCH) + 1, 1))
-        y += LED_ROW_PITCH
-    if not caps:
-        caps = [1]
-    return sum(caps), caps
+        y += pitch
+    return (sum(caps) if caps else 0), (caps or [0])
 
 
-def _solve_led_r():
-    """Largest radius that 48 pixels can actually FILL, for the LED field.
-
-    The diffuser arc is a separate, bigger radius (CRES_R). Here the binding
-    constraint is density: capacity grows with area, so a big radius means the
-    48 pixels cover a small fraction of each row. Walk down from the diffuser
-    arc until the fill fraction clears CRES_FILL_MIN."""
-    r_max = ARCH_R - RIM_MIN
-    if CRES_FILL_MIN <= 0:
-        return r_max
-    r = r_max
-    while r > 20.0:
-        total, _ = cres_capacity(r)
-        if total >= CRES_PX and CRES_PX / total >= CRES_FILL_MIN:
-            return round(r, 1)
-        r -= 0.5
-    return r_max
+# How full the crescent may be. NOT the same knob as the old fade band -- there
+# is no fade now. This is manufacturing slack: at 100% every row is filled to
+# its exact geometric limit, so any tolerance slip pushes an LED out past the
+# diffuser. Leaving ~8% spare means each row can lose a pixel and still look
+# right.
+CRES_FILL_TARGET = 0.92
 
 
-CRES_R   = ARCH_R - RIM_MIN          # <<< the DIFFUSER arc -- concentric max
-CRES_RIM = ARCH_R - CRES_R           # rim between shell and diffuser
-LED_R    = _solve_led_r()            # <<< the arc the 48 PIXELS sit on
-CRES_FADE = CRES_R - LED_R           # unlit fade band at the apex
+def _solve_row_pitch():
+    """The LARGEST row pitch that fits CRES_PX with slack to spare.
+
+    On the flattened crown the pitch is no longer ours to pick freely: the
+    crescent is short, so the pitch is whatever gets the pixels on. Two bounds
+    squeeze it -- capacity must beat CRES_PX/CRES_FILL_TARGET, and the pitch
+    cannot go below STRIP_W + 1, because the strip is a physical ribbon about
+    STRIP_W wide and rows any closer would overlap."""
+    need = CRES_PX / CRES_FILL_TARGET
+    lo = STRIP_W + 1.0
+    p = LED_PITCH
+    while p >= lo:
+        if cres_capacity(p)[0] >= need:
+            return round(p, 1)
+        p -= 0.1
+    return round(lo, 1)
+
+
+LED_ROW_PITCH = _solve_row_pitch()
+# The LED field IS the diffuser ellipse -- no fade band. At this size 48 px
+# fill it about 92%, so the glow reaches the edge instead of dying out early.
+LED_R    = CRES_R
+LED_RY   = CRES_RY
+CRES_FADE = 0.0
 
 CLK_Y    = (TRAY_Y0 + TRAY_Y1) / 2
 MIC_Y    = (MIC_Y0 + MIC_Y1) / 2
-SPK_X    = REVEAL + BOSS_EDGE + SPK_SEAT_W + SPK_BODY_W/2  # body centre
+SPK_X    = REVEAL + BOSS_EDGE + SPK_FLANK + SPK_BODY_W/2   # body centre
 SPK_Y    = (SPK_Y0 + SPK_Y1) / 2
+SPK_NUB_Y = SPK_Y                            # (kept: the drawings ask for one)
 
 # Clearances the stack cannot enforce (all checked at the bottom of the run):
-CLR_SPK_TRAY = (W/2 - TRAY_W/2) - (SPK_X + SPK_BODY_W/2)     # body -> tray
-CLR_SPK_MIC  = (W/2 - MIC_PCB_W/2) - (SPK_X + SPK_BODY_W/2 + SPK_SEAT_W)
-CLR_SPK_EDGE = (SPK_X - SPK_BODY_W/2 - SPK_SEAT_W) - REVEAL  # seat -> edge
-CLR_SPK_CRES = CRES_Y - SPK_SEAT_Y1                          # seat -> crescent
-CLR_NUB_MIC  = (W/2 - MIC_PCB_W/2) - (SPK_X + SPK_MOUNT_W/2) # nub tip -> array
-CLR_NUB_EDGE = (SPK_X - SPK_MOUNT_W/2) - REVEAL              # nub tip -> edge
-SPK_W_MAX    = W/2 - MIC_PCB_W/2 - REVEAL - 2*SPK_CLR        # widest body
+CLR_SPK_TRAY = (W/2 - TRAY_W/2) - (SPK_X + SPK_BODY_W/2)     # body -> matrix
+CLR_SPK_MIC  = MIC_Y0 - SPK_SEAT_Y1                          # post -> array
+CLR_SPK_EDGE = (SPK_X - SPK_BODY_W/2 - SPK_FLANK) - REVEAL   # body -> edge
+CLR_SPK_CRES = CRES_Y - SPK_SEAT_Y1                          # post -> crescent
+CLR_NUB_EDGE = (SPK_X - SPK_BODY_W/2) - (REVEAL + BOSS_EDGE)
+CLR_NUB_MIC  = CLR_SPK_MIC
+SPK_W_MAX    = W/2 - TRAY_W/2 - REVEAL - BOSS_EDGE - 2*SPK_FLANK
 
 # ---- top surface controls --------------------------------------------------
 # The knob is PART 5: a printed pebble that caps the seesaw encoder shaft. It
@@ -366,7 +409,10 @@ TOUCH_SHARED_PIN = True
 TOUCH_N      = 2
 TOUCH_PAD_L  = 40.0  # along the depth (the developable direction)
 TOUCH_PAD_W  = 22.0  # across the arc
-TOUCH_Y      = 112.0 # height on the front view where the pad centre sits
+# Height is RELATIVE to the arch now -- on the flattened crown a fixed 112 put
+# the pads out at the extreme edge of the shell instead of up on the shoulder.
+TOUCH_FRAC   = 0.55  # up the arch, 0 = springing line, 1 = apex
+TOUCH_Y      = ARCH_Y + TOUCH_FRAC * ARCH_RY
 TOUCH_DEPTH  = 38.0  # pad centre from the front face -- just behind the ToF
 TOUCH_WALL   = 1.6   # local wall thinning behind each pad, from WALL
 # ---- VL53L0X ToF, on the crown just to the right of the knob --------------
@@ -378,36 +424,30 @@ TOF_X       = W/2 + ENC_PCB/2 + 1.5 + TOF_PCB_W/2   # clears the encoder board
 TOF_Y       = ENC_Y  # same front-offset as the knob, so it sits alongside
 
 # ---- rear-wall features (see the REAR view; y up from the bottom) ---------
-# The rear face is the same "D" as the front -- the body is an extrusion -- so
-# the rear view is a true flat face. Everything on it is CENTRED in width.
-# The rear wall is CROWDED: the UPS stands up the middle to y=97 and the Flex
-# board covers the middle from y=102 up. The light pipe has to thread the band
-# between them, which is only about 5 mm tall -- hence the small pipe. It stays
-# centred in WIDTH as asked; the BH1750 itself sits in front of the UPS (there
-# is 31 mm of free depth there) with a short pipe up to the wall.
+# >>> THE UPS AND THE FLEX NO LONGER STACK. The flattened crown took the
+# >>> interior height down to 157.5, and 93 (UPS) + 70 (Flex) is 163. They sit
+# >>> SIDE BY SIDE instead -- 60 + 110 = 170 in a 197 wide wall, which is the
+# >>> one axis that got roomier when the array came off the flanks.
 #
-# >>> IF THIS BAND GETS ANY TIGHTER, move the lux to the crown. It is the one
-# >>> rear feature with nowhere else to go on this wall.
-LP_D, LP_Y      = 3.0, 99.5         # BH1750 light pipe ("lux"), centred
-# The Waveshare UPS 3S charges through a DC-005 BARREL JACK, not USB-C. Height
-# is set by where the jack lands on the UPS board -- confirm on the as-built.
-BARREL_D        = 11.0              # (?) clearance for the DC-005 jack body
-BARREL_Y        = 14.0              # (?) jack centre height, centred in width
-# Vents: TWO STACKS FLANKING the UPS, not one centred stack. A centred stack
-# would sit directly behind the Flex board, which both blocks the slots and
-# bakes the board. Out on the flanks they are clear of the Flex envelope AND of
-# the UPS, and they sit right above the amp -- which is where the heat is.
+# That moves the UPS off centre, and its barrel jack with it. So the jack is now
+# a PANEL-MOUNT part wired to the UPS input on a short lead, rather than the
+# board's own connector poking through. It costs one flying lead and keeps the
+# jack centred as intended -- and it decouples the jack from wherever the UPS
+# ends up, which has now moved twice.
+LP_D, LP_Y      = 4.0, 120.0        # BH1750 light pipe ("lux"), centred, above
+                                    #   both boards now that the middle is free
+BARREL_D        = 11.0              # (?) clearance for a panel-mount DC-005
+BARREL_Y        = 95.0              # jack centre height, centred in width.
+                                    #   HIGH, because the two boards now fill
+                                    #   the wall wall-to-wall below y=76
+# Vents: TWO STACKS, high on the rear wall above both boards. Everything below
+# is now occupied wall-to-wall, so the free band is up in the arch.
 VENT_W, VENT_HH = 30.0, 2.5         # rear vent slots
 VENT_N, VENT_P  = 4, 7.0            # count, pitch, per stack
-VENT_Y          = 62.0              # bottom slot
-VENT_X_OFF      = 75.0              # stack centre, either side of W/2
+VENT_Y          = 100.0             # bottom slot
+VENT_X_OFF      = 48.0              # stack centre, either side of W/2
 
 # ---- internals shown for reference ----------------------------------------
-# 3S pack, cells STANDING (18.5 dia x 65 long, 3 in a row). Lying flat the pack
-# is 65 x 57 in plan, which collides with both speakers AND the matrix tray in
-# a 179 x 59 floor -- see note (c). Standing, it tucks against the rear wall.
-UPS_W, UPS_D, UPS_H = 57.0, 20.0, 65.0   # (?) 3x 18650 upright + holder
-UPS_BACK            = 3.0                # gap from the interior rear wall
 FOOT_D, FOOT_IN     = 12.0, 16.0         # rubber feet
 SPK_BODY_D          = 22.0               # (?) speaker can depth
 
@@ -448,16 +488,20 @@ LUG_H       = 9.0                    # thickness, above the bottom plate face
 # middle. It does not need any -- the plate's front edge is captured between
 # the seating ledge and the front module's bottom edge.
 _LX = WALL + LUG_L/2
+# Both rear lugs are LEFT of centre: the UPS stands on the floor from x=120 to
+# x=180, so the rear-right corner is spoken for. The plate is still carried at
+# six points round the perimeter, just not symmetrically.
 SCREWS = [(_LX,     36.0), (W - _LX,     36.0),   # side walls, behind the speakers
           (_LX,     54.0), (W - _LX,     54.0),   # side walls, rear
-          (55.0,  D - WALL - LUG_L/2),            # rear wall, outboard of the UPS
-          (W - 55.0, D - WALL - LUG_L/2)]
+          (55.0,  D - WALL - LUG_L/2),            # rear wall, left
+          (105.0, D - WALL - LUG_L/2)]            # rear wall, between Flex + UPS
 
 # ---- what goes where inside --------------------------------------------------
 # Waveshare UPS Module 3S: a 60 x 93 board with the three 18650 holders on it,
 # charged from a 12.6 V 2 A barrel jack. 93 mm will NOT lie down in a 59 mm
-# interior, so the whole board STANDS VERTICALLY against the rear wall -- which
-# also puts its barrel jack on the wall that has the cutout.
+# interior, so the whole board STANDS VERTICALLY against the rear wall -- but it
+# no longer stands in the MIDDLE of it. See the rear-wall note: it shares the
+# wall with the Flex, side by side, and the jack became a panel-mount part.
 UPS_W, UPS_D, UPS_H = 60.0, 24.0, 93.0   # 60x93 board; 24 deep = board + cells (?)
 UPS_BACK            = 0.0                # stands hard against the rear wall
 
@@ -467,8 +511,9 @@ UPS_BACK            = 0.0                # stands hard against the rear wall
 # so the assembly needs a 110 mm envelope in that direction. Mounted with the
 # 52 mm dimension HORIZONTAL: 110 wide (with overhangs) x 70 tall x 20 deep.
 #
-# It mounts VERTICALLY on the inside of the REAR WALL, above the UPS: that face
-# is reachable the moment the front module is out, and it keeps the floor clear.
+# It mounts VERTICALLY on the inside of the REAR WALL, BESIDE the UPS (they no
+# longer stack -- see the rear-wall note): that face is reachable the moment the
+# front module is out, and it keeps the floor clear.
 FLEX_PCB_W = 52.0    # bare board, short edge (horizontal as mounted)
 FLEX_PCB_H = 70.0    # bare board, long edge  (vertical as mounted)
 FLEX_W     = 110.0   # envelope incl. the jack + ribbon overhangs
@@ -483,17 +528,29 @@ FLEX_HOLE_PY   = 60.0 + FLEX_HOLE_D          # 63.0 centre pitch, along the 70
 FLEX_HOLE_EDGE = 2.0 + FLEX_HOLE_D / 2       # 3.5 board edge -> hole centre
 FLEX_BOSS_D    = 7.0                         # standoff boss on the rear wall
 FLEX_STANDOFF  = 3.0                         # clears the solder side
-# Bottom edge, above the UPS. The rear wall curves in above the springing line,
-# so the 110 mm envelope has to fit the ARC at the TOP edge -- checked in
-# flex_wall_fit() and in the clearance table.
-FLEX_WALL_Y            = 102.0
+# Both boards now sit low on the wall, side by side, with the free band ABOVE
+# them for the lux pipe and the vents. The rear wall curves in above the
+# springing line, so the 110 mm envelope still has to fit the ARC at the Flex's
+# TOP edge -- checked in flex_wall_fit() and in the clearance table.
+# Where they sit is set by the FIXING LUGS, not by taste. The UPS goes to the
+# floor, so it has to leave the right-hand lug band clear; the Flex is lifted
+# clear of lug height instead, which lets it overhang the left-hand lugs.
+UPS_WALL_X             = 150.0    # UPS centre -- right of centre, clear of the
+                                  #   right lug band at x 186.5..200.5
+FLEX_WALL_X            = 60.0     # Flex centre -- left, 5 mm off the UPS
+FLEX_WALL_Y            = 16.0     # bottom edge, ABOVE the lugs (they reach 13)
 
 # The TPA2016 mounts FLUSH on the rear wall beside the UPS. Not a side wall:
 # the sides are only vertical below the springing line, and the speaker boxes
 # own all of that. Above the springing the sides are the curved crown, which is
 # no good for a flat board.
+# The TPA2016 is on the FLOOR now, not the rear wall. Lifting the Flex clear of
+# the lugs left a 12 mm slot underneath it, and the amp is only 8 tall -- it
+# tucks in there, which is also the shortest run to both speakers. The rear wall
+# has no room left: Flex and UPS fill it wall-to-wall below y=97.
 AMP_W, AMP_D, AMP_H = 26.0, 20.0, 8.0        # (?) TPA2016 breakout
-AMP_WALL_X, AMP_WALL_Y = 43.0, 40.0          # centre on the rear wall
+AMP_X, AMP_DEPTH    = 80.0, 50.0             # floor, under the Flex
+AMP_WALL_X, AMP_WALL_Y = AMP_X, AMP_H/2      # (kept for the drawings)
 
 # ---- explode offsets (drawing only) ---------------------------------------
 EX_PLATE, EX_TRAY, EX_BOTTOM, EX_KNOB = 40.0, 18.0, 38.0, 20.0
@@ -519,7 +576,7 @@ def touch_x():
     """Where each shoulder pad lands in the FRONT view. The pad sits on the arc
     at height TOUCH_Y, so its x follows the arc, not the straight flank."""
     dy = TOUCH_Y - ARCH_Y
-    half = (ARCH_R**2 - dy**2) ** 0.5
+    half = ARCH_R * max(1.0 - (dy/ARCH_RY)**2, 0.0) ** 0.5 if dy > 0 else ARCH_R
     return [W/2 - half, W/2 + half]
 
 
@@ -529,9 +586,9 @@ def arc_width(y):
     if y <= ARCH_Y:
         return IN_W
     dy = y - ARCH_Y
-    if dy >= ARCH_R:
+    if dy >= ARCH_RY:
         return 0.0
-    return 2 * ((ARCH_R**2 - dy**2) ** 0.5 - WALL)
+    return 2 * (ARCH_R * (1.0 - (dy/ARCH_RY)**2) ** 0.5 - WALL)
 
 
 def flex_wall_fit():
@@ -545,7 +602,7 @@ def flex_wall_fit():
 def flex_holes():
     """The four M3 mounting holes, as (x, y) on the rear wall, centred in
     width. Pitch 45 x 63 from the measured 42 x 60 inside-edge spacing."""
-    return [(W/2 + sx * FLEX_HOLE_PX/2,
+    return [(FLEX_WALL_X + sx * FLEX_HOLE_PX/2,
              FLEX_WALL_Y + FLEX_H/2 + sy * FLEX_HOLE_PY/2)
             for sx in (-1, 1) for sy in (-1, 1)]
 
@@ -570,8 +627,10 @@ def floor_items():
         ("speaker R",  W - SPK_X - SPK_BODY_W/2, W - SPK_X + SPK_BODY_W/2,
          FP_T, FP_T + SPK_BODY_D),
         ("matrix tray", W/2 - TRAY_W/2, W/2 + TRAY_W/2, FP_T, FP_T + TRAY_D),
-        ("UPS 3S (upright)", W/2 - UPS_W/2, W/2 + UPS_W/2,
+        ("UPS 3S (upright)", UPS_WALL_X - UPS_W/2, UPS_WALL_X + UPS_W/2,
          D - WALL - UPS_D, D - WALL),
+        ("TPA2016 (floor)", AMP_X - AMP_W/2, AMP_X + AMP_W/2,
+         AMP_DEPTH - AMP_D/2, AMP_DEPTH + AMP_D/2),
     ]
 
 
@@ -612,13 +671,14 @@ def fy(y):
 
 
 def d_profile(inset, rb):
-    """The 'D' on its long flat side: flat bottom, straight sides, semicircular
-    top of radius ARCH_R - inset, all offset `inset` inward from the envelope."""
+    """The 'D' on its long flat side: flat bottom, straight sides, and a
+    FLATTENED half-ellipse on top (semi-axes ARCH_R x ARCH_RY, both inset).
+    Not a semicircle -- see CROWN_K."""
     x0, x1 = inset, W - inset
     yb, ys = fy(inset), fy(ARCH_Y)
-    r = ARCH_R - inset
+    a, b = ARCH_R - inset, ARCH_RY - inset
     return (f"M{n(x0)},{n(yb-rb)} V{n(ys)} "
-            f"A{n(r)},{n(r)} 0 0 1 {n(x1)},{n(ys)} "
+            f"A{n(a)},{n(b)} 0 0 1 {n(x1)},{n(ys)} "
             f"V{n(yb-rb)} A{n(rb)},{n(rb)} 0 0 1 {n(x1-rb)},{n(yb)} "
             f"H{n(x0+rb)} A{n(rb)},{n(rb)} 0 0 1 {n(x0)},{n(yb-rb)} Z")
 
@@ -654,13 +714,11 @@ def knob_bore(cx, base_y):
 # LED_D/2 clear of the chord. Without this inset the bottom row and the apex
 # pixel both overhang the box by LED_D/2.
 def crescent_row_ys(n_rows=None):
-    """LED-row CENTRE heights above the baseline, at the FIXED LED_ROW_PITCH.
+    """LED-row CENTRE heights above the baseline, at the solved LED_ROW_PITCH.
 
-    Rows stack up from the baseline at a real spacing instead of being stretched
-    to land exactly on the apex. The row count therefore falls out of the
-    radius, and LED_R was solved so that count carries 48 px at a decent fill.
-    """
-    y0, apex = LED_D / 2, LED_R - LED_D / 2
+    The crown is a flattened ellipse now, so the usable height is LED_RY, not a
+    radius, and the pitch was solved to get CRES_PX onto it with slack."""
+    y0, apex = LED_D / 2, LED_RY - LED_D / 2
     ys, y = [], y0
     while y <= apex + 1e-9:
         ys.append(y)
@@ -672,43 +730,40 @@ def crescent_row_ys(n_rows=None):
     return ys
 
 
-def _crescent_row_cap(y, apex=False):
+def _crescent_row_cap(y):
     """Most pixels that fit in the row at height y, keeping the outer pixel
-    LED_D/2 clear of the arc (so the whole body stays inside the box)."""
-    usable = 2 * (max(LED_R**2 - y**2, 0.0) ** 0.5 - LED_D / 2)
+    LED_D/2 clear of the ellipse (so the whole body stays inside the box)."""
+    usable = 2 * (ell_half_chord(y, LED_R, LED_RY) - LED_D / 2)
     return max(int(usable // LED_PITCH) + 1, 1)
 
 
 def crescent_rows():
-    """Lay exactly CRES_PX pixels onto the derived crescent radius.
+    """Lay exactly CRES_PX pixels onto the crescent ellipse.
 
-    Both spacings are now fixed -- LED_PITCH along a row, LED_ROW_PITCH between
-    rows -- so the row count falls out of LED_R and the only free variable left
-    is how many pixels go in each row.
+    Both spacings are fixed -- LED_PITCH along a row, LED_ROW_PITCH between rows
+    -- so the row count falls out of LED_RY and the only free variable left is
+    how many pixels go in each row.
 
     ALLOCATION IS CONSTANT-MARGIN, not proportional. Proportional-to-capacity
     looks reasonable in a table and bad on the part: it lets one row run out to
-    within 3 mm of the arc while its neighbours stop 18 mm short, so the lit
+    within 3 mm of the edge while its neighbours stop far short, so the lit
     field bulges. Instead, solve for the single end margin M that spends exactly
-    CRES_PX pixels when every row is filled out to M from the arc. The outer
+    CRES_PX pixels when every row is filled out to M from the edge. The outer
     pixels then trace a curve concentric with the crescent, which is what makes
     it read as a crescent rather than a stack of rows.
 
-    Returns (chord_width, count, strip_run) per row, bottom-first. chord_width
-    is the true geometric chord at the (inset) row centre, so crescent_leds()
-    recovers the same row height from it.
+    Returns (chord_width, count, strip_run) per row, bottom-first.
     """
     ys = crescent_row_ys()
     n_rows = len(ys)
     cap = [_crescent_row_cap(y) for y in ys]
-    chord = [2 * max(LED_R**2 - y**2, 0.0) ** 0.5 for y in ys]
+    chord = [2 * ell_half_chord(y, LED_R, LED_RY) for y in ys]
 
     def at_margin(m):
         return [min(max(int((c - 2*m) // LED_PITCH) + 1, 0), k)
                 for c, k in zip(chord, cap)]
 
-    # bisect the margin: bigger M -> fewer pixels, monotonically
-    lo, hi = 0.0, LED_R
+    lo, hi = 0.0, LED_R              # bisect: bigger M -> fewer pixels
     for _ in range(60):
         mid = (lo + hi) / 2
         if sum(at_margin(mid)) > CRES_PX:
@@ -717,9 +772,7 @@ def crescent_rows():
             hi = mid
     cnt = at_margin(hi)
 
-    # the margin lands between integers, so a few pixels are usually left over.
-    # Spend them on whichever row currently reaches least far out.
-    short = CRES_PX - sum(cnt)
+    short = CRES_PX - sum(cnt)       # spend the remainder on the shortest rows
     while short > 0:
         cand = [i for i in range(n_rows) if cnt[i] < cap[i]]
         if not cand:
@@ -727,11 +780,8 @@ def crescent_rows():
         i = max(cand, key=lambda j: chord[j] - cnt[j] * LED_PITCH)
         cnt[i] += 1
         short -= 1
-    rows = []
-    for i in range(n_rows):
-        chord = 2 * max(LED_R**2 - ys[i]**2, 0.0) ** 0.5
-        rows.append((chord, cnt[i], max(cnt[i] - 1, 0) * LED_PITCH))
-    return rows
+    return [(chord[i], cnt[i], max(cnt[i] - 1, 0) * LED_PITCH)
+            for i in range(n_rows)]
 
 
 def crescent_px():
@@ -741,11 +791,10 @@ def crescent_px():
 def crescent_leds():
     """The LED positions, laid out on the crescent (indicative)."""
     o = []
-    for w, k, run in crescent_rows():
-        ry = (LED_R**2 - (w/2)**2) ** 0.5
+    for (w, k, run), y in zip(crescent_rows(), crescent_row_ys()):
         for i in range(k):
             x = W/2 - run/2 + i * LED_PITCH if k > 1 else W/2
-            o.append(circ(x, fy(CRES_Y + ry), LED_D, "led"))
+            o.append(circ(x, fy(CRES_Y + y), LED_D, "led"))
     return o
 
 
@@ -765,12 +814,11 @@ def vent_x():
 def rear_wall_items():
     """Everything competing for the REAR WALL, as (name, x0, x1, y0, y1).
     Two features clear each other if they clear in EITHER axis."""
-    o = [("UPS 3S",   W/2 - UPS_W/2,  W/2 + UPS_W/2,  FLOOR_Y, FLOOR_Y + UPS_H),
-         ("Flex",     W/2 - FLEX_W/2, W/2 + FLEX_W/2,
+    o = [("UPS 3S",   UPS_WALL_X - UPS_W/2,  UPS_WALL_X + UPS_W/2,
+          FLOOR_Y, FLOOR_Y + UPS_H),
+         ("Flex",     FLEX_WALL_X - FLEX_W/2, FLEX_WALL_X + FLEX_W/2,
           FLEX_WALL_Y, FLEX_WALL_Y + FLEX_H),
          ("lux pipe", W/2 - LP_D/2,   W/2 + LP_D/2,   LP_Y - LP_D/2, LP_Y + LP_D/2),
-         ("amp",      AMP_WALL_X - AMP_W/2, AMP_WALL_X + AMP_W/2,
-          AMP_WALL_Y - AMP_D/2, AMP_WALL_Y + AMP_D/2),
          ("barrel jack", W/2 - BARREL_D/2, W/2 + BARREL_D/2,
           BARREL_Y - BARREL_D/2, BARREL_Y + BARREL_D/2)]
     for k, vx in enumerate(vent_x()):
@@ -788,7 +836,7 @@ def rear_wall_clearances():
         for j in range(i + 1, len(items)):
             a, b = items[i], items[j]
             if {a[0], b[0]} == {"UPS 3S", "barrel jack"}:
-                continue
+                continue          # (historical: the jack was ON the UPS board)
             gap = max(gap_1d(a[1], a[2], b[1], b[2]),
                       gap_1d(a[3], a[4], b[3], b[4]))
             out.append((f"{a[0]} <-> {b[0]}", gap))

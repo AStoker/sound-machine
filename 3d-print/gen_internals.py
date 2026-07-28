@@ -31,8 +31,10 @@ SHEET_W, SHEET_H = 1189.0, 690.0
 MARGIN = 15.0
 
 FM_Z0 = LIP_T                      # front module front face, behind the lip
-DIFF_R = CRES_R + DIFF_MARGIN      # diffuser pocket radius
-CAV_R = DIFF_R + CAV_WALL          # diffusion cavity outer wall
+DIFF_R  = CRES_R + DIFF_MARGIN      # diffuser pocket, horizontal semi-axis
+DIFF_RY = CRES_RY + DIFF_MARGIN     #    "        "     vertical
+CAV_R   = DIFF_R + CAV_WALL         # diffusion cavity outer wall
+CAV_RY  = DIFF_RY + CAV_WALL
 
 
 # ------------------------------------------------- front module, from behind
@@ -42,9 +44,9 @@ def fm_profile():
     inset, rb = REVEAL, R_BOT - REVEAL
     x0, x1 = inset, W - inset
     yb, ys = fy(BP_T), fy(ARCH_Y)
-    r = ARCH_R - inset
+    a, b = ARCH_R - inset, ARCH_RY - inset
     return (f"M{n(x0)},{n(yb)} V{n(ys)} "
-            f"A{n(r)},{n(r)} 0 0 1 {n(x1)},{n(ys)} "
+            f"A{n(a)},{n(b)} 0 0 1 {n(x1)},{n(ys)} "
             f"V{n(yb)} Z")
 
 
@@ -52,9 +54,8 @@ def fm_rear():
     o = [path(fm_profile(), "obj")]
     # band that runs in the dome groove
     o.append(path(fm_profile(), "phan"))
-    o.append(semi(W/2, fy(CRES_Y), DIFF_R, "obj"))        # diffuser pocket
-    o.append(semi(W/2, fy(CRES_Y), CAV_R, "obj"))         # cavity outer wall
-    o.append(semi(W/2, fy(CRES_Y), LED_R, "hid"))         # LED field arc (< diffuser)
+    o.append(semi_e(W/2, fy(CRES_Y), DIFF_R, DIFF_RY, "obj"))   # diffuser pocket
+    o.append(semi_e(W/2, fy(CRES_Y), CAV_R, CAV_RY, "obj"))     # cavity wall
     # the two matrices, the open aperture behind them, and the retention that
     # holds them: each board located by its OWN posts (they are only loosely
     # soldered to each other), the pair clamped by clips on all four sides
@@ -103,13 +104,13 @@ def fm_dims():
     o.append(dim_h(0, W, H + 26, dt(W - 2*REVEAL), ext=H))
     o.append(dim_v(fy(H - REVEAL), fy(BP_T), -22,
                    dt(H - REVEAL - BP_T), ext=W/2 - 30))
-    o.append(leader(W/2 - DIFF_R*0.72, fy(CRES_Y + DIFF_R*0.69), -18, -14,
-                    f"diffuser pocket R{dt(DIFF_R)} x {dt(DIFF_REBATE)} deep", "end"))
-    o.append(leader(W/2 - CAV_R*0.42, fy(CRES_Y + CAV_R*0.9), -14, -26,
-                    f"cavity wall {dt(CAV_WALL)}, R{dt(CAV_R)}", "end"))
-    o.append(leader(W/2 + LED_R*0.6, fy(CRES_Y + LED_R*0.79), 44, -18,
-                    f"SK6812 strip seats at R{dt(LED_R)} - {dt(CRES_FADE)} inside "
-                    f"the R{dt(CRES_R)} diffuser, so the glow fades out"))
+    o.append(leader(W/2 - DIFF_R*0.72, fy(CRES_Y + DIFF_RY*0.69), -18, -14,
+                    f"diffuser pocket {dt(DIFF_R)}x{dt(DIFF_RY)} x {dt(DIFF_REBATE)} deep", "end"))
+    o.append(leader(W/2 - CAV_R*0.42, fy(CRES_Y + CAV_RY*0.9), -14, -26,
+                    f"cavity wall {dt(CAV_WALL)}", "end"))
+    o.append(leader(W/2 + LED_R*0.6, fy(CRES_Y + LED_RY*0.62), 44, -18,
+                    f"{CRES_PX} px on a {dt(LED_ROW_PITCH)} row pitch, 6 rows - "
+                    f"the strip fills the diffuser, no fade band"))
     o.append(leader(W/2 - TRAY_W/4, fy(TRAY_Y0), -26, 42,
                     f"2x matrix - {2*MTX_N} posts + 6 clips, see note h", "end"))
     o.append(leader(W - SPK_X + (SPK_BODY_W/2+SPK_SEAT_W)*0.71,
@@ -143,7 +144,7 @@ def sec_front_module():
     z = FM_Z0
     o.append(rect(z, fy(H - REVEAL), FP_T, H - REVEAL - BP_T, "obj"))   # facade
     # crescent: acrylic, air gap, LED strip, cavity back wall
-    cy0, cy1 = fy(CRES_Y + CRES_R), fy(CRES_Y)
+    cy0, cy1 = fy(CRES_Y + CRES_RY), fy(CRES_Y)
     o.append(rect(z + FP_T, cy0, DIFF_T, cy1 - cy0, "obj"))             # acrylic
     o.append(rect(z + FP_T + DIFF_REBATE + DIFF_GAP, cy0, LED_STRIP_T,
                   cy1 - cy0, "hid"))                                     # LED strip
@@ -178,11 +179,11 @@ def sec_internals():
 
 def sec_dims():
     o = [dim_h(0, D, -20, ext=0), dim_v(0, H, D + 22, ext=D)]
-    o.append(dim_h(FM_Z0, FM_Z0 + FM_DEPTH, fy(CRES_Y + CRES_R) - 8,
-                   f"{dt(FM_DEPTH)} front module", ext=fy(CRES_Y + CRES_R)))
+    o.append(dim_h(FM_Z0, FM_Z0 + FM_DEPTH, fy(CRES_Y + CRES_RY) - 8,
+                   f"{dt(FM_DEPTH)} front module", ext=fy(CRES_Y + CRES_RY)))
     o.append(dim_h(FM_Z0 + FP_T + DIFF_REBATE, FM_Z0 + FP_T + DIFF_REBATE + DIFF_GAP,
-                   fy(CRES_Y + CRES_R*0.55), f"{dt(DIFF_GAP)} air", ext=None))
-    o.append(leader(FM_Z0 + FM_DEPTH, fy(CRES_Y + CRES_R*0.3), 30, -20,
+                   fy(CRES_Y + CRES_RY*0.55), f"{dt(DIFF_GAP)} air", ext=None))
+    o.append(leader(FM_Z0 + FM_DEPTH, fy(CRES_Y + CRES_RY*0.3), 30, -20,
                     "clear of the UPS by "
                     f"{dt(D - WALL - UPS_D - FM_Z0 - FM_DEPTH)}"))
     o.append(leader(D - WALL - UPS_D, fy(BP_T + UPS_H), 26, -22,

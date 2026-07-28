@@ -38,7 +38,7 @@ from enclosure_geom import (
     DIFF_GAP, DIFF_MARGIN, DIFF_REBATE, DIFF_T, FP_T, H, LED_R, MIC_CHAN_D,
     MIC_GASKET, MIC_PCB_H, MIC_PCB_W, MIC_PORT_D, MIC_Y, MIC_Y0, MIC_Y1,
     MTX_BOARD_H, MTX_BOARD_W, MTX_BP_T, MTX_HOLES, MTX_HOLE_D, MTX_N, MTX_PCB_T,
-    MTX_STACK_GAP,
+    MTX_STACK_GAP, ARCH_RY, CRES_RY, LED_RY, CROWN_K, SPK_POST_H, SPK_FLANK,
     BOSS_EDGE, LIP, REVEAL, RIB_W, R_BOT, SPK_BODY_H, SPK_BODY_W, SPK_GRILLE, SPK_NUB_PROJ,
     SPK_NUB_SCREW, SPK_NUB_Y, SPK_NUB_Z, SPK_POST_WALL, SPK_RING_W, SPK_SEAT_W,
     SPK_FIT, SPK_X, SPK_Y, SPK_Y0, SPK_Y1, TRAY_D, TRAY_H, TRAY_REBATE, TRAY_W, TRAY_Y0,
@@ -52,8 +52,10 @@ SEG = 96              # facets on the big arcs -- this part is 245 mm wide
 # ---------------------------------------------------------------------------
 DIFF_LIP    = 1.5     # facade left in FRONT of the acrylic (the visible rebate)
 CAV_Z       = DIFF_LIP + DIFF_REBATE + DIFF_GAP    # back face of the cavity wall
-DIFF_R      = CRES_R + DIFF_MARGIN                 # acrylic pocket radius
-CAV_R       = DIFF_R + CAV_WALL                    # cavity outer wall
+DIFF_R      = CRES_R + DIFF_MARGIN                 # acrylic pocket, across
+DIFF_RY     = CRES_RY + DIFF_MARGIN                #      "        , up
+CAV_R       = DIFF_R + CAV_WALL                    # cavity outer wall, across
+CAV_RY      = DIFF_RY + CAV_WALL                   #      "            , up
 
 # --- the clock: posts locate, clips clamp -----------------------------------
 # THE TWO MATRICES ARE ONLY LOOSELY SOLDERED TOGETHER, so the frame cannot treat
@@ -109,6 +111,11 @@ PEG_D     = 2.5       # alignment pegs on the lap face
 PEG_H     = 1.5
 PEG_Y     = [15.0, 30.0, 56.0, 169.0]   # where the seam has material both sides
 _L0, _L1  = SPLIT_X - LAP_W / 2, SPLIT_X + LAP_W / 2
+# SPLIT ONLY IF IT HAS TO. Rotating the speakers and lifting the mic array took
+# the module to 194.8 x 152.4, which fits a 220 bed whole -- so the seam is off.
+# It stays in the code because the seam location was hard-won, and any change
+# that pushes the part back over the bed turns it on again automatically.
+NEEDS_SPLIT = max(W - 2*REVEAL, H - REVEAL - BP_T) > BED
 
 _out = []
 
@@ -138,14 +145,16 @@ def disc2(cx, cy, r):
     return CrossSection.circle(r, SEG).translate((cx, cy))
 
 
-def half_disc(cx, cy, r, skirt=0.0):
-    """Upper half of a circle -- the crescent shape, flat side DOWN at cy.
-    `skirt` extends the flat side downward, which is how the cavity wall gets
-    a bottom to close against."""
+def half_disc(cx, cy, r, skirt=0.0, ry=None):
+    """Upper half of an ELLIPSE -- the crescent shape, flat side DOWN at cy.
+    The crown is flattened (CROWN_K), so `r` is the horizontal semi-axis and
+    `ry` the vertical. `skirt` extends the flat side downward, which is how the
+    cavity wall gets a bottom to close against."""
+    ry = r if ry is None else ry
     pts = [(cx + r, cy)]
     for i in range(1, SEG):
         t = math.pi * i / SEG
-        pts.append((cx + r * math.cos(t), cy + r * math.sin(t)))
+        pts.append((cx + r * math.cos(t), cy + ry * math.sin(t)))
     pts.append((cx - r, cy))
     if skirt > 0:
         pts += [(cx - r, cy - skirt), (cx + r, cy - skirt)]
@@ -158,7 +167,7 @@ def outline2():
     a flat bottom that lands on the bottom plate."""
     x0, x1 = REVEAL, W - REVEAL
     yb, ys = BP_T, ARCH_Y
-    r = ARCH_R - REVEAL
+    r, rry = ARCH_R - REVEAL, ARCH_RY - REVEAL
     rb = max(R_BOT - REVEAL, 0.8)          # bottom corners
     pts = [(x0 + rb, yb)]
     for i in range(9):                     # bottom-right corner
@@ -167,7 +176,7 @@ def outline2():
     pts.append((x1, ys))
     for i in range(1, SEG):                # the arc
         t = math.pi * i / SEG
-        pts.append((W / 2 + r * math.cos(t), ys + r * math.sin(t)))
+        pts.append((W / 2 + r * math.cos(t), ys + rry * math.sin(t)))
     pts.append((x0, ys))
     for i in range(9):                     # bottom-left corner
         t = math.pi + (math.pi / 2) * i / 8
@@ -200,13 +209,217 @@ body = slab(outline2(), 0.0, FP_T)
 # The cavity wall stands proud of the back face; the acrylic pocket and the air
 # gap are one bore through it, open at the back so the acrylic and then the LED
 # carrier go in from behind.
-cav_wall = (half_disc(W / 2, CRES_Y, CAV_R, skirt=CAV_WALL)
-            - half_disc(W / 2, CRES_Y, DIFF_R))
+cav_wall = (half_disc(W / 2, CRES_Y, CAV_R, skirt=CAV_WALL, ry=CAV_RY)
+            - half_disc(W / 2, CRES_Y, DIFF_R, ry=DIFF_RY))
 body = body + slab(cav_wall, 0.0, CAV_Z)
 
 cuts = []
-cuts.append(slab(half_disc(W / 2, CRES_Y, DIFF_R), DIFF_LIP, CAV_Z + 1))
-cuts.append(slab(half_disc(W / 2, CRES_Y, CRES_R), -1.0, DIFF_LIP))
+cuts.append(slab(half_disc(W / 2, CRES_Y, DIFF_R, ry=DIFF_RY), DIFF_LIP, CAV_Z + 1))
+cuts.append(slab(half_disc(W / 2, CRES_Y, CRES_R, ry=CRES_RY), -1.0, DIFF_LIP))
+
+# --- clock: ONE open aperture, no per-pixel holes ---------------------------
+# The matrices seat on the BACK FACE, not in a pocket. A pocket would locate the
+# PAIR; the two boards are only loosely soldered to each other, so each one is
+# located by its OWN posts instead and the pair is clamped by clips all round.
+cuts.append(slab(rect2(W / 2 - CLK_W / 2, CLK_Y - CLK_H / 2, CLK_W, CLK_H),
+                 -1.0, FP_T + 1.0))
+MTX_X0 = W / 2 - TRAY_W / 2                # left edge of the butted pair
+MTX_Z0 = FP_T + MTX_STANDOFF               # matrix front face
+MTX_ZB = MTX_Z0 + MTX_PCB_T                # matrix back face -- clips hook here
+BP_Z0  = MTX_ZB + MTX_STACK_GAP            # backpack front
+BP_ZB  = BP_Z0 + MTX_BP_T                  # backpack back
+
+# --- speakers ---------------------------------------------------------------
+for sx in (SPK_X, W - SPK_X):
+    cuts.append(cyl(sx, SPK_Y, -1.0, FP_T + 1, SPK_GRILLE))
+
+# --- mic array --------------------------------------------------------------
+mic_ch_w = MIC_PCB_W + 2 * MIC_FIT
+mic_ch_h = MIC_PCB_H + 2 * MIC_FIT
+MIC_Z0 = FP_T - MIC_CHAN_D
+cuts.append(slab(rect2(W / 2 - mic_ch_w / 2, MIC_Y0 - MIC_FIT,
+                       mic_ch_w, mic_ch_h), MIC_Z0, FP_T + 1))
+
+body = body - union(cuts)
+
+# ---------------------------------------------------------------------------
+# ADDITIVE FEATURES (all behind the facade, all growing upward off the bed)
+# ---------------------------------------------------------------------------
+adds = []
+
+# --- matrix locating posts + seating pads, ONE SET PER BOARD ----------------
+# Per board: two posts through its diagonal O2.0 holes, and two plain pads on
+# the other diagonal so it seats on four points and cannot rock.
+mtx_posts, mtx_pads = [], []
+for b in range(MTX_N):
+    bx = MTX_X0 + b * MTX_BOARD_W
+    for hx, hy in MTX_HOLES:
+        px, py = bx + hx, TRAY_Y0 + hy
+        mtx_posts.append((px, py))
+        adds.append(cyl(px, py, FP_T, MTX_Z0 + MTX_PCB_T + 0.1, MTX_POST_D))
+        adds.append(Manifold.cylinder(MTX_POST_TIP, MTX_POST_D / 2,
+                                      MTX_POST_D * 0.2, SEG)
+                    .translate((px, py, MTX_Z0 + MTX_PCB_T + 0.1)))
+    # Pads go in the board's TOP and BOTTOM margins at mid-width, NOT on the
+    # free corners: the corners are inside the LED field's bounding box, and a
+    # pad there lands on the outermost LEDs. Only the strips above the top row
+    # and below the bottom row are genuinely clear.
+    for hy in (MTX_PAD_EDGE, MTX_BOARD_H - MTX_PAD_EDGE):
+        px, py = bx + MTX_BOARD_W / 2, TRAY_Y0 + hy
+        mtx_pads.append((px, py))
+        adds.append(cyl(px, py, FP_T, MTX_Z0, MTX_PAD_D))
+
+# --- gasket lands, then the ports straight through them ---------------------
+for mxc in mic_x():
+    adds.append(cyl(mxc, MIC_Y, MIC_Z0, MIC_Z0 + MIC_LAND_H,
+                    MIC_PORT_D + 2 * MIC_GASKET))
+# --- mic board fixing bosses ------------------------------------------------
+for sgn in (-1, 1):
+    adds.append(cyl(W / 2 + sgn * MIC_BOSS_X, MIC_Y, MIC_Z0,
+                    MIC_Z0 + MIC_CHAN_D + 2.0, MIC_BOSS_D))
+
+# --- speaker locating ribs + the nub posts ----------------------------------
+# THE SPEAKERS ARE ROTATED 90 DEG, so the nubs are TOP AND BOTTOM. That flips
+# the whole mount: the posts are now above and below the body (costing height,
+# where there is slack) and the FLANKS are bare, which is what took 46 mm out of
+# the width and let both parts print whole. Ribs go down the flanks now -- the
+# opposite of before, when the flanks were where the nubs were.
+# NO ribs on the flanks. The width chain budgets SPK_FLANK = 1.0 there -- pure
+# clearance -- and a rib would land inside the dome's rib band. It is not needed
+# anyway: two screws top and bottom fix x, y and rotation between them.
+for sx in (SPK_X, W - SPK_X):
+    # The nub lands SPK_NUB_Z behind the speaker's front face, and that face
+    # sits on the back of the facade -- so the post top is at FP_T+NUB_Z and the
+    # screw goes in FROM BEHIND, through the nub, into the post.
+    ph = SPK_NUB_PROJ + SPK_POST_WALL
+    for sgn, ybase in ((-1, SPK_Y0 - SPK_FIT - ph), (1, SPK_Y1 + SPK_FIT)):
+        adds.append(slab(rect2(sx - SPK_BODY_W * 0.30, ybase,
+                               SPK_BODY_W * 0.60, ph),
+                         FP_T, FP_T + SPK_NUB_Z))
+
+# --- stiffening -------------------------------------------------------------
+RIB_H       = 5.0     # general stiffening rib height
+RIB_T       = 2.0
+
+# --- the print seam ---------------------------------------------------------
+# The module is 250.8 wide; the target bed is 220. No rotation helps (this is a
+# D, so rotating only grows the bounding box) and the 45 deg tilt that does fit
+# would stand the facade up on supports. So it splits -- see the long note at
+# the split itself for where the seam can and cannot go.
+BED       = 220.0     # Flashforge Adventurer 5M Pro
+SPLIT_X   = 73.8      # seam, centred in the one usable corridor
+LAP_W     = 5.0       # tongue length -- sized to fit that corridor, not chosen
+LAP_Z     = FP_T / 2  # the step: front half / back half of a 4 mm plate
+LAP_CLR   = 0.25      # clearance on every mating face
+PEG_D     = 2.5       # alignment pegs on the lap face
+PEG_H     = 1.5
+PEG_Y     = [15.0, 30.0, 56.0, 169.0]   # where the seam has material both sides
+_L0, _L1  = SPLIT_X - LAP_W / 2, SPLIT_X + LAP_W / 2
+# SPLIT ONLY IF IT HAS TO. Rotating the speakers and lifting the mic array took
+# the module to 194.8 x 152.4, which fits a 220 bed whole -- so the seam is off.
+# It stays in the code because the seam location was hard-won, and any change
+# that pushes the part back over the bed turns it on again automatically.
+NEEDS_SPLIT = max(W - 2*REVEAL, H - REVEAL - BP_T) > BED
+
+_out = []
+
+
+def say(s):
+    _out.append(s)
+    print(s)
+
+
+# ---------------------------------------------------------------------------
+# 2D helpers. Everything is built in DRAWING coordinates -- x 0..W from the
+# left, y 0..H measured UP -- so the imported constants drop straight in.
+# ---------------------------------------------------------------------------
+def poly(pts):
+    """CrossSection from a point list, forced counter-clockwise."""
+    a = 0.5 * sum(pts[i][0] * pts[(i + 1) % len(pts)][1]
+                  - pts[(i + 1) % len(pts)][0] * pts[i][1]
+                  for i in range(len(pts)))
+    return CrossSection([pts if a > 0 else pts[::-1]])
+
+
+def rect2(x0, y0, w, h):
+    return poly([(x0, y0), (x0 + w, y0), (x0 + w, y0 + h), (x0, y0 + h)])
+
+
+def disc2(cx, cy, r):
+    return CrossSection.circle(r, SEG).translate((cx, cy))
+
+
+def half_disc(cx, cy, r, skirt=0.0, ry=None):
+    """Upper half of an ELLIPSE -- the crescent shape, flat side DOWN at cy.
+    The crown is flattened (CROWN_K), so `r` is the horizontal semi-axis and
+    `ry` the vertical. `skirt` extends the flat side downward, which is how the
+    cavity wall gets a bottom to close against."""
+    ry = r if ry is None else ry
+    pts = [(cx + r, cy)]
+    for i in range(1, SEG):
+        t = math.pi * i / SEG
+        pts.append((cx + r * math.cos(t), cy + ry * math.sin(t)))
+    pts.append((cx - r, cy))
+    if skirt > 0:
+        pts += [(cx - r, cy - skirt), (cx + r, cy - skirt)]
+    return poly(pts)
+
+
+def outline2():
+    """The module outline: a 'D' on its long flat side. Straight flanks, a
+    semicircular top of radius ARCH_R-REVEAL concentric with the crescent, and
+    a flat bottom that lands on the bottom plate."""
+    x0, x1 = REVEAL, W - REVEAL
+    yb, ys = BP_T, ARCH_Y
+    r, rry = ARCH_R - REVEAL, ARCH_RY - REVEAL
+    rb = max(R_BOT - REVEAL, 0.8)          # bottom corners
+    pts = [(x0 + rb, yb)]
+    for i in range(9):                     # bottom-right corner
+        t = -math.pi / 2 + (math.pi / 2) * i / 8
+        pts.append((x1 - rb + rb * math.cos(t), yb + rb + rb * math.sin(t)))
+    pts.append((x1, ys))
+    for i in range(1, SEG):                # the arc
+        t = math.pi * i / SEG
+        pts.append((W / 2 + r * math.cos(t), ys + rry * math.sin(t)))
+    pts.append((x0, ys))
+    for i in range(9):                     # bottom-left corner
+        t = math.pi + (math.pi / 2) * i / 8
+        pts.append((x0 + rb + rb * math.cos(t), yb + rb + rb * math.sin(t)))
+    return poly(pts)
+
+
+def slab(cs, z0, z1):
+    return cs.extrude(z1 - z0).translate((0, 0, z0))
+
+
+def cyl(cx, cy, z0, z1, d):
+    return (Manifold.cylinder(z1 - z0, d / 2, d / 2, SEG)
+            .translate((cx, cy, z0)))
+
+
+def union(parts):
+    out = Manifold()
+    for p in parts:
+        out = out + p
+    return out
+
+
+# ---------------------------------------------------------------------------
+# BODY
+# ---------------------------------------------------------------------------
+body = slab(outline2(), 0.0, FP_T)
+
+# --- crescent ---------------------------------------------------------------
+# The cavity wall stands proud of the back face; the acrylic pocket and the air
+# gap are one bore through it, open at the back so the acrylic and then the LED
+# carrier go in from behind.
+cav_wall = (half_disc(W / 2, CRES_Y, CAV_R, skirt=CAV_WALL, ry=CAV_RY)
+            - half_disc(W / 2, CRES_Y, DIFF_R, ry=DIFF_RY))
+body = body + slab(cav_wall, 0.0, CAV_Z)
+
+cuts = []
+cuts.append(slab(half_disc(W / 2, CRES_Y, DIFF_R, ry=DIFF_RY), DIFF_LIP, CAV_Z + 1))
+cuts.append(slab(half_disc(W / 2, CRES_Y, CRES_R, ry=CRES_RY), -1.0, DIFF_LIP))
 
 # --- clock: ONE open aperture, no per-pixel holes ---------------------------
 # The matrices seat on the BACK FACE, not in a pocket. A pocket would locate the
@@ -302,10 +515,13 @@ for sx in (SPK_X, W - SPK_X):
 #     It stops BOSS_EDGE short of the outline at each end -- it is a boss on the
 #     back face, so it has to clear the dome's retaining rib like everything
 #     else. An earlier version ran it edge to edge and jammed the joint.
-SPINE_Y0 = SPK_Y1 + SPK_FIT
-SPINE_Y1 = CRES_Y - CAV_WALL - 2.0
-adds.append(slab(rect2(REVEAL + BOSS_EDGE, SPINE_Y0,
-                       W - 2 * (REVEAL + BOSS_EDGE), SPINE_Y1 - SPINE_Y0),
+# It sits BETWEEN the matrix top and the speaker tops, spanning the middle only
+# -- the mic channel now occupies the band that used to be free above the
+# speakers, and the speakers themselves own the outer thirds.
+SPINE_Y0 = TRAY_Y1 + CLIP_GAP + CLIP_T + 1.0
+SPINE_Y1 = SPK_Y1 - 1.0
+SPINE_X0 = SPK_X + SPK_BODY_W/2 + SPK_FIT + 1.0
+adds.append(slab(rect2(SPINE_X0, SPINE_Y0, W - 2*SPINE_X0, SPINE_Y1 - SPINE_Y0),
                  FP_T, FP_T + RIB_H))
 #  2. Short ribs INBOARD from each speaker towards the clock. Outboard there is
 #     no room -- an earlier version ran them out past the module edge.
@@ -397,10 +613,9 @@ trimmed = (abs(before[0] - after[0]) + abs(before[3] - after[3])
 # ---------------------------------------------------------------------------
 pilots = []
 for sx in (SPK_X, W - SPK_X):
-    for sgn in (-1, 1):
-        px = sx + sgn * (SPK_BODY_W / 2 + SPK_FIT
-                         + (SPK_NUB_PROJ + SPK_POST_WALL) / 2)
-        pilots.append(cyl(px, SPK_NUB_Y,
+    for py in (SPK_Y0 - SPK_FIT - (SPK_NUB_PROJ + SPK_POST_WALL)/2,
+               SPK_Y1 + SPK_FIT + (SPK_NUB_PROJ + SPK_POST_WALL)/2):
+        pilots.append(cyl(sx, py,
                           FP_T + SPK_NUB_Z - SPK_PILOT_Z, FP_T + SPK_NUB_Z + 1,
                           SPK_PILOT_D))
 for sgn in (-1, 1):
@@ -445,24 +660,24 @@ def _halfspace(x0, x1, z0, z1):
     return slab(rect2(x0, -BIG / 2, x1 - x0, BIG), z0, z1)
 
 
-# left keeps everything before the lap, plus the front-layer tongue through it
-left_region = (_halfspace(-BIG, _L0, -BIG, BIG)
-               + _halfspace(_L0, _L1 - LAP_CLR, -BIG, LAP_Z - LAP_CLR))
-# right keeps everything after the lap, plus the back layer through it
-right_region = (_halfspace(_L1, BIG, -BIG, BIG)
-                + _halfspace(_L0 + LAP_CLR, _L1, LAP_Z, BIG))
-
-pegs, peg_holes = [], []
-for _py in PEG_Y:
-    pegs.append(cyl(SPLIT_X, _py, LAP_Z - LAP_CLR, LAP_Z - LAP_CLR + PEG_H, PEG_D))
-    peg_holes.append(cyl(SPLIT_X, _py, LAP_Z - 0.3,
-                         LAP_Z + PEG_H + 0.3, PEG_D + 2 * LAP_CLR))
-
-left_part = (body ^ left_region) + union(pegs)
-right_part = (body ^ right_region) - union(peg_holes)
-# a peg may land where the right piece has no material to receive it (the mic
-# channel, say) -- trim any that are not actually inside the mating face
-left_part = left_part ^ (body + union(pegs))
+if NEEDS_SPLIT:
+    # left keeps everything before the lap, plus the front-layer tongue
+    left_region = (_halfspace(-BIG, _L0, -BIG, BIG)
+                   + _halfspace(_L0, _L1 - LAP_CLR, -BIG, LAP_Z - LAP_CLR))
+    # right keeps everything after the lap, plus the back layer through it
+    right_region = (_halfspace(_L1, BIG, -BIG, BIG)
+                    + _halfspace(_L0 + LAP_CLR, _L1, LAP_Z, BIG))
+    pegs, peg_holes = [], []
+    for _py in PEG_Y:
+        pegs.append(cyl(SPLIT_X, _py, LAP_Z - LAP_CLR,
+                        LAP_Z - LAP_CLR + PEG_H, PEG_D))
+        peg_holes.append(cyl(SPLIT_X, _py, LAP_Z - 0.3,
+                             LAP_Z + PEG_H + 0.3, PEG_D + 2 * LAP_CLR))
+    left_part = (body ^ left_region) + union(pegs)
+    right_part = (body ^ right_region) - union(peg_holes)
+    left_part = left_part ^ (body + union(pegs))
+else:
+    left_part = right_part = None
 
 # ---------------------------------------------------------------------------
 # EXPORT
@@ -486,11 +701,19 @@ def write_stl(solid, name):
 
 
 body = body.translate((-REVEAL, -BP_T, 0.0))        # part origin at its corner
-left_part = left_part.translate((-REVEAL, -BP_T, 0.0))
-right_part = right_part.translate((-REVEAL, -BP_T, 0.0))
 V, F = write_stl(body, "front-module.stl")
-write_stl(left_part, "front-module-L.stl")
-write_stl(right_part, "front-module-R.stl")
+if NEEDS_SPLIT:
+    left_part = left_part.translate((-REVEAL, -BP_T, 0.0))
+    right_part = right_part.translate((-REVEAL, -BP_T, 0.0))
+    write_stl(left_part, "front-module-L.stl")
+    write_stl(right_part, "front-module-R.stl")
+    for _stale in ():
+        pass
+else:
+    for _stale in ("front-module-L.stl", "front-module-R.stl"):
+        _fp = os.path.join(base, _stale)
+        if os.path.exists(_fp):
+            os.remove(_fp)
 bb = body.bounding_box()
 say(f"wrote front-module.stl   {len(F)} triangles")
 say(f"bbox        {bb[3]-bb[0]:.2f} x {bb[4]-bb[1]:.2f} x {bb[5]-bb[2]:.2f} mm")
@@ -563,21 +786,19 @@ leds = union([cyl(x, y, 0.0, MTX_Z0, LED_BODY) for x, y in led_xy])
 clash(f"{len(led_xy)} LEDs vs facade / pads / posts", leds)
 # the opal acrylic, dropped in from behind onto the ledge
 clash("opal acrylic disc",
-      slab(half_disc(W / 2, CRES_Y, CRES_R + 0.2), DIFF_LIP,
+      slab(half_disc(W / 2, CRES_Y, CRES_R + 0.2, ry=CRES_RY + 0.2), DIFF_LIP,
            DIFF_LIP + DIFF_T))
 # the diffusion air gap -- must be clear or it is not a diffusion cavity
 clash("diffusion air gap",
-      slab(half_disc(W / 2, CRES_Y, CRES_R), DIFF_LIP + DIFF_REBATE, CAV_Z))
+      slab(half_disc(W / 2, CRES_Y, CRES_R, ry=CRES_RY), DIFF_LIP + DIFF_REBATE, CAV_Z))
 # each speaker body, plus the nubs sweeping in from behind
 for _sx in (SPK_X, W - SPK_X):
     clash(f"speaker body @ x={_sx:.1f}",
           slab(rect2(_sx - SPK_BODY_W / 2, SPK_Y0, SPK_BODY_W, SPK_BODY_H),
                FP_T, FP_T + 22.0))
-    for _sgn in (-1, 1):
-        _nx = _sx + _sgn * (SPK_BODY_W / 2)
-        clash(f"  side nub @ x={_nx:.1f}",
-              slab(rect2(min(_nx, _nx + _sgn * SPK_NUB_PROJ),
-                         SPK_NUB_Y - 4.0, SPK_NUB_PROJ, 8.0),
+    for _ny, _w in ((SPK_Y0 - SPK_NUB_PROJ, "lower"), (SPK_Y1, "upper")):
+        clash(f"  {_w} nub @ y={_ny:.1f}",
+              slab(rect2(_sx - 4.0, _ny, 8.0, SPK_NUB_PROJ),
                    FP_T + SPK_NUB_Z, FP_T + SPK_NUB_Z + 6.0))
 # the mic array board sitting in its channel, clear of the gasket lands
 clash("mic array board (above the gasket lands)",
@@ -619,17 +840,14 @@ def probe(name, x, y, z, want=True):
 
 for _sx in (SPK_X, W - SPK_X):
     side = "L" if _sx < W / 2 else "R"
-    for _sgn, flank in ((-1, "outboard" if side == "L" else "inboard"),
-                        (1, "inboard" if side == "L" else "outboard")):
-        _px = _sx + _sgn * (SPK_BODY_W / 2 + SPK_FIT
-                            + (SPK_NUB_PROJ + SPK_POST_WALL) / 2)
-        probe(f"speaker {side} {flank} post", _px, SPK_NUB_Y, FP_T + 1.0)
-    probe(f"speaker {side} bottom locating rib", _sx,
-          SPK_Y0 - SPK_FIT - SPK_RING_W / 2, FP_T + 2.0)
-    probe(f"speaker {side} top locating rib", _sx,
-          SPK_Y1 + SPK_FIT + SPK_RING_W / 2, FP_T + 2.0)
+    for _py, _w in ((SPK_Y0 - SPK_FIT - (SPK_NUB_PROJ+SPK_POST_WALL)/2, "lower"),
+                    (SPK_Y1 + SPK_FIT + (SPK_NUB_PROJ+SPK_POST_WALL)/2, "upper")):
+        probe(f"speaker {side} {_w} nub post", _sx, _py, FP_T + 1.0)
+    for _xr, _w in ((_sx - SPK_BODY_W/2 - SPK_FIT - SPK_RING_W/2, "left"),
+                    (_sx + SPK_BODY_W/2 + SPK_FIT + SPK_RING_W/2, "right")):
+        probe(f"speaker {side} {_w} locating rib", _xr, SPK_Y, FP_T + 2.0)
 probe("stiffening spine", W / 2, (SPINE_Y0 + SPINE_Y1) / 2, FP_T + 2.0)
-probe("cavity wall at the apex", W / 2, CRES_Y + DIFF_R + CAV_WALL / 2, CAV_Z - 1)
+probe("cavity wall at the apex", W / 2, CRES_Y + DIFF_RY + CAV_WALL / 2, CAV_Z - 1)
 _clip_spec = ([("end L", "x", mtx_x0, -1, (mtx_y0 + mtx_y1) / 2),
                ("end R", "x", mtx_x1, +1, (mtx_y0 + mtx_y1) / 2)]
               + [(f"bottom {i}", "y", mtx_y0, -1, cx)
@@ -666,67 +884,72 @@ probe("clock aperture is OPEN (no per-pixel holes)", W / 2, CLK_Y, 1.0,
 # THE SPLIT
 # ---------------------------------------------------------------------------
 say("")
-_lb, _rb = left_part.bounding_box(), right_part.bounding_box()
-_lw, _lh = _lb[3] - _lb[0], _lb[4] - _lb[1]
-_rw, _rh = _rb[3] - _rb[0], _rb[4] - _rb[1]
-say(f"split       seam x={SPLIT_X}, {LAP_W} lap stepped at z={LAP_Z}, "
-    f"{LAP_CLR} clearance, {len(PEG_Y)} alignment pegs")
-say(f"  front-module-L.stl  {_lw:6.2f} x {_lh:6.2f} x {_lb[5]-_lb[2]:5.2f}   "
-    f"{left_part.volume()/1000:5.1f} cm3")
-say(f"  front-module-R.stl  {_rw:6.2f} x {_rh:6.2f} x {_rb[5]-_rb[2]:5.2f}   "
-    f"{right_part.volume()/1000:5.1f} cm3")
+if not NEEDS_SPLIT:
+    say(f"split       NOT NEEDED -- {W-2*REVEAL:.1f} x {H-REVEAL-BP_T:.1f} fits "
+        f"the {BED:.0f} bed whole, {BED-(W-2*REVEAL):.1f} / "
+        f"{BED-(H-REVEAL-BP_T):.1f} mm to spare")
+else:
+    _lb, _rb = left_part.bounding_box(), right_part.bounding_box()
+    _lw, _lh = _lb[3] - _lb[0], _lb[4] - _lb[1]
+    _rw, _rh = _rb[3] - _rb[0], _rb[4] - _rb[1]
+    say(f"split       seam x={SPLIT_X}, {LAP_W} lap stepped at z={LAP_Z}, "
+        f"{LAP_CLR} clearance, {len(PEG_Y)} alignment pegs")
+    say(f"  front-module-L.stl  {_lw:6.2f} x {_lh:6.2f} x {_lb[5]-_lb[2]:5.2f}   "
+        f"{left_part.volume()/1000:5.1f} cm3")
+    say(f"  front-module-R.stl  {_rw:6.2f} x {_rh:6.2f} x {_rb[5]-_rb[2]:5.2f}   "
+        f"{right_part.volume()/1000:5.1f} cm3")
 
-# The two halves must ADD BACK UP. Re-union them (with the pegs removed from the
-# comparison, since they are new material) and the only difference from the
-# whole part should be the joint clearance -- a thin film, not a chunk.
-_rejoin = left_part + right_part
-_lost = (body - _rejoin).volume()
-_gain = (_rejoin - body).volume()
-split_checks = [
-    ("L fits the bed in x", BED - _lw),
-    ("L fits the bed in y", BED - _lh),
-    ("R fits the bed in x", BED - _rw),
-    ("R fits the bed in y", BED - _rh),
-    # Rejoined, the halves must reproduce the whole part: the only material
-    # missing is the clearance film along the seam, and NOTHING may be gained
-    # (the pegs are reassigned material, not new -- they sit inside the original
-    # plate and are matched by holes in the other half).
-    ("rejoined loses only the clearance film", 400.0 - _lost),
-    ("rejoined gains nothing", 0.01 - _gain),
-    # the seam must miss every boss, or a boss ends up in two halves
-    ("seam clear of the L speaker seat",
-     (SPLIT_X - LAP_W/2) - (SPK_X + SPK_BODY_W/2 + SPK_SEAT_W)),
-    ("seam clear of the matrix end clip",
-     (mtx_x0 - CLIP_GAP - CLIP_T) - (SPLIT_X + LAP_W/2)),
-    ("whole clock is on ONE piece", mtx_x0 - (SPLIT_X + LAP_W/2)),
-    # A boss stands on the facade. If the lap plane runs between a boss and the
-    # material it stands on, the boss ends up floating on the wrong half -- so
-    # every boss has to sit clear of the lap in x.
-    ("mic boss clear of the lap",
-     (W/2 - MIC_BOSS_X - MIC_BOSS_D/2) - (SPLIT_X + LAP_W/2)),
-]
-for _nm, _v in split_checks:
-    say(f"  {'FAIL' if _v < 0 else 'ok  '} {_v:8.2f}   {_nm}")
-bad += [c for c in split_checks if c[1] < 0]
-say(f"  (rejoin: {_lost:.1f} mm3 lost to clearance, {_gain:.1f} gained)")
-
-
-# A peg is only doing its job if the LEFT half has material there above the lap
-# plane AND the RIGHT half has a hole to receive it. Check both, per peg.
-def _in(solid, x, y, z):
-    return (solid ^ Manifold.cube((0.8, 0.8, 0.8))
-            .translate((x - 0.4, y - 0.4, z - 0.4))).volume() > 1e-6
+    # The two halves must ADD BACK UP. Re-union them (with the pegs removed from the
+    # comparison, since they are new material) and the only difference from the
+    # whole part should be the joint clearance -- a thin film, not a chunk.
+    _rejoin = left_part + right_part
+    _lost = (body - _rejoin).volume()
+    _gain = (_rejoin - body).volume()
+    split_checks = [
+        ("L fits the bed in x", BED - _lw),
+        ("L fits the bed in y", BED - _lh),
+        ("R fits the bed in x", BED - _rw),
+        ("R fits the bed in y", BED - _rh),
+        # Rejoined, the halves must reproduce the whole part: the only material
+        # missing is the clearance film along the seam, and NOTHING may be gained
+        # (the pegs are reassigned material, not new -- they sit inside the original
+        # plate and are matched by holes in the other half).
+        ("rejoined loses only the clearance film", 400.0 - _lost),
+        ("rejoined gains nothing", 0.01 - _gain),
+        # the seam must miss every boss, or a boss ends up in two halves
+        ("seam clear of the L speaker seat",
+         (SPLIT_X - LAP_W/2) - (SPK_X + SPK_BODY_W/2 + SPK_SEAT_W)),
+        ("seam clear of the matrix end clip",
+         (mtx_x0 - CLIP_GAP - CLIP_T) - (SPLIT_X + LAP_W/2)),
+        ("whole clock is on ONE piece", mtx_x0 - (SPLIT_X + LAP_W/2)),
+        # A boss stands on the facade. If the lap plane runs between a boss and the
+        # material it stands on, the boss ends up floating on the wrong half -- so
+        # every boss has to sit clear of the lap in x.
+        ("mic boss clear of the lap",
+         (W/2 - MIC_BOSS_X - MIC_BOSS_D/2) - (SPLIT_X + LAP_W/2)),
+    ]
+    for _nm, _v in split_checks:
+        say(f"  {'FAIL' if _v < 0 else 'ok  '} {_v:8.2f}   {_nm}")
+    bad += [c for c in split_checks if c[1] < 0]
+    say(f"  (rejoin: {_lost:.1f} mm3 lost to clearance, {_gain:.1f} gained)")
 
 
-for _i, _py in enumerate(PEG_Y):
-    _z = LAP_Z + PEG_H / 2
-    _pl = _in(left_part.translate((REVEAL, BP_T, 0)), SPLIT_X, _py, _z)
-    _pr = _in(right_part.translate((REVEAL, BP_T, 0)), SPLIT_X, _py, _z)
-    ok = _pl and not _pr
-    say(f"  {'FAIL' if not ok else 'ok  '}   peg {_i} @ y={_py:5.1f}   "
-        f"L={'solid' if _pl else 'empty'}  R={'empty' if not _pr else 'SOLID'}")
-    if not ok:
-        bad.append((f"peg {_i}", -1))
+    # A peg is only doing its job if the LEFT half has material there above the lap
+    # plane AND the RIGHT half has a hole to receive it. Check both, per peg.
+    def _in(solid, x, y, z):
+        return (solid ^ Manifold.cube((0.8, 0.8, 0.8))
+                .translate((x - 0.4, y - 0.4, z - 0.4))).volume() > 1e-6
+
+
+    for _i, _py in enumerate(PEG_Y):
+        _z = LAP_Z + PEG_H / 2
+        _pl = _in(left_part.translate((REVEAL, BP_T, 0)), SPLIT_X, _py, _z)
+        _pr = _in(right_part.translate((REVEAL, BP_T, 0)), SPLIT_X, _py, _z)
+        ok = _pl and not _pr
+        say(f"  {'FAIL' if not ok else 'ok  '}   peg {_i} @ y={_py:5.1f}   "
+            f"L={'solid' if _pl else 'empty'}  R={'empty' if not _pr else 'SOLID'}")
+        if not ok:
+            bad.append((f"peg {_i}", -1))
 
 # ---- checks ---------------------------------------------------------------
 say("")
@@ -750,13 +973,15 @@ checks = [
      -abs((FP_T + SPK_NUB_Z) - (FP_T + SPK_NUB_Z))),
     ("pilot stays inside the post", SPK_NUB_Z - SPK_PILOT_Z),
     ("cavity wall clear of the module edge", (ARCH_R - REVEAL) - CAV_R),
+    ("cavity wall clear of the module top", (ARCH_RY - REVEAL) - CAV_RY),
     ("part fits a 256 mm bed (x)", 256.0 - (W - 2 * REVEAL)),
     ("part fits a 256 mm bed (y)", 256.0 - (H - REVEAL - BP_T)),
     ("bbox x == the module outline", 0.01 - abs(bb[3] - bb[0] - (W - 2*REVEAL))),
     ("bbox y == the module outline", 0.01 - abs(bb[4] - bb[1] - (H - REVEAL - BP_T))),
     ("nothing trimmed by the containment guard", 0.01 - trimmed),
-    ("spine clear of the mic channel", SPINE_Y0 - (MIC_Y1 + MIC_FIT)),
-    ("spine clear of the cavity wall", (CRES_Y - CAV_WALL) - SPINE_Y1),
+    ("spine clear of the matrix clips", SPINE_Y0 - (TRAY_Y1 + CLIP_GAP + CLIP_T)),
+    ("spine clear of the speaker tops", SPK_Y1 - SPINE_Y1),
+    ("spine clear of the speakers (x)", SPINE_X0 - (SPK_X + SPK_BODY_W/2 + SPK_FIT)),
 ]
 bad += [c for c in checks if c[1] < 0]
 for nm, v in checks:
@@ -819,11 +1044,13 @@ try:
                     par[b] = a
         return len({fnd(i) for i in range(len(vv))})
 
-    for _nm, _p in (("front-module-L", left_part), ("front-module-R", right_part)):
-        _n = bodies(_p)
-        say(f"  {'FAIL' if _n != 1 else 'ok  '}  {_nm}.stl  bodies={_n}")
-        if _n != 1:
-            bad.append((f"{_nm} disconnected", -1))
+    if NEEDS_SPLIT:
+        for _nm, _p in (("front-module-L", left_part),
+                        ("front-module-R", right_part)):
+            _n = bodies(_p)
+            say(f"  {'FAIL' if _n != 1 else 'ok  '}  {_nm}.stl  bodies={_n}")
+            if _n != 1:
+                bad.append((f"{_nm} disconnected", -1))
 except Exception as e:
     say(f"validate skipped: {e}")
 

@@ -49,7 +49,7 @@ def front_plate(cutouts=True):
     o = [path(d_profile(REVEAL, R_BOT - REVEAL), "hid")]
     if not cutouts:
         return o
-    o.append(semi(W/2, fy(CRES_Y), CRES_R))                       # crescent diffuser
+    o.append(semi_e(W/2, fy(CRES_Y), CRES_R, CRES_RY))            # crescent diffuser
     o.append(rect(W/2-CLK_W/2, fy(CLK_Y+CLK_H/2), CLK_W, CLK_H, "obj", 2.0))
     for sx in (SPK_X, W-SPK_X):                                   # speaker grilles
         o.append(circ(sx, fy(SPK_Y), SPK_GRILLE))
@@ -89,17 +89,18 @@ def front_dims():
     # the concentric pair: shell arc R92 and crescent R80 share one centre
     o.append(f'<circle class="ctr" cx="{n(W/2)}" cy="{n(fy(ARCH_Y))}" r="1.6"/>')
     o.append(cl_h(W/2 - CRES_R - 14, W/2 + CRES_R + 14, fy(ARCH_Y)))
-    o.append(leader(W/2 + ARCH_R*0.707, fy(ARCH_Y + ARCH_R*0.707), 30, -44,
-                    f"R{dt(ARCH_R)} shell arc"))
-    o.append(leader(W/2 + CRES_R*0.5, fy(ARCH_Y + CRES_R*0.866), 54, -30,
-                    f"R{dt(CRES_R)} diffuser - CONCENTRIC, {dt(CRES_RIM)} rim"))
+    o.append(leader(W/2 + ARCH_R*0.707, fy(ARCH_Y + ARCH_RY*0.707), 30, -44,
+                    f"shell arch {dt(ARCH_R)} x {dt(ARCH_RY)} - FLATTENED "
+                    f"(k={CROWN_K}), not a semicircle"))
+    o.append(leader(W/2 + CRES_R*0.5, fy(ARCH_Y + CRES_RY*0.866), 54, -30,
+                    f"diffuser {dt(CRES_R)} x {dt(CRES_RY)}, {dt(CRES_RIM)} rim"))
     o.append(leader(W/2 - LED_R*0.5, fy(ARCH_Y + LED_R*0.866), -30, -44,
                     f"R{dt(LED_R)} LED field - {dt(CRES_FADE)} inside the "
                     "diffuser edge (unlit fade band)", "end"))
     # (no 2xR dimension across the baseline -- it would run straight through the
     #  bottom LED row, and R + concentric + centre height already fix the arc)
     o.append(dim_v(fy(ARCH_Y), fy(0), W + 12, dt(ARCH_Y), ext=W/2+CRES_R))
-    o.append(dim_v(fy(CRES_Y + CRES_R), fy(0), W + 24, dt(CRES_Y+CRES_R), ext=W/2))
+    o.append(dim_v(fy(CRES_Y + CRES_RY), fy(0), W + 24, dt(CRES_Y+CRES_RY), ext=W/2))
     # clock aperture + matrix pair
     o.append(dim_h(W/2-CLK_W/2, W/2+CLK_W/2, H + 10, dt(CLK_W), ext=H))
     o.append(leader(W/2+CLK_W/2, fy(CLK_Y) - CLK_H/2, 78, -56,
@@ -178,7 +179,7 @@ def top_internals():
     o = [rect(W/2-TRAY_W/2, D - FP_T - TRAY_D, TRAY_W, TRAY_D, "hid")]
     for sx in (SPK_X, W-SPK_X):
         o.append(rect(sx-SPK_BODY_W/2, FP_T, SPK_BODY_W, SPK_BODY_D, "hid"))
-    o.append(rect(W/2-UPS_W/2, WALL + UPS_BACK, UPS_W, UPS_D, "hid"))
+    o.append(rect(UPS_WALL_X-UPS_W/2, D - WALL - UPS_D, UPS_W, UPS_D, "hid"))
     o.append(rect(W/2-ENC_PCB/2, D-ENC_Y-ENC_PCB/2, ENC_PCB, ENC_PCB, "hid"))
     o.append(rect(TOF_X-TOF_PCB_W/2, D-TOF_Y-TOF_PCB_D/2, TOF_PCB_W, TOF_PCB_D, "hid"))
     return o
@@ -210,7 +211,7 @@ def top_dims():
     o.append(dim_h(W/2, TOF_X, -20, dt(TOF_X - W/2), ext=D-ENC_Y))
     o.append(leader(R_PLAN*0.293, R_PLAN*0.293, -14, -10, f"R{dt(R_PLAN)}", "end"))
     o.append(leader(WALL, D*0.28, -30, -18, f"wall {dt(WALL)}", "end"))
-    o.append(leader(W/2-UPS_W/2, WALL + UPS_BACK + UPS_D, -10, 52,
+    o.append(leader(UPS_WALL_X-UPS_W/2, D - WALL, -10, 52,
                     f"UPS 3S pack {dt(UPS_W)} x {dt(UPS_D)}, cells upright (?)", "end"))
     return o
 
@@ -329,9 +330,9 @@ def side_tray(dx=0.0):
 def side_internals():
     o = [rect(FP_T, fy(CLK_Y + TRAY_H/2), TRAY_D, TRAY_H, "hid")]
     o.append(rect(FP_T, fy(SPK_Y + SPK_BODY_W/2), SPK_BODY_D, SPK_BODY_W, "hid"))
-    o.append(rect(D - WALL - UPS_BACK - UPS_D, fy(BP_T + UPS_H), UPS_D, UPS_H, "hid"))
+    o.append(rect(D - WALL - UPS_D, fy(BP_T + UPS_H), UPS_D, UPS_H, "hid"))
     # crescent LED panel rides the facade plane
-    o.append(line(FP_T, fy(CRES_Y), FP_T, fy(CRES_Y + CRES_R), "hid"))
+    o.append(line(FP_T, fy(CRES_Y), FP_T, fy(CRES_Y + CRES_RY), "hid"))
     # mic strip, right behind the plate in the band above the clock
     o.append(rect(FP_T, fy(MIC_Y + MIC_PCB_H/2), 4.0, MIC_PCB_H, "hid"))
     # encoder + ToF boards share the depth band under the crown
@@ -500,7 +501,7 @@ def build():
     efr.append(g("exp-front-balloons", [
         balloon(W/2 - KNOB_D/2, fy(H) - EX_KNOB - KNOB_H*0.5, 5, -26, fy(H) - EX_KNOB - 4),
         balloon(REVEAL/2, fy(ARCH_Y*0.75), 1, -26, fy(ARCH_Y*0.95)),
-        balloon(W/2 - CRES_R*0.86, fy(CRES_Y + 24), 2, -26, fy(CRES_Y + 40)),
+        balloon(W/2 - CRES_R*0.86, fy(CRES_Y + 14), 2, -26, fy(CRES_Y + 30)),
         balloon(W/2 - BP_W/2 + 18, fy(0) + EX_BOTTOM + BP_T/2, 3, -26, fy(0) + EX_BOTTOM + 4),
     ]))
     exp.append(g("EXP-FRONT", efr, ef_x, ef_y))
@@ -576,7 +577,7 @@ def build():
        "also puts its 12.6 V barrel jack on the wall that has the cutout.")
     nl(f"h   Clock zone eats {dt(FP_T+TRAY_D)} of the {dt(D)} depth (plate {dt(FP_T)} + "
        f"tray {dt(TRAY_D)}); ReSpeaker Flex + XIAO sit in the remaining "
-       f"{dt(D - WALL - FP_T - TRAY_D - UPS_BACK - UPS_D)} mm.")
+       f"{dt(D - WALL - FP_T - TRAY_D - UPS_D)} mm.")
     nl(f"i   Charge input is a DC BARREL JACK on the Waveshare UPS 3S board - not USB-C. "
        "The only USB-C on the build is the XIAO's own")
     nl("    flashing port, which is internal and needs disassembly to reach (HARDWARE.md). "
@@ -645,8 +646,8 @@ if __name__ == "__main__":
     print(f"front plate {dt(FP_W)} x {dt(FP_H)} x {dt(FP_T)}")
     print(f"bottom plate{dt(BP_W)} x {dt(BP_D)} x {dt(BP_T)}")
     print(f"interior    {dt(IN_W)} x {dt(IN_D)} x {dt(H-BP_T)}")
-    print(f"crescent    R{dt(CRES_R)} apex at y={dt(CRES_Y+CRES_R)} "
-          f"({dt(H-CRES_Y-CRES_R)} below the top)")
+    print(f"crescent    {dt(CRES_R)} x {dt(CRES_RY)} ellipse, apex at "
+          f"y={dt(CRES_Y+CRES_RY)} ({dt(H-CRES_Y-CRES_RY)} below the top)")
     print(f"knob        {chr(216)}{dt(KNOB_D)} x {dt(KNOB_H)} pebble on a "
           f"{chr(216)}{dt(KNOB_BASE_D)} flat; over-knob height {dt(H+KNOB_H)}")
     print(f"\nfacade stack (y up from the bottom of the envelope)")
@@ -654,7 +655,7 @@ if __name__ == "__main__":
                          (TRAY_Y0, TRAY_Y1, "matrix pair"),
                          (SPK_SEAT_Y0, SPK_SEAT_Y1, f"speaker seats ({dt(SPK_BODY_W)}x{dt(SPK_BODY_H)} bodies)"),
                          (MIC_Y0, MIC_Y1, "mic strip"),
-                         (CRES_Y, CRES_Y + CRES_R, "crescent"),
+                         (CRES_Y, CRES_Y + CRES_RY, "crescent"),
                          (H, H + KNOB_H, "knob")]:
         print(f"  {lo:7.2f} .. {hi:7.2f}   {what}")
 
@@ -669,13 +670,14 @@ if __name__ == "__main__":
         ("tray -> mic strip",           MIC_Y0 - TRAY_Y1),
         ("mic strip -> crescent",       CRES_Y - MIC_Y1),
         ("crescent -> plate edge",      (ARCH_R - REVEAL) - CRES_R),
+        ("crescent -> plate top",       (ARCH_RY - REVEAL) - CRES_RY),
         ("tray -> floor",               TRAY_Y0 - FLOOR_Y),
         ("pack -> side wall",           (IN_W - UPS_W)/2),
-        ("pack -> tray (depth)",        (D - WALL - UPS_BACK - UPS_D) - (FP_T + TRAY_D)),
+        ("pack -> matrix (depth)",      (D - WALL - UPS_D) - (FP_T + TRAY_D)),
         # the Flex is 110 wide on a wall that curves in above the springing line,
         # so the check is against the arc at its TOP edge, not at the floor
         ("Flex 110 -> arc at its top",  flex_wall_fit()[2]),
-        ("Flex -> UPS (vertical)",      FLEX_WALL_Y - (FLOOR_Y + UPS_H)),
+        # (Flex <-> UPS is HORIZONTAL now -- covered by the rear-wall pairs)
         ("Flex -> crown (vertical)",    H - WALL - (FLEX_WALL_Y + FLEX_H)),
         ("Flex depth -> tray",          (D - WALL - FLEX_D) - (FP_T + TRAY_D)),
     ]
@@ -693,54 +695,51 @@ if __name__ == "__main__":
     print(f"W driven by  "
           + ("speaker + mic array" if W_FROM_SPK >= W_FROM_TRAY else "speaker + tray")
           + f"   (mic {dt(W_FROM_SPK)} vs tray {dt(W_FROM_TRAY)})")
-    _cap = cres_capacity(LED_R)[0]
-    print(f"rim          {dt(CRES_RIM)} mm -- shell arc R{dt(ARCH_R)}, diffuser "
-          f"R{dt(CRES_R)} (concentric max)")
-    print(f"LED field    R{dt(LED_R)} -- {dt(CRES_FADE)} inside the diffuser edge. "
-          f"That band is UNLIT ON PURPOSE:\n             48 px cannot fill "
-          f"R{dt(CRES_R)} without spreading thin, so the glow fades out instead "
-          f"({_cap} px capacity, {100*CRES_PX/_cap:.0f}% used)")
-    print(f"\nCRESCENT  LED field R{dt(LED_R)}, {crescent_px()} px (fixed) -- ROW "
-          "LAYOUT for packages/lighting.yaml:")
-    print("   row      y    LED chord   px   strip run   to LED arc   FADE to "
-          "diffuser")
+    _cap, _rowcaps = cres_capacity(LED_ROW_PITCH)
+    print(f"rim          {dt(CRES_RIM)} mm -- shell arch {dt(ARCH_R)} x {dt(ARCH_RY)}, "
+          f"diffuser {dt(CRES_R)} x {dt(CRES_RY)}")
+    print(f"crown        FLATTENED to k={CROWN_K} (a true semicircle would be "
+          f"k=1.0 and H={dt(CRES_Y + ARCH_R)})")
+    print(f"             aspect {W/H:.2f}:1 -- flattening is the ONLY lever on "
+          f"height, since H = CRES_Y + k*W/2")
+    print(f"\nCRESCENT  {dt(CRES_R)} x {dt(CRES_RY)} ellipse, {crescent_px()} px "
+          f"(fixed) -- ROW LAYOUT for packages/lighting.yaml:")
+    print("   row      y     chord    px   strip run   end margin")
     for (w, c, run), yy in zip(crescent_rows(), crescent_row_ys()):
-        dch = 2 * max(CRES_R**2 - yy**2, 0.0) ** 0.5
-        print(f"        {yy:6.1f}   {w:7.1f}   {c:3d}   {run:7.1f}    "
-              f"{(w-run)/2:7.1f}       {(dch-run)/2:7.1f}")
-    print(f"  rows sit at the strip's own {dt(LED_ROW_PITCH)} pitch (they used to be "
-          f"stretched to {dt((LED_R-LED_D)/max(len(crescent_row_ys())-1,1))} when the")
-    print("  row COUNT was solved instead of the radius). Counts are set for a "
-          "constant margin to the")
-    print(f"  LED arc, so the outer pixels trace it. Beyond that the FADE column is "
-          f"diffuser with no LED")
-    print(f"  behind it -- deliberate, it gives a soft falloff instead of 48 pixels "
-          f"spread thin.")
-    print(f"  CRES_FILL_MIN={CRES_FILL_MIN} sizes the LED field; 0 pushes it out to "
-          f"the diffuser arc and kills the fade.")
-    # NB both tables mirror the real derivation exactly -- BOSS_EDGE for the
-    # edge term, and SPK_FIT inside the seat. They used SPK_CLR and a seat
-    # without the fit, and quietly disagreed with W by 6 mm.
-    def _w_for(body_w, seat_w):
-        base = REVEAL + BOSS_EDGE + seat_w + body_w + seat_w + SPK_MIC_GAP
-        return 2 * math.ceil(max(2*(base + MIC_PCB_W/2),
-                                 2*(base + TRAY_W/2)) / 2)
+        print(f"        {yy:6.1f}  {w:7.1f}   {c:3d}   {run:7.1f}     {(w-run)/2:7.1f}")
+    print(f"  row pitch {dt(LED_ROW_PITCH)} -- DERIVED, not chosen. The flattened "
+          f"crown leaves only {dt(CRES_RY)} of")
+    print(f"  height, so the pitch is whatever gets {CRES_PX} px on, floored at "
+          f"the {dt(STRIP_W)} strip width + 1.")
+    print(f"  capacity {_cap} px over {len(_rowcaps)} rows -> {CRES_PX} fitted = "
+          f"{100*CRES_PX/_cap:.0f}% full (target {100*CRES_FILL_TARGET:.0f}%).")
+    print(f"  NO FADE BAND any more: the LED field IS the diffuser ellipse, so "
+          f"the glow reaches the edge.")
 
-    print(f"\nWIDTH<->HEIGHT COUPLING: H = W/2 + {dt(CRES_Y)}. Every +2 on W is +1 on H.")
-    print(f"  edge budget is BOSS_EDGE {dt(BOSS_EDGE)} (the dome rib band), not a "
-          f"driver clearance;")
-    print(f"  the side nubs add {dt(2*SPK_NUB_PROJ)} to the can, and each flank "
-          f"needs a {dt(SPK_SEAT_W)} post")
-    for bw in (40.0, 45.0, 50.0, 55.0):
-        w = _w_for(bw, SPK_SEAT_W)
-        flag = "  <-- actual" if abs(bw - SPK_BODY_W) < 0.01 else ""
-        print(f"  if the body were {bw:5.1f} wide -> W {w:6.1f} -> "
-              f"H {w/2 + CRES_Y:6.1f}{flag}")
-    print(f"\nNUB SENSITIVITY (the number you still have to measure):")
-    for np_ in (2.0, 3.0, 4.0, 5.0, 6.0):
-        sw = max(SPK_RING_W, SPK_FIT + np_ + SPK_POST_WALL)
-        w = _w_for(SPK_BODY_W, sw)
-        flag = "  <-- assumed" if abs(np_ - SPK_NUB_PROJ) < 0.01 else ""
-        print(f"  nub projection {np_:4.1f} -> seat {sw:4.2f} -> W {w:6.1f} -> "
-              f"H {w/2 + CRES_Y:6.1f}{flag}")
+    def _w_for(body_w, flank):
+        base = REVEAL + BOSS_EDGE + flank + body_w + flank + SPK_MIC_GAP
+        return 2 * math.ceil(max(2*(base + TRAY_W/2),
+                                 2*(REVEAL + BOSS_EDGE + MIC_PCB_W/2)) / 2)
+
+    print(f"\nWIDTH<->HEIGHT COUPLING: H = CRES_Y + k*W/2 = {dt(CRES_Y)} + "
+          f"{CROWN_K}*W/2. Every +2 on W is +{CROWN_K} on H.")
+    print(f"  The speakers are ROTATED 90 deg so the nubs are TOP/BOTTOM: their "
+          f"posts cost {dt(SPK_POST_H)} of")
+    print(f"  HEIGHT each end instead of {dt(SPK_POST_H)} of WIDTH each flank, "
+          f"and the body reads {dt(SPK_BODY_W)} wide not {dt(SPK_BODY_H)}.")
+    for bw in (40.0, 45.0, 50.0):
+        w = _w_for(bw, SPK_FLANK)
+        flag = "  <-- actual (rotated)" if abs(bw - SPK_BODY_W) < 0.01 else ""
+        print(f"  body {bw:5.1f} wide -> W {w:6.1f} -> H {CROWN_K*w/2 + CRES_Y:6.1f}"
+              f"   bed 220: {'ok' if max(w, CROWN_K*w/2+CRES_Y) <= 220 else 'NO'}{flag}")
+    print(f"\nWHAT THE ROTATION BOUGHT (nubs side-to-side would need a "
+          f"{dt(SPK_FIT + SPK_NUB_PROJ + SPK_POST_WALL)} post per flank):")
+    _side = _w_for(SPK_BODY_H, SPK_FIT + SPK_NUB_PROJ + SPK_POST_WALL)
+    print(f"  nubs SIDE, {dt(SPK_BODY_H)} wide body  -> W {_side:6.1f}   "
+          f"bed 220: {'ok' if _side <= 220 else 'NO'}")
+    print(f"  nubs TOP/BOT, {dt(SPK_BODY_W)} wide body -> W {dt(W)}   bed 220: ok")
+    print(f"\nBED FIT (Flashforge Adventurer 5M Pro, 220 cube) -- both parts WHOLE:")
+    print(f"  dome           {dt(W)} x {dt(H)} x {dt(D)}  (lying on its back)")
+    print(f"  front module   {dt(W-2*REVEAL)} x {dt(H-REVEAL-BP_T)} "
+          f"-> {dt(220-(W-2*REVEAL))} / {dt(220-(H-REVEAL-BP_T))} mm to spare")
     print("\nALL CLEAR" if not bad else f"\n*** {len(bad)} COLLISION(S) ***")
