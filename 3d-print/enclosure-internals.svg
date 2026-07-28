@@ -38,10 +38,10 @@
 <rect class="phan" x="57.82" y="105.37" width="86.36" height="27.94"/>
 <line class="phan" x1="101" y1="105.37" x2="101" y2="133.31"/>
 <path class="hid" d="M61,107.84 H141 A2,2 0 0 1 143,109.84 V128.84 A2,2 0 0 1 141,130.84 H61 A2,2 0 0 1 59,128.84 V109.84 A2,2 0 0 1 61,107.84 Z"/>
-<circle class="obj" cx="59.725" cy="107.275" r="0.925"/>
-<circle class="obj" cx="99.095" cy="131.405" r="0.925"/>
-<circle class="obj" cx="102.905" cy="107.275" r="0.925"/>
-<circle class="obj" cx="142.275" cy="131.405" r="0.925"/>
+<circle class="obj" cx="59.725" cy="131.405" r="0.925"/>
+<circle class="obj" cx="99.095" cy="107.275" r="0.925"/>
+<circle class="obj" cx="102.905" cy="131.405" r="0.925"/>
+<circle class="obj" cx="142.275" cy="107.275" r="0.925"/>
 <rect class="obj" x="76.41" y="135.76" width="6" height="2.2"/>
 <rect class="obj" x="76.41" y="102.92" width="6" height="2.2"/>
 <rect class="obj" x="119.59" y="135.76" width="6" height="2.2"/>
@@ -101,7 +101,7 @@
 <rect class="obj" x="6" y="12" width="3" height="62.74"/>
 <rect class="hid" x="21.2" y="12" width="2.13" height="62.74"/>
 <line class="obj" x1="23.33" y1="12" x2="23.33" y2="74.74"/>
-<rect class="hid" x="6" y="105.37" width="10.7" height="27.94"/>
+<rect class="hid" x="6" y="105.37" width="9.5" height="27.94"/>
 <rect class="obj" x="6" y="79.34" width="2" height="12"/>
 </g>
 <g id="sec-internals">
@@ -135,7 +135,7 @@
 <path class="obj" d="M2.5,0 H193.9 A2.5,2.5 0 0 1 196.4,2.5 V55.9 A2.5,2.5 0 0 1 193.9,58.4 H2.5 A2.5,2.5 0 0 1 0,55.9 V2.5 A2.5,2.5 0 0 1 2.5,0 Z"/>
 <rect class="hid" x="5.8" y="1.2" width="45" height="22"/>
 <rect class="hid" x="145.6" y="1.2" width="45" height="22"/>
-<rect class="hid" x="55.02" y="1.2" width="86.36" height="10.7"/>
+<rect class="hid" x="55.02" y="1.2" width="86.36" height="9.5"/>
 <rect class="hid" x="117.2" y="34.7" width="60" height="24"/>
 <rect class="hid" x="64.2" y="21.2" width="26" height="20"/>
 <circle class="obj" cx="5.7" cy="33.2" r="1.7"/>

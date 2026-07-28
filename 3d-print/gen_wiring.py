@@ -28,10 +28,19 @@ BW, BH_, GAPX, GAPY = 96.0, 30.0, 122.0, 56.0     # device box grid
 # rear), across the floor, up the rear wall, over the crown, down into the
 # front module. Keeping it in this order is what keeps the cable short.
 #   (label, address, where it lives, status)
+# >>> THE TWO THAT MOVE ARE DERIVED, NOT RETYPED. This table had the RTC on the
+# >>> rear wall while it was on the bottom plate, and STILL has to be told the amp
+# >>> is on the floor -- it said "rear wall, above the UPS" long after the amp
+# >>> moved down. A hand-typed location is a copy of a fact, and copies rot: the
+# >>> RTC's said-vs-actual disagreed for the whole time it was on the plate, which
+# >>> is precisely why its standoffs were unrecognisable.
+_RTC_WHERE = (f"bottom plate ({RTC_X:g},{RTC_DEPTH:g})" if RTC_ON_FLOOR
+              else f"rear wall ({RTC_WALL_X:g},{RTC_WALL_Y:g}), above the Flex")
+_AMP_WHERE = f"bottom plate, floor (x={AMP_X:g}, depth={AMP_DEPTH:g})"
 CHAIN = [
-    ("DS3231 RTC",      "0x68", "rear wall, by the Flex",   "live"),
+    ("DS3231 RTC",      "0x68", _RTC_WHERE,                 "live"),
     ("INA219",          "0x41?", "on the UPS 3S board",     "addr unconfirmed"),
-    ("TPA2016 amp",     "0x58", "rear wall, above the UPS", "live"),
+    ("TPA2016 amp",     "0x58", _AMP_WHERE,                 "live"),
     ("BH1750 lux",      "0x23", "rear wall, light pipe",    "live"),
     ("seesaw encoder",  "0x36", "crown, under the knob",    "live"),
     ("VL53L0X ToF",     "0x29", "crown, right of the knob", "PLANNED, no entity"),

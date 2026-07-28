@@ -162,11 +162,32 @@ RIM_MIN   = _rim_min()               # <<< DERIVED, see above -- not a look
 MTX_BOARD_W = 43.18                  # one IS31FL3731 16x9 board
 MTX_BOARD_H = 27.94
 MTX_N       = 2                      # butted side by side
-MTX_HOLES   = [(1.905, 26.035), (41.275, 1.905)]   # diagonal pair, board-local
+# >>> BOARD-LOCAL, AND THE VIEWING CONVENTION IS THE WHOLE OF THE DIFFICULTY.
+# >>> These are (x from the board's LEFT edge, y UP from its BOTTOM edge) as seen
+# >>> looking at the board's COMPONENT SIDE -- i.e. the way you see it once it is
+# >>> installed and facing out of the machine. That is the same handedness as the
+# >>> part's own coordinates, so gen_front_plate can use them directly.
+# >>> They were on the OTHER diagonal (top-left + bottom-right), which is what you
+# >>> get if you read the positions off the back of the board, or off a drawing of
+# >>> the plate seen from behind -- the face you naturally look at when you are
+# >>> checking the posts, because the posts stand on the plate's BACK. A mirrored
+# >>> diagonal is invisible in every view except the one that matters.
+# >>> If the boards ever refuse to drop on, this line is the first suspect: swap
+# >>> the two y values back.
+MTX_HOLES   = [(1.905, 1.905), (41.275, 26.035)]   # diagonal pair, board-local
 MTX_HOLE_D  = 2.0
 MTX_PCB_T   = 1.6                    # matrix thickness
 MTX_BP_T    = 1.6                    # driver backpack thickness
-MTX_STACK_GAP = 5.0                  # matrix back -> backpack front (headers)
+# >>> THE STACK HEIGHT IS MEASURED; THE HEADER GAP IS DERIVED FROM IT. It was the
+# >>> other way round -- a guessed 5.0 mm header gap, with the overall height
+# >>> falling out at 8.2. Measured front-of-matrix to back-of-backpack is 7.0, so
+# >>> the gap is really 3.8 and the assumption was 1.2 mm out.
+# >>> That 1.2 mm mattered more than anything else here: the front module's six
+# >>> retaining clips hook at the BACK OF THIS STACK, so a stack 1.2 mm shorter
+# >>> than modelled leaves the boards loose behind hooks they never reach. Record
+# >>> the number that was actually measured, not the one that is convenient.
+MTX_STACK_H = 7.0                    # MEASURED: matrix front -> backpack back
+MTX_STACK_GAP = MTX_STACK_H - MTX_PCB_T - MTX_BP_T   # = 3.8, the header gap
 MTX_CLIP_Z  = 2.5                    # clip hook standing behind the backpack
 
 # TRAY_* is the CLOCK MODULE FOOTPRINT -- now the bare matrix pair, not the
@@ -575,10 +596,26 @@ BARREL_Y        = 12.0              # jack centre, centred in width, LOW
 # >>> outer opening and lands on the slot's own top face. You can only see in
 # >>> from below the machine, which is where nobody looks. Air still convects
 # >>> straight up through them.
-VENT_W, VENT_HH = 18.0, 1.0         # slot width, HALF-height (so 2.0 tall)
-VENT_N, VENT_P  = 6, 4.5            # count, pitch, per stack
-VENT_Y          = 100.0             # bottom slot
-VENT_X_OFF      = 42.0              # stack centre, either side of W/2
+# >>> ONE WIDE STACK ABOVE THE LIGHT PIPE, NOT TWO NARROW ONES EITHER SIDE.
+# >>> The old layout put an 18 x 12..123 stack at x=59 and another at x=143, which
+# >>> between them fenced off both upper quadrants of the rear wall -- the two
+# >>> largest clear areas on it -- for 432 mm^2 of opening. Stacking the same area
+# >>> in ONE wider block directly above the pinhole costs nothing aerodynamically
+# >>> (it is the same free area over the same hot part) and hands both quadrants
+# >>> back for boards. That is what let the RTC come off the floor.
+# >>>
+# >>> HEIGHT IS CAPPED BY THE LOUVRE, NOT BY SPACE. Each slot rises VENT_RISE
+# >>> across the wall so a level sight line lands on the slot's own top face; that
+# >>> only works while 2*VENT_HH <= VENT_RISE. Going taller and fewer would have
+# >>> been simpler and would have turned the vent back into a window onto the UPS.
+# >>> So the area is bought with WIDTH, which is free, and the slots stay 2.0 tall.
+VENT_W, VENT_HH = 72.0, 1.0         # slot width, HALF-height (so 2.0 tall)
+VENT_N, VENT_P  = 3, 5.0            # count, pitch -- ONE stack, centred
+# >>> CLEAR OF THE LUX BOARD, NOT JUST THE LUX PINHOLE. 128 cleared the Ø4 pipe
+# >>> by 6 mm and put louvre 0 straight through the BH1750's upper mounting
+# >>> bosses, which stand 7.5 mm above the pipe on the hole pitch plus 3 mm of
+# >>> boss. The opening in the wall is the small part of that board's footprint.
+VENT_Y          = 133.0             # bottom slot, above the lux board's bosses
 VENT_RISE       = 2.5               # how far a slot climbs across the wall
                                     #   (== WALL -> 45 deg, fully blocks level sight)
 
@@ -1407,8 +1444,9 @@ def vent_y(i):
 
 
 def vent_x():
-    """Centre x of each vent stack -- one either side of the UPS."""
-    return [W/2 - VENT_X_OFF, W/2 + VENT_X_OFF]
+    """Centre x of each vent stack. ONE stack now, centred above the light
+    pipe -- kept as a list so the dome's build loop is unchanged."""
+    return [W/2]
 
 
 def rear_wall_items():
@@ -1422,9 +1460,51 @@ def rear_wall_items():
          ("barrel jack", W/2 - BARREL_D/2, W/2 + BARREL_D/2,
           BARREL_Y - BARREL_D/2, BARREL_Y + BARREL_D/2)]
     for k, vx in enumerate(vent_x()):
-        o.append((f"vent stack {'LR'[k]}", vx - VENT_W/2, vx + VENT_W/2,
-                  vent_y(0) - VENT_HH/2, vent_y(VENT_N - 1) + VENT_HH/2))
+        nm = "vent stack" if len(vent_x()) == 1 else f"vent stack {'LR'[k]}"
+        # >>> THE HEIGHT USED TO BE WRONG. VENT_HH is a HALF-height, so the stack
+        # >>> reaches VENT_HH above the top slot and below the bottom one, not
+        # >>> VENT_HH/2. It under-reported the stack by 1 mm at each end -- which
+        # >>> is exactly the kind of slack that lets a board look like it fits.
+        o.append((nm, vx - VENT_W/2, vx + VENT_W/2,
+                  vent_y(0) - VENT_HH, vent_y(VENT_N - 1) + VENT_HH))
     return o
+
+
+def dome_floor_intrusions():
+    """Everything the DOME reaches down into the bottom plate's airspace, as
+    (name, x0, x1, d0, d1) in PLATE coordinates -- x across, d = depth from the
+    front face. Anything mounted on the plate must clear all of it.
+
+    >>> THIS EXISTS BECAUSE THE PLATE COULD NOT SEE THE DOME. The RTC was put on
+    >>> the floor at (26.3, 43.7) clear of every floor item, every plate edge and
+    >>> every one of the six screws -- and was still buried 0.9 mm inside the
+    >>> dome's left wall rail, because no list the plate consulted contained the
+    >>> rail. Two parts that share a volume have to share the description of it,
+    >>> or each one is checked against a world the other is not in.
+    """
+    side_depths = sorted({sd for sx, sd in SCREWS
+                          if abs(sd - (D - WALL - LUG_L/2)) >= 0.1})
+    rail_d0 = min(side_depths) - LUG_W/2
+    out = [("dome rail L", 0.0, WALL + LUG_L, rail_d0, D - WALL),
+           ("dome rail R", W - WALL - LUG_L, W, rail_d0, D - WALL)]
+    for sx, sd in SCREWS:
+        if abs(sd - (D - WALL - LUG_L/2)) < 0.1:
+            out.append((f"dome rear tab x={sx:.0f}",
+                        sx - LUG_W/2, sx + LUG_W/2, D - WALL - LUG_L, D - WALL))
+    # the seating ledge is a band round the whole perimeter, sitting directly on
+    # top of the plate -- so it is in the way of anything standing on the plate
+    b = WALL + SEAT_W
+    out += [("dome seat ledge front", 0.0, W, 0.0, b),
+            ("dome seat ledge rear",  0.0, W, D - b, D),
+            ("dome seat ledge left",  0.0, b, 0.0, D),
+            ("dome seat ledge right", W - b, W, 0.0, D)]
+    return out
+
+
+def plate_boards():
+    """Boards mounted on the BOTTOM PLATE, as (name, cx, cd, w, d, hole_pitch).
+    The RTC used to be here; it is on the rear wall now."""
+    return [("TPA2016", AMP_X, AMP_DEPTH, AMP_W, AMP_D, AMP_HOLE_P)]
 
 
 def rear_wall_clearances():
@@ -1533,25 +1613,38 @@ ENC_HOLE_AXIS = "x"       # the encoder board is square; its pair runs across
 # STEMMA QT breakouts that need somewhere flat and square on the rear wall.
 RTC_PCB_W, RTC_PCB_H = 25.4, 25.4     # (?) DS3231 breakout -- MEASURE
 RTC_HOLE_P           = 20.0           # (?)
-# >>> THE RTC IS ON THE FLOOR, NOT THE REAR WALL. It was placed on the wall at
-# >>> (178, 108) and one of its four bosses fell OUTSIDE the shell -- the arch has
-# >>> curved in to a half-width of 73 by that height, and the boss wanted 87. A
-# >>> search over the whole wall then found NO position where a 25 mm board plus
-# >>> bosses clears the UPS, the Flex, both vent stacks, the barrel jack and the
-# >>> lux pipe: below y=97 the UPS and Flex fill it wall to wall, and above that
-# >>> the arch closes in faster than the vents get out of the way.
-# >>> The floor has a clear pocket between the matrix and the UPS, and it is a
-# >>> shorter I2C hop from the Flex than the wall was.
-RTC_ON_FLOOR         = True
-# >>> MOVED AGAIN: (20, 44) put two of its four bosses ON TOP of the left-hand
-# >>> fixing screws -- 4.5 mm of overlap. The position had been searched against
-# >>> the floor items and the plate edges, and NOT against the six screws, which
-# >>> are the one thing on that plate you cannot move. (26.3, 43.7) is the best
-# >>> the floor offers: 2.0 mm to the nearest floor item, 1.8 to the nearest
-# >>> counterbore, 1.8 to the plate edge. It is tight because the floor genuinely
-# >>> is -- speakers front, matrix middle, UPS rear-right, amp centre.
-RTC_X, RTC_DEPTH     = 26.3, 43.7     # bottom plate, left of the amp,
-                                      #   behind the left speaker
+# >>> THE RTC IS ON THE REAR WALL. IT WENT TO THE FLOOR AND BACK, AND THE ROUND
+# >>> TRIP IS WORTH RECORDING, BECAUSE THE FLOOR TRIP WAS BASED ON A SEARCH THAT
+# >>> HAD GONE STALE.
+# >>>
+# >>> The wall search was first run when the vent slots were 18 x 8 stacked six
+# >>> deep and the amp was at depth 50. It reported NO viable position and the RTC
+# >>> was moved to the floor on the strength of that. But the vents were later cut
+# >>> to VENT_HH 1.0 on a 4.5 pitch and the amp moved forward to depth 34 -- and
+# >>> nobody re-ran the search. It was re-run and there are 294 viable positions.
+# >>> A "no solution" result is only as good as the constants it was run against,
+# >>> and it silently rots the moment any of them move.
+# >>>
+# >>> THE FLOOR WAS NEVER A GOOD HOME ANYWAY. It cost two moves -- (20,44) put two
+# >>> bosses 4.5 mm ON TOP of the left fixing screws, and (26.3,43.7) then buried
+# >>> the BOARD 0.9 mm inside the dome's left wall rail. That second one was
+# >>> invisible to every check on the part, because the plate only ever compared
+# >>> Ø6 BOSS POSTS and never the 25.4 mm board sitting on them: RTC_PCB_W was
+# >>> imported into gen_bottom_plate and never once used.
+# >>>
+# >>> Chosen by a search over board AND all four bosses, requiring 3 mm of shell
+# >>> around every boss rim and ranking on worst-case clearance. The bosses are the
+# >>> binding constraint, not the board: 20 mm pitch + Ø6 spans 26 mm, wider than
+# >>> the 25.4 board.
+# >>>
+# >>> CONSOLIDATING THE VENTS IS WHAT MADE THIS COMFORTABLE. Against the two old
+# >>> vent stacks the best the wall offered was 2.5 mm, from 294 viable positions.
+# >>> With the same free area stacked once above the light pipe there are 67151,
+# >>> and the best is 9.0 mm -- in the upper-LEFT quadrant, which the old vent
+# >>> stack L had been sitting on.
+RTC_ON_FLOOR         = False
+RTC_WALL_X, RTC_WALL_Y = 43.0, 114.0  # rear wall, upper left, above the Flex
+                                      #   9.0 mm to the nearest neighbour
 LUX_PCB_W, LUX_PCB_H = 20.0, 18.0     # (?) BH1750 breakout -- MEASURE
 LUX_HOLE_P           = 15.0           # (?)
 # The lux sensor looks through the light pipe, so its board is centred on it.
@@ -1604,4 +1697,6 @@ def rear_wall_boards():
          None),
         ("lux",   LUX_WALL_X,  LUX_WALL_Y,               LUX_PCB_W,  LUX_PCB_H,
          LUX_HOLE_P),
+        ("RTC",   RTC_WALL_X,  RTC_WALL_Y,               RTC_PCB_W,  RTC_PCB_H,
+         RTC_HOLE_P),
     ]

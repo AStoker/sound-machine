@@ -36,7 +36,8 @@ MHOLES   = [(1.905, 26.035), (41.275, 1.905)]   # matrix diagonal holes
 # ---- MEASURE / tune -------------------------------------------------------
 PCB_T     = 1.6      # matrix thickness
 BP_T      = 1.6      # backpack thickness
-STACK_GAP = 5.0      # matrix-back -> backpack-front (your header-pin gap)
+STACK_GAP = 3.8      # MEASURED: 7.0 mm matrix-front to backpack-back, minus
+                     #   the two 1.6 boards. Was a guessed 5.0.
 FACE_T    = 1.5      # front layer = LED tunnel depth (thin = wider viewing angle)
 LED_D     = 2.0      # window Ø (must clear the LED package)
 WALL      = 2.0

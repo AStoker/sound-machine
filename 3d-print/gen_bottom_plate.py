@@ -35,7 +35,7 @@ from enclosure_geom import (
     FOOT_CLR, FOOT_D, FOOT_IN, FOOT_POCKET_T, IN_D, IN_W, MODEL_DIR, SCREWS,
     SCREW_CBORE, SCREW_CB_T, SCREW_CLR, SPK_BODY_D, SPK_BODY_W, SPK_X, TRAY_D,
     TRAY_W, UPS_D, UPS_W, UPS_WALL_X, W, WALL, FP_T, floor_items,
-    RTC_X, RTC_DEPTH, RTC_HOLE_P, RTC_PCB_W,
+    LUG_H, LUG_L, dome_floor_intrusions, plate_boards,
 )
 
 SEG = 64
@@ -120,23 +120,24 @@ body = body - union(cuts)
 # The amp is on the FLOOR, in the 12 mm slot under the lifted Flex -- the rear
 # wall is full. Two bosses on the board's hole pitch, plus a standoff pad so the
 # solder side clears the plate.
-# >>> AND THE RTC. It was on the rear wall until a boss turned up outside the
-# >>> shell -- the arch has curved in to a half-width of 73 by that height. A
-# >>> search over the entire wall then found NO position that clears the UPS, the
-# >>> Flex, both vent stacks, the jack and the lux pipe: below y=97 the two big
-# >>> boards fill it wall to wall, and above that the arch closes in faster than
-# >>> the vents get out of the way. The floor had room, and it is a shorter I2C
-# >>> hop from the Flex than the wall was.
+# >>> THE RTC IS NOT HERE ANY MORE, AND IT SHOULD NEVER HAVE BEEN. It was put on
+# >>> this plate because a rear-wall search reported no viable position -- a search
+# >>> that had been run against the OLD vent stacks and the OLD amp position and
+# >>> was never re-run after either moved. Re-run, the wall offers 67151 positions.
+# >>>
+# >>> While it was here it cost two moves and shipped a defect anyway: (20,44) put
+# >>> two bosses 4.5 mm on top of the left fixing screws, and (26.3,43.7) buried
+# >>> the BOARD 0.9 mm inside the dome's left wall rail. Nothing on this part could
+# >>> see the second one, because every check compared Ø6 BOSS POSTS and the board
+# >>> that sits on them was never modelled -- RTC_PCB_W was imported here and never
+# >>> used. See "board outlines" in the checks below.
 adds = []
 board_holes = []
-for nm, bx, bd, hp in (("amp", AMP_X, AMP_DEPTH, AMP_HOLE_P),
-                       ("RTC", RTC_X, RTC_DEPTH, RTC_HOLE_P)):
+for nm, bx, bd, hp in (("amp", AMP_X, AMP_DEPTH, AMP_HOLE_P),):
     for sx in (-1, 1):
-        for sy in ((-1, 1) if nm == "RTC" else (0,)):
-            hx = bx + sx * hp / 2
-            hy = bd + (sy * hp / 2 if nm == "RTC" else 0)
-            board_holes.append((nm, hx, hy))
-            adds.append(cyl(hx, hy, BP_T, BP_T + AMP_STAND + BOSS_CHAMF, BOSS_D))
+        hx, hy = bx + sx * hp / 2, bd
+        board_holes.append((nm, hx, hy))
+        adds.append(cyl(hx, hy, BP_T, BP_T + AMP_STAND + BOSS_CHAMF, BOSS_D))
 amp_holes = [(x, y) for n, x, y in board_holes if n == "amp"]
 body = body + union(adds)
 body = body - union([cyl(hx, hy, BP_T + 0.5, BP_T + AMP_STAND + BOSS_CHAMF + 1,
@@ -176,8 +177,7 @@ say(f"screws      {len(SCREWS)} x M3 clearance {chr(216)}{SCREW_CLR}, counterbor
 say(f"feet        4 x {chr(216)}{FOOT_D} in {FOOT_POCKET_T} deep pockets, "
     f"{FOOT_IN} in from the walls")
 say(f"amp         2 x M{BOSS_SCREW} at {AMP_HOLE_P} pitch, x={AMP_X} depth={AMP_DEPTH}")
-say(f"RTC         4 x M{BOSS_SCREW} at {RTC_HOLE_P} pitch, x={RTC_X} depth={RTC_DEPTH}"
-    f"   (moved off the rear wall -- see the note in the source)")
+say("RTC         not on this part -- it is on the dome's rear wall")
 say("")
 
 bad = []
@@ -272,6 +272,32 @@ for _i in range(len(_feat)):
 say(f"  ---- {_worst_pair:8.2f}   tightest pair anywhere: {_who}")
 chk(f"every feature pair that shares depth clears "
     f"({len(_feat)} features, {_pairs} pairs)", _worst_pair)
+# >>> BOARD OUTLINES, NOT BOSS POSTS -- and against the DOME, not just this part.
+# >>> Every check above compares Ø6 bosses. A board is bigger than its bosses (the
+# >>> RTC was 25.4 mm on a 20 mm pitch) and it is the board that hits things. It
+# >>> was RTC_PCB_W, imported into this file and never referenced, that let the
+# >>> board end up 0.9 mm inside the dome's left rail while every check passed.
+say("")
+say("board outlines vs the dome's own intrusions")
+_bw = 1e9
+for _bn, _bx, _bd, _bw_, _bd_, _hp in plate_boards():
+    _x0, _x1 = _bx - _bw_ / 2, _bx + _bw_ / 2
+    _d0, _d1 = _bd - _bd_ / 2, _bd + _bd_ / 2
+    for _dn, _ox0, _ox1, _od0, _od1 in dome_floor_intrusions():
+        _g = max(_ox0 - _x1, _x0 - _ox1, _od0 - _d1, _d0 - _od1)
+        if _g < _bw:
+            _bw, _bwho = _g, f"{_bn} <-> {_dn}"
+    # and the bosses it stands on, which reach further than the board on the pitch
+    for _sx in (-1, 1):
+        _hx = _bx + _sx * _hp / 2
+        for _dn, _ox0, _ox1, _od0, _od1 in dome_floor_intrusions():
+            _g = max(_ox0 - (_hx + BOSS_D / 2), (_hx - BOSS_D / 2) - _ox1,
+                     _od0 - (_bd + BOSS_D / 2), (_bd - BOSS_D / 2) - _od1)
+            if _g < _bw:
+                _bw, _bwho = _g, f"{_bn} boss <-> {_dn}"
+say(f"  ---- {_bw:8.2f}   tightest: {_bwho}")
+chk("every plate board clears every dome intrusion", _bw)
+
 chk("amp board clears the lifted Flex above it", FLEX_WALL_Y - AMP_H)
 chk("amp bosses clear the plate edge (depth)",
     (D - WALL - BP_CLR) - (AMP_DEPTH + AMP_D / 2))

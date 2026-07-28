@@ -159,6 +159,55 @@ draws("3d-print/gen_drawing.py", r"SW_WALL_X", "the UPS power switch")
 draws("3d-print/gen_drawing.py", r"ENC_HOLE_P", "the encoder crown bosses")
 draws("3d-print/gen_drawing.py", r"TOF_HOLE_P", "the ToF crown bosses")
 draws("3d-print/gen_drawing.py", r"LOUVRE", "the vents as louvres")
+# >>> EVERY REAR-WALL BOARD MUST REACH A SHEET. The rear elevation used to name
+# >>> the UPS and the Flex by hand, so the lux and the RTC -- four bosses each --
+# >>> were on no drawing anywhere, and their standoffs were unidentifiable when
+# >>> they showed up in a model. Drawing the list means new boards cannot be
+# >>> silently omitted; this rule means the list cannot be bypassed again.
+draws("3d-print/gen_drawing.py", r"rear_wall_boards\(\)",
+      "the rear-wall boards from the shared list")
+draws("3d-print/gen_drawing.py", r"RTC_WALL_X", "the RTC, labelled")
+
+# >>> WHERE THE RTC LIVES IS ASSERTED, NOT DESCRIBED. The docs said "the rear
+# >>> wall is FULL and the RTC had to leave it" for the whole time that had
+# >>> stopped being true. Tie the prose to RTC_ON_FLOOR so it cannot say one and
+# >>> the geometry do the other.
+# >>> THESE TWO ARE ASSERTED AS STATE, NOT MATCHED AS PROSE, AND THE FIRST
+# >>> ATTEMPT AT THEM IS THE REASON WHY. Written as must_not() against phrases
+# >>> like "the vents are two stacks flanking the UPS", both rules passed while
+# >>> the geometry said the opposite -- because the sentence that had gone stale
+# >>> read "This WAS two stacks...", and "was " is a HISTORY_MARKER. must_not
+# >>> deliberately skips lines that talk about the past, which is right, and it
+# >>> means a rule aimed at explanatory prose is defeated by the explanation.
+# >>> So HARDWARE.md carries one short canonical line of current state, and these
+# >>> compare it against the geometry. The prose stays free to explain itself.
+_state = {1: "1"}.get(len(g.vent_x()), str(len(g.vent_x())))
+must("HARDWARE.md", rf"\*\*Vent stacks: {_state}\*\*",
+     f"a current-state line saying there are {len(g.vent_x())} vent stack(s)")
+must("HARDWARE.md",
+     r"\*\*RTC mounts on: " + ("bottom plate" if g.RTC_ON_FLOOR else "rear wall")
+     + r"\*\*",
+     "a current-state line saying where the RTC mounts")
+
+# >>> AND THAT THE FDM RAMPS ARE DOCUMENTED WHERE THEY ARE BUILT.
+must("3d-print/README.md", r"Printing rear-wall down means \+z is \*down\*",
+     "the print-direction section that explains which faces need support")
+for _pat, _why in ((r"_ramp_void", "the retaining rib's ramp"),
+                   (r"crown_boss_ramp", "the crown standoff buttresses"),
+                   (r"overhang audit", "the overhang audit")):
+    if not re.search(_pat, load("3d-print/gen_dome.py")):
+        problems.append(f"3d-print/gen_dome.py: no longer builds {_why}")
+
+# >>> AND NO RAMP MAY GO BACK TO BEING A STAIRCASE. Stepping is the slicer's job:
+# >>> Orca resolves a true 45 deg face to the actual nozzle and layer height far
+# >>> better than a staircase frozen into an STL, and the steps cost 12000
+# >>> triangles and caused all three of this file's mesh failures.
+_dome_src = load("3d-print/gen_dome.py")
+for _pat, _why in ((r"RIB_RAMP_STEPS", "the rib ramp"),
+                   (r"VENT_STEPS", "the louvres")):
+    if re.search(_pat, _dome_src):
+        problems.append(f"3d-print/gen_dome.py: {_why} is stepped again "
+                        f"({_pat}) -- model true angles, let the slicer step them")
 draws("3d-print/gen_internals.py", r"SPK_POST_W", "the rotated speaker posts")
 not_centred("3d-print/gen_drawing.py", r"UPS_W", "the UPS")
 not_centred("3d-print/gen_drawing.py", r"FLEX_PCB_W|FLEX_HOLE_PX|FLEX_W\b", "the Flex")

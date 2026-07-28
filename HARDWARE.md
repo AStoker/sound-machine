@@ -446,13 +446,24 @@ own connector poking through, because the UPS is no longer centred.
 > **floor**, in the 12 mm slot under the lifted Flex; the rear wall has no room
 > left.
 
+<!-- Canonical current state. check_docs.py asserts these against the geometry;
+     do not reword them. Prose elsewhere explains WHY, these say WHAT. -->
+**Vent stacks: 1** · **RTC mounts on: rear wall**
+
 > **The rear wall is the most crowded face in the build** — UPS, Flex, amp, lux
 > pipe, jack and vents all land on it, so `rear_wall_clearances()` checks every
 > pair rather than trusting the eye. Two consequences:
-> - **The vents are two stacks flanking the UPS, not one centred stack.** A
->   centred stack sits directly behind the Flex board, which both blocks the
->   slots and bakes the board. On the flanks they clear the Flex *and* sit right
->   above the amp, where the heat actually is.
+> - **The vents are ONE wide stack above the light pipe.** This was two stacks
+>   flanking the UPS, on the reasoning that a centred stack would sit behind the
+>   Flex and bake it — true only of a stack placed *level with* the Flex. Lifted
+>   clear above it (y 132–144, over the pinhole) a single stack has the same
+>   objection answered, and the two flanking stacks were fencing off both upper
+>   quadrants of the wall — the largest clear areas on it — for 432 mm² of
+>   opening. One stack of 3 × 72 × 2 gives the identical free area and hands both
+>   quadrants back. That is what let the RTC come off the bottom plate.
+>   Slot height is capped by the louvre, not by space: the anti-peek geometry
+>   only works while the slot is no taller than `VENT_RISE`, so the area is
+>   bought with **width**, which is free.
 > - **Both rear fixing lugs are left of centre** (x 55 and 105). The UPS owns the
 >   rear-right corner of the floor. The plate is still carried at six points
 >   round the perimeter, just not symmetrically.

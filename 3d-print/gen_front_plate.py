@@ -76,19 +76,100 @@ assert abs(DIFF_R - DIFF_R_G) < 1e-9 and abs(CAV_RY - CAV_RY_G) < 1e-9, \
 # own diagonal mounting holes; the clips then clamp the pair flat against the
 # facade from all four sides. Posts alone would let the boards pivot off the
 # face; clips alone would let the soldered joint carry the alignment.
-MTX_STANDOFF = 0.6    # posts stand the boards off the facade a touch, so they
+MTX_STANDOFF = 0.0    # retired: the board seats on the facade lip, not on pads
+_UNUSED_STANDOFF = 0.6  # was: posts stand the boards off the facade a touch, so they
                       #   seat on defined pads instead of on stray solder
+# >>> THE MATRIX IS RECESSED INTO THE FACADE, NOT HUNG OFF ITS BACK FACE.
+# >>> It used to seat on the plate's back face, putting the LEDs 4.6 mm behind the
+# >>> cloth at the bottom of an open 84 x 23 well. The well is only 1.34 mm wider
+# >>> than the LED field vertically, so the top and bottom rows vanished at just
+# >>> 16 deg off-axis -- and a bedside clock is a thing you look DOWN at. Nothing
+# >>> flagged it because it is not a clearance problem: everything fitted.
+# >>> Recessed to MTX_INSET the same rows hold to 34 deg.
+# >>>
+# >>> The board seats on the BACK OF THE FACADE LIP -- the frame left around the
+# >>> aperture -- which overlaps it by 1.18 mm at the sides and 2.47 top and
+# >>> bottom, clear of the LED field (2.5 / 3.8 mm in from the board edges). The
+# >>> four locating posts land on that same frame; all four are 1.905 mm from a
+# >>> horizontal board edge, so all four are under the lip.
+# >>> Seating on the lip also retires the standoff pads: the lip IS the datum.
+MTX_INSET    = 2.0    # matrix FRONT face, behind the facade's front face
+# >>> AND THE CLIPS ROOT IN THE POCKET, NOT ON THE BACK FACE. Recessing the board
+# >>> moves the hook forward, and a clip still rooted at z=FP_T would lose that
+# >>> length from its beam -- 3.05 % strain at a 1.5 mm inset. Rooted at the
+# >>> pocket floor, root and hook move together and the strain stops depending on
+# >>> the inset at all, which is what makes the inset a free choice.
+MTX_CLIP_FLEX = 0.6   # slot behind each clip, so it is not fused to the wall
+# >>> ONE NAME FOR THE CLIP'S ROOT, USED BY BOTH THE GEOMETRY AND THE CHECK.
+# >>> They were separately written as MTX_INSET in clip() and in the strain
+# >>> formula, which means moving the root in the geometry left the check happily
+# >>> reporting the old number -- verified by moving it back to FP_T and watching
+# >>> the strain check still pass at 1.40 % on a clip that was really at 4.59 %.
+# >>> A check that recomputes the design intent instead of reading the design is
+# >>> not a check.
+CLIP_ROOT_Z = MTX_INSET
 MTX_POST_D   = 1.85   # into the O2.0 hole -- locating only, no barb
 MTX_POST_TIP = 0.6    # chamfered lead-in cone (self-supporting on FDM)
 MTX_PAD_D    = 2.0    # plain seating pad, in the clear margin above/below the
 MTX_PAD_EDGE = 1.2    #   LED field -- see the note where they are placed
+# --- matrix retaining clips -------------------------------------------------
+# >>> THESE WERE UNBUILDABLE, AND NOTHING CHECKED IT. A snap-fit cantilever's
+# >>> peak strain is e = 1.5*t*y/L^2 -- thickness times deflection over the SQUARE
+# >>> of its free length. The old clip was 2.2 thick, had to deflect 1.2, and was
+# >>> rooted only 2.2 mm below its hook: 82 % strain. PLA breaks around 2 %, PETG
+# >>> around 4, nylon around 8. It would not have flexed, it would have shattered
+# >>> on the first board -- and no check in this file had an opinion about it,
+# >>> because every check here is about CLEARANCE and this is about STRESS.
+# >>>
+# >>> LENGTH IS THE ONLY REAL LEVER, because it is squared. Thinning the beam or
+# >>> shortening the reach buys a few tenths; the beam being 2.2 mm long is what
+# >>> made it impossible. So the hook now grips the BACK OF THE WHOLE STACK rather
+# >>> than the back of the matrix board -- which is what enclosure_geom always
+# >>> intended (MTX_CLIP_Z, "clip hook standing behind the backpack", is already
+# >>> in the TRAY_D budget) and it makes the beam 8.8 mm instead of 2.2.
+# >>> It also clamps the sandwich properly: matrix front on the seating pads,
+# >>> clip pushing on the backpack behind, instead of pinching one 1.6 mm board.
+# >>>
+# >>> PLA, SO THE REACH IS SMALL ON PURPOSE. The hook is retention, not load --
+# >>> it stops the stack lifting off four seating pads, and 0.5 mm of overlap on a
+# >>> 1.6 mm board edge does that. The check at the end of this file computes the
+# >>> strain and fails above PLA's limit.
+CLIP_MAT      = "PLA"
+CLIP_STRAIN_MAX = 0.015   # 1.5 %: conservative for PLA, which fails near 2 %
+# >>> RETUNED WHEN THE STACK WAS MEASURED. At an assumed 8.2 mm stack the beam
+# >>> was 9.3 long; the measured stack is 7.0, so it is 8.35 -- and because length
+# >>> is SQUARED, losing 1.2 mm of it moves the strain more than any other change
+# >>> here. The stack height is not a clearance, it is the lever arm of every clip
+# >>> on this part.
+# >>>
+# >>> ENGAGEMENT IS THE PRIMARY NUMBER, NOT REACH, AND CONFUSING THE TWO COST A
+# >>> REAL DEFECT. CLIP_REACH is measured from the BEAM'S INNER FACE, which stands
+# >>> CLIP_GAP off the board -- so the hook only actually overlaps the board by
+# >>> (REACH - GAP). Setting REACH to 0.4 left 0.15 mm of grip on a 1.6 mm board
+# >>> edge, and the check that was supposed to catch it tested REACH, so it
+# >>> passed. The deflection needed to assemble is also the ENGAGEMENT, not the
+# >>> reach: the hook tip only has to travel back to the board's edge.
+# >>> So the engagement is stated, and the reach is derived from it.
 CLIP_W      = 6.0     # clip width
-CLIP_T      = 2.2     # cantilever thickness
+CLIP_T      = 1.6     # cantilever thickness -- thin, because PLA
 CLIP_GAP    = 0.25    # clip inner face to board edge
-CLIP_REACH  = 1.2     # how far the hook reaches over the board back face
-CLIP_RUN    = 1.2     # retain-facet run == reach -> 45 deg, FDM self-supporting
-CLIP_RAMP   = 2.6     # lead-in ramp length
+CLIP_ENGAGE = 0.35    # ACTUAL overlap onto the stack's back face (22% of 1.6)
+CLIP_REACH  = CLIP_ENGAGE + CLIP_GAP   # hook travel from the beam's inner face
+CLIP_RUN    = CLIP_REACH               # run == reach -> 45 deg, self-supporting
+CLIP_RAMP   = 2.0     # lead-in ramp length
 CLIP_TAIL   = 1.2     # material behind the ramp, so the tip is not a knife edge
+# >>> A DELIBERATE SLIVER OF CLEARANCE, BECAUSE THE STACK HEIGHT IS NOT OURS.
+# >>> The hook sat at exactly BP_ZB -- the nominal back of the stack -- which is a
+# >>> zero-tolerance fit against a dimension this project does not control:
+# >>> MTX_STACK_GAP is set by whatever header pins are used, and is flagged
+# >>> "your own inter-board header pins" in the README. If the real stack is even
+# >>> 0.05 mm proud of nominal the clips cannot close over it, and the failure
+# >>> looks like a part that just will not go together.
+# >>> Biasing the hook 0.15 mm outward means it always closes; the cost is up to
+# >>> 0.15 mm of possible rattle, which four seating pads and two locating posts
+# >>> per board already stop from mattering. Erring toward "assembles, with a
+# >>> hair of play" beats erring toward "does not assemble".
+CLIP_STACK_CLR = 0.15
 
 # --- speakers ---------------------------------------------------------------
 SPK_RIB_H   = 5.0     # locating rib height off the back face
@@ -98,13 +179,16 @@ SPK_PILOT_Z = 5.5     # pilot depth into the 7 mm post
 MIC_FIT     = 0.4     # per side, board to channel
 MIC_LAND_H  = 0.6     # gasket land height above the channel floor
 MIC_BOSS_D  = 5.0     # M3 pilot boss beside the channel
-# (?) from centre -- Seeed does not publish the array's hole positions, so this
-# is a guess either way. 40, not 50: the boss stands on the CHANNEL FLOOR, which
-# is only 2 mm of facade, and at 50 it landed inside the print seam's lap. The
-# lap plane is at mid-thickness, so it severed the boss (above the plane) from
-# the floor it stands on (below it) and left it floating on the other half.
-# >>> If the real holes are elsewhere, re-check them against SPLIT_X +/- LAP_W/2.
-MIC_BOSS_X  = 40.0
+# >>> MEASURED, NOT GUESSED, AND DERIVED FROM THE MEASUREMENT RATHER THAN TYPED.
+# >>> Seeed does not publish the array's hole positions; 40 mm from centre was a
+# >>> guess. The measured figure is the distance from the END of the board to the
+# >>> NEAR EDGE of the screw hole, which is what you can actually get a caliper
+# >>> on -- so that is what is recorded, and the boss centre is worked out from
+# >>> it. Writing the centre directly would bury the +hole-radius step in a
+# >>> number nobody could re-check against the board.
+MIC_HOLE_EDGE = 22.0  # board END -> NEAR EDGE of its M3 hole -- MEASURED
+MIC_HOLE_D    = 3.2   # M3 clearance hole in the array board
+MIC_BOSS_X  = MIC_PCB_W / 2 - (MIC_HOLE_EDGE + MIC_HOLE_D / 2)
 MIC_PILOT_D = 2.5
 # --- stiffening -------------------------------------------------------------
 # >>> A RIB GETS ITS STIFFNESS FROM HEIGHT, NOT FOOTPRINT. These were 5 mm-proud
@@ -254,12 +338,19 @@ cuts.append(slab(half_disc(W / 2, CRES_Y, CRES_R, ry=CRES_RY), -1.0, DIFF_LIP))
 # PAIR; the two boards are only loosely soldered to each other, so each one is
 # located by its OWN posts instead and the pair is clamped by clips all round.
 cuts.append(slab(rect2(W / 2 - CLK_W / 2, CLK_Y - CLK_H / 2, CLK_W, CLK_H),
-                 -1.0, FP_T + 1.0))
+                 -1.0, MTX_INSET))
 MTX_X0 = W / 2 - TRAY_W / 2                # left edge of the butted pair
-MTX_Z0 = FP_T + MTX_STANDOFF               # matrix front face
-MTX_ZB = MTX_Z0 + MTX_PCB_T                # matrix back face -- clips hook here
+# ...and behind the facade lip, a pocket the board and its clips drop into.
+# Sized to clear the clip beams AND leave a flex slot behind each, or the clips
+# would be fused to the pocket wall along their whole length and could not move.
+MTX_POCKET = CLIP_GAP + CLIP_T + MTX_CLIP_FLEX
+cuts.append(slab(rect2(MTX_X0 - MTX_POCKET, TRAY_Y0 - MTX_POCKET,
+                       TRAY_W + 2 * MTX_POCKET, TRAY_H + 2 * MTX_POCKET),
+                 MTX_INSET, FP_T + 1.0))
+MTX_Z0 = MTX_INSET                         # matrix front face, ON the lip
+MTX_ZB = MTX_Z0 + MTX_PCB_T                # matrix back face
 BP_Z0  = MTX_ZB + MTX_STACK_GAP            # backpack front
-BP_ZB  = BP_Z0 + MTX_BP_T                  # backpack back
+BP_ZB  = BP_Z0 + MTX_BP_T                  # backpack back -- CLIPS HOOK HERE
 
 # --- speakers ---------------------------------------------------------------
 for sx in (SPK_X, W - SPK_X):
@@ -387,18 +478,19 @@ for b in range(MTX_N):
     for hx, hy in MTX_HOLES:
         px, py = bx + hx, TRAY_Y0 + hy
         mtx_posts.append((px, py))
-        adds.append(cyl(px, py, FP_T, MTX_Z0 + MTX_PCB_T + 0.1, MTX_POST_D))
+        # rooted on the facade LIP now, not on the plate's back face
+        adds.append(cyl(px, py, MTX_Z0, MTX_Z0 + MTX_PCB_T + 0.1, MTX_POST_D))
         adds.append(Manifold.cylinder(MTX_POST_TIP, MTX_POST_D / 2,
                                       MTX_POST_D * 0.2, SEG)
                     .translate((px, py, MTX_Z0 + MTX_PCB_T + 0.1)))
-    # Pads go in the board's TOP and BOTTOM margins at mid-width, NOT on the
-    # free corners: the corners are inside the LED field's bounding box, and a
-    # pad there lands on the outermost LEDs. Only the strips above the top row
-    # and below the bottom row are genuinely clear.
+    # >>> NO SEATING PADS ANY MORE. They existed to stand the board off the flat
+    # >>> back face onto four defined points; the board now seats on the back of
+    # >>> the facade lip, which is a defined surface by construction. Pads on top
+    # >>> of it would only lift the board back off the datum they were meant to
+    # >>> establish. Their positions are still recorded so the drawings and the
+    # >>> interference check know where the board is supported.
     for hy in (MTX_PAD_EDGE, MTX_BOARD_H - MTX_PAD_EDGE):
-        px, py = bx + MTX_BOARD_W / 2, TRAY_Y0 + hy
-        mtx_pads.append((px, py))
-        adds.append(cyl(px, py, FP_T, MTX_Z0, MTX_PAD_D))
+        mtx_pads.append((bx + MTX_BOARD_W / 2, TRAY_Y0 + hy))
 
 # --- gasket lands, then the ports straight through them ---------------------
 for mxc in mic_x():
@@ -520,13 +612,13 @@ def clip(axis, face, sgn, centre, hook_z):
     hook = ui - sgn * CLIP_REACH                    # hook tip, over the board
     z_top = hook_z + CLIP_RUN + CLIP_RAMP + CLIP_TAIL
     pts = [
-        (ui, FP_T),                                 # root
+        (ui, CLIP_ROOT_Z),                          # root, on the pocket floor
         (ui, hook_z),                               # up the inner face
         (hook, hook_z + CLIP_RUN),                  # 45 deg retain facet
         (ui, hook_z + CLIP_RUN + CLIP_RAMP),        # lead-in ramp
         (ui, z_top),
         (uo, z_top),                                # over the top, back down
-        (uo, FP_T),
+        (uo, CLIP_ROOT_Z),
     ]
     # extrude gives width along local z; rotate x+90 stands the profile up and
     # lays the width along y, giving x=u.
@@ -545,10 +637,10 @@ mtx_y0, mtx_y1 = TRAY_Y0, TRAY_Y0 + TRAY_H
 # clamped near its own centre rather than relying on the solder joint.
 CLIP_TOP_X = [W / 2 - TRAY_W / 4, W / 2 + TRAY_W / 4]
 CLIP_BOT_X = [W / 2 - TRAY_W / 4, W / 2 + TRAY_W / 4]
-clips = [clip("x", mtx_x0, -1, (mtx_y0 + mtx_y1) / 2, MTX_ZB),
-         clip("x", mtx_x1, +1, (mtx_y0 + mtx_y1) / 2, MTX_ZB)]
-clips += [clip("y", mtx_y0, -1, cx, MTX_ZB) for cx in CLIP_BOT_X]
-clips += [clip("y", mtx_y1, +1, cx, MTX_ZB) for cx in CLIP_TOP_X]
+clips = [clip("x", mtx_x0, -1, (mtx_y0 + mtx_y1) / 2, BP_ZB + CLIP_STACK_CLR),
+         clip("x", mtx_x1, +1, (mtx_y0 + mtx_y1) / 2, BP_ZB + CLIP_STACK_CLR)]
+clips += [clip("y", mtx_y0, -1, cx, BP_ZB + CLIP_STACK_CLR) for cx in CLIP_BOT_X]
+clips += [clip("y", mtx_y1, +1, cx, BP_ZB + CLIP_STACK_CLR) for cx in CLIP_TOP_X]
 body = body + union(clips)
 
 # ---------------------------------------------------------------------------
@@ -668,6 +760,18 @@ def write_stl(solid, name):
     return vv, ff
 
 
+# >>> THE EXPORTED STL IS NOT IN DRAWING COORDINATES, AND THAT WILL CATCH YOU.
+# >>> Everything above -- every dimension, every check, every drawing -- is in the
+# >>> assembly's frame, where the module's outline sits at inset REVEAL and the
+# >>> bottom plate occupies y < BP_T. The STL is shifted so the part's own corner
+# >>> is the origin, which is what a slicer wants. The two frames differ by
+# >>> (REVEAL, BP_T) = (3.6, 4.0).
+# >>> Probing models/front-module.stl with assembly coordinates therefore reports
+# >>> features missing that are perfectly present: a scan for the matrix clips
+# >>> came back empty at every height above the beam, and the "obvious" reading
+# >>> was that the clips had failed to build. They had not; the scan was 3.6 mm
+# >>> and 4.0 mm out. `part_body` below exists precisely so the checks can work in
+# >>> the assembly frame -- use THAT, or add the shift.
 body = body.translate((-REVEAL, -BP_T, 0.0))        # part origin at its corner
 V, F = write_stl(body, "front-module.stl")
 if NEEDS_SPLIT:
@@ -685,6 +789,8 @@ else:
 bb = body.bounding_box()
 say(f"wrote front-module.stl   {len(F)} triangles")
 say(f"bbox        {bb[3]-bb[0]:.2f} x {bb[4]-bb[1]:.2f} x {bb[5]-bb[2]:.2f} mm")
+say(f"STL frame   shifted ({-REVEAL:+.1f}, {-BP_T:+.1f}, +0.0) from assembly "
+    f"coords -- probe the STL with that offset, or use part_body")
 say(f"z stack     facade 0-{FP_T}   acrylic {DIFF_LIP}-{DIFF_LIP+DIFF_REBATE}"
     f"   air gap {DIFF_LIP+DIFF_REBATE}-{CAV_Z}   cavity wall to {CAV_Z}")
 say(f"crescent    aperture R{CRES_R}  acrylic pocket R{DIFF_R}  "
@@ -692,12 +798,17 @@ say(f"crescent    aperture R{CRES_R}  acrylic pocket R{DIFF_R}  "
     f"{CRES_R-LED_R:.0f})")
 say(f"clock       OPEN aperture {CLK_W} x {CLK_H} - no per-pixel holes")
 say(f"            {MTX_N} matrices {MTX_BOARD_W} x {TRAY_H} butted = "
-    f"{TRAY_W:.2f} wide, seating on the back face at z={MTX_Z0}")
+    f"{TRAY_W:.2f} wide, RECESSED -- front face {MTX_INSET} mm behind the "
+    f"facade, seating on the aperture lip")
 say(f"            LOOSELY SOLDERED PAIR -> {len(mtx_posts)} locating posts "
     f"({chr(216)}{MTX_POST_D} into their own {chr(216)}{MTX_HOLE_D} holes) + "
-    f"{len(mtx_pads)} seating pads")
+    f"seating on the lip (pads retired)")
 say(f"            {len(clips)} clips on all four sides, {CLIP_W} wide, hook "
-    f"{CLIP_REACH} over the board back at z={MTX_ZB:.2f}")
+    f"{CLIP_ENGAGE} onto the STACK back at z={BP_ZB:.2f}, rooted at "
+    f"{CLIP_ROOT_Z}, "
+    f"{CLIP_T} thk, strain "
+    f"{1.5*CLIP_T*CLIP_ENGAGE/(BP_ZB+CLIP_STACK_CLR-CLIP_ROOT_Z+CLIP_RUN)**2*100:.2f}%"
+    f" ({CLIP_MAT})")
 say(f"            stack: matrix {MTX_Z0}-{MTX_ZB} | gap | backpack "
     f"{BP_Z0}-{BP_ZB}")
 say(f"speakers    grille {chr(216)}{SPK_GRILLE} thru; NO ribs (rotated mount); "
@@ -818,9 +929,19 @@ say("")
 say("feature presence (a 1 mm probe must find plastic)")
 
 
-def probe(name, x, y, z, want=True):
-    hit = (part_body ^ Manifold.cube((1.0, 1.0, 1.0))
-           .translate((x - 0.5, y - 0.5, z - 0.5))).volume() > 1e-6
+def probe(name, x, y, z, want=True, size=1.0):
+    """Is there plastic at (x,y,z)? Tested with a cube of side `size`.
+
+    >>> THE CUBE MUST BE SMALLER THAN THE FEATURE. A 1 mm probe is fine for
+    >>> "is there a boss here", and useless for a 0.4 mm hook: the cube reaches
+    >>> 0.5 mm in every direction, so at the hook it also samples the beam behind
+    >>> it and the board gap in front. When the clip reach came down from 1.2 to
+    >>> 0.4 the "clear below the back face" probes all flipped to solid -- not
+    >>> because anything had grown into the board, but because the probe was now
+    >>> wider than the clearance it was measuring. Small features get small cubes.
+    """
+    hit = (part_body ^ Manifold.cube((size, size, size))
+           .translate((x - size / 2, y - size / 2, z - size / 2))).volume() > 1e-9
     ok = (hit == want)
     say(f"  {'FAIL' if not ok else 'ok  '} {'solid' if hit else 'empty':>6}   "
         f"{name}")
@@ -907,20 +1028,34 @@ _clip_spec = ([("end L", "x", mtx_x0, -1, (mtx_y0 + mtx_y1) / 2),
 for _nm, _ax, _face, _sg, _ctr in _clip_spec:
     if _ax == "x":
         beam = (_face + _sg * (CLIP_GAP + CLIP_T / 2), _ctr)
-        hook = (_face - _sg * (CLIP_REACH / 2), _ctr)
+        hook = (_face - _sg * (CLIP_ENGAGE / 2), _ctr)
     else:
         beam = (_ctr, _face + _sg * (CLIP_GAP + CLIP_T / 2))
-        hook = (_ctr, _face - _sg * (CLIP_REACH / 2))
-    probe(f"clip {_nm} beam", beam[0], beam[1], MTX_ZB - 1.0)
-    # the hook must overhang the board, ABOVE its back face...
-    probe(f"clip {_nm} hook (over the board)", hook[0], hook[1],
-          MTX_ZB + CLIP_RUN * 0.5)
-    # ...and must NOT be inside the board below that face
+        hook = (_ctr, _face - _sg * (CLIP_ENGAGE / 2))
+    # >>> PROBED AT THE STACK'S BACK FACE, WHICH IS WHERE THE HOOK NOW IS. These
+    # >>> three sampled MTX_ZB, the matrix board's back -- correct while the clip
+    # >>> gripped there, and silently wrong the moment it moved back to grip the
+    # >>> whole sandwich. All three then reported the hook "empty", which is true
+    # >>> of that plane and says nothing about whether the hook exists.
+    _fine = CLIP_REACH / 3.0          # smaller than the feature under test
+    probe(f"clip {_nm} beam", beam[0], beam[1], BP_ZB - 1.0)
+    # the hook must overhang the stack, ABOVE its back face...
+    # >>> SAMPLED NEAR THE TIP OF THE 45 deg FACET, not half way up it. The
+    # >>> retaining face slopes from the beam's inner face to the hook tip across
+    # >>> CLIP_RUN, so at mid-height it has only reached half the engagement --
+    # >>> probing there for the full overlap reports "empty" on a hook that is
+    # >>> perfectly present.
+    probe(f"clip {_nm} hook (over the stack)", hook[0], hook[1],
+          BP_ZB + CLIP_STACK_CLR + CLIP_RUN * 0.95, size=_fine)
+    # ...and must NOT be inside the stack below that face
     probe(f"clip {_nm} clear below the back face", hook[0], hook[1],
-          MTX_ZB - 0.8, want=False)
+          BP_ZB - 0.8, want=False, size=_fine)
 for _i, (_px, _py) in enumerate(mtx_posts):
     probe(f"matrix locating post {_i}", _px, _py, MTX_Z0 + MTX_PCB_T / 2)
-for _i, (_px, _py) in enumerate(mtx_pads):
+# (seating pads retired -- the board lands on the facade lip; see the note
+#  where they used to be built. Their positions are still tracked for the
+#  drawings and the interference check.)
+for _i, (_px, _py) in enumerate([] if MTX_STANDOFF == 0.0 else mtx_pads):
     probe(f"matrix seating pad {_i}", _px, _py, FP_T + MTX_STANDOFF / 2)
 for _mx in mic_x():
     probe(f"gasket land @ x={_mx:.1f}", _mx + (MIC_PORT_D + MIC_GASKET) / 2,
@@ -1049,6 +1184,21 @@ checks = [
     ("bbox y == the module outline", 0.01 - abs(bb[4] - bb[1] - (H - REVEAL - BP_T))),
     ("nothing trimmed by the containment guard", 0.01 - trimmed),
     ("spine clear of the matrix clips", SPINE_Y0 - (TRAY_Y1 + CLIP_GAP + CLIP_T)),
+    # >>> THE CLIP MUST SURVIVE BEING SPRUNG -- a STRESS check, in a file that had
+    # >>> only ever asked about CLEARANCE. Peak strain in a straight cantilever is
+    # >>> 1.5*t*y/L^2: thickness x deflection over the SQUARE of free length. The
+    # >>> original clip (t=2.2, y=1.2, L=2.2) came to 82 %, against ~2 % for PLA.
+    # >>> Nothing caught it because a clip that cannot bend still fits perfectly.
+    # the deflection to assemble is the ENGAGEMENT -- how far the hook tip has to
+    # travel back to reach the board's edge -- not the reach from the beam.
+    ("clip strain is within " + CLIP_MAT,
+     CLIP_STRAIN_MAX - 1.5 * CLIP_T * CLIP_ENGAGE
+     / (BP_ZB + CLIP_STACK_CLR - CLIP_ROOT_Z + CLIP_RUN) ** 2),
+    # ...and it must still grip: this used to test CLIP_REACH, which is measured
+    # from the beam and so passed while the real overlap was 0.15 mm.
+    ("clip actually overlaps the stack (>=0.3)", CLIP_ENGAGE - 0.3),
+    ("clip overlap is under a third of the board edge",
+     MTX_BP_T / 3.0 - CLIP_ENGAGE),
     ("gap between the two lower ribs is printable",
      (_rib2_y[1] - (_rib2_y[0] + RIB_T)) - RIB_MIN_GAP if len(_rib2_y) == 2
      else 0.0),

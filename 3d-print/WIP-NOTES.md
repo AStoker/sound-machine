@@ -1,8 +1,126 @@
 # WIP — resume here
 
-**All nine generators are `ALL CLEAR`, and `check_docs.py` is `ALL SYNCED`.**
-Firmware and all four documents are in sync with the geometry.
+**All nine generators are `ALL CLEAR`, `check_docs.py` is `ALL SYNCED`, and
+`verify_exports.py` is `ALL EXPORTS MATCH`.** All six solids are watertight,
+one body each. Firmware and all four documents are in sync with the geometry.
 Nothing is committed.
+
+## Latest session — the RTC, the vents, and printing rear-wall down
+
+**The reported bug was real but not where it looked.** The bottom plate's screw
+holes were clean — every one of the six is an unobstructed cylinder through the
+plate. What was wrong is that the RTC's **board** (25.4 mm, on a 20 mm boss
+pitch) was 0.9 mm inside the dome's left wall rail and 1.0 mm into a rear tab.
+Nothing on the plate could see it: every check on that part compared Ø6 **boss
+posts**, and `RTC_PCB_W` was imported into `gen_bottom_plate.py` and never once
+referenced.
+
+**The RTC is back on the rear wall at (43, 114)**, 9.0 mm clear. It had been
+moved to the floor because a rear-wall search reported "no viable position" —
+a search run against the *old* vent stacks and the *old* amp depth, never re-run
+after either moved. Re-run it finds **67 151** positions. *A negative result
+carries no expiry date; nothing about it announces that its inputs have moved.*
+
+**The vents are now one wide stack above the light pipe** (3 × 72 × 2 = the same
+432 mm² as the two old stacks). The two flanking stacks had been fencing off both
+upper quadrants of the rear wall — the largest clear areas on it. That is what
+took the best available RTC position from 2.5 mm to 9.0 mm.
+
+**FDM ramps, printing rear-wall down** (bed at z=D, build runs toward z=0, so
++z is *down*): the retaining rib's rear face and the crown standoffs' rear halves
+were unsupported and now have 45° ramps. The front lip's rear face **cannot** be
+ramped — a ramp there reaches inside `REVEAL` and fouls the module as it slides
+up — and is reported separately.
+
+### Checks added, and what each one had to learn
+
+| check | where | the mistake it encodes |
+|---|---|---|
+| `dome_floor_intrusions()` | `enclosure_geom.py` | The plate had no description of what the dome reaches down into it. Two parts sharing a volume must share the description of it. |
+| board **outlines** vs those intrusions | `gen_bottom_plate.py` | Bosses are not boards. Re-running the old RTC position reports −1.00 and fails. |
+| board envelope vs the built shell | `gen_dome.py` | The board's datum is the **boss tip** plane (`STANDOFF_H + 2`), not the wall — getting that wrong reports a board buried in its own standoffs. |
+| overhang audit | `gen_dome.py` | Three iterations: **width not area** (a staircase has the same area as the shelf it replaces); **connected regions not coplanar facets** (a cylinder has no flat facet, so curved overhangs were invisible); **bores are bridges not cantilevers** (excluded by name with their spans asserted, not by raising the threshold). |
+| rear-wall boards drawn from the shared list | `gen_drawing.py` | The lux and the RTC were on **no sheet at all**, which is why an unlabelled pair of standoffs was unidentifiable. |
+| canonical state lines | `check_docs.py` / `HARDWARE.md` | Written first as `must_not()` against prose, both rules passed while the geometry said the opposite — the stale sentence read "This **was** two stacks", and `"was "` is a `HISTORY_MARKER`. A rule aimed at explanatory prose is defeated by the explanation. |
+
+Both ramps and both doc rules are verified by deliberate re-breaking.
+
+### Ramps are true angles now, not staircases
+Orca handles stepping, so the model carries real geometry. The rib ramp, the
+crown buttresses and the louvres were each a stack of ~12 thin slabs; all three
+are now **single lofted solids** — `loft()` takes the convex hull of two convex
+sections, whose lateral surface *is* the straight rule between them, so the
+result is exact rather than approximated. Dome went from **43 646 to 31 754
+triangles**, and the ramp band now contains **zero** horizontal terrace facets.
+
+The audit threshold moved from 45° to **46°**: the limit is 45 and the ramps are
+*built* at 45, so a strict `> 45` flagged 1757 mm² of correct surface. (The rib
+ramp measures 44.6–45.0° across the arch because `d_outline` insets its semi-axes
+rather than truly offsetting them.) `check_docs.py` now fails if either ramp goes
+back to being stepped.
+
+### PLA: the matrix clips were unbuildable, and nothing checked it
+Peak strain in a snap-fit cantilever is `1.5·t·y/L²` — thickness × deflection
+over the **square** of free length. The clip was 2.2 thick, had to move 1.2, and
+was rooted 2.2 mm below its hook: **82 % strain**, against ~2 % for PLA. It would
+not have flexed, it would have shattered. Every check in that file is about
+*clearance*, and a clip that cannot bend still fits perfectly.
+
+Length is the only real lever because it is squared, so the hook now grips the
+**back of the whole stack** rather than the back of the matrix board — which is
+what `enclosure_geom` always intended (`MTX_CLIP_Z`, "clip hook standing behind
+the backpack", is already in the `TRAY_D` budget). Beam 2.2 → **9.3 mm**, thickness
+2.2 → **1.6**, reach 1.2 → **0.5**: **1.39 %**. It also clamps the sandwich properly
+instead of pinching one 1.6 mm board. There is now a strain check, and restoring
+the old numbers fails it.
+
+### The matrix is recessed now, and the stack was measured
+- **Stack height measured at 7.0 mm** (matrix front → backpack back), against 8.2
+  assumed. The header gap is derived from it (3.8, not 5.0). This is the clips'
+  **lever arm**, so the 1.2 mm error moved their strain 1.20 % → 1.83 %.
+- **Engagement, not reach, is the primary clip number.** `CLIP_REACH` is measured
+  from the beam's *inner face*, which stands `CLIP_GAP` off the board — so a
+  0.4 reach was only **0.15 mm** of actual grip, and the check that should have
+  caught it tested reach, so it passed. Reach is now derived from engagement.
+- **Boards recessed 2.0 mm into the facade.** The aperture is cut through only
+  the front 2 mm; the boards sit in a pocket behind it and seat on the lip.
+  Vertical view angle **16° → 34°** — the old well was 4.6 mm deep with 1.34 mm
+  of vertical margin, so the top and bottom rows vanished at 16° off-axis on a
+  clock you look down at. Not a clearance problem, so nothing flagged it.
+- **Clips root in the pocket floor**, so root and hook move together and the
+  strain no longer depends on the recess depth at all.
+- **`probe()` takes a size now.** Its 1 mm cube is wider than a 0.35 mm hook and
+  was reporting both false solids and false empties; small features get small
+  cubes, and the hook probe samples near the tip of the 45° facet rather than
+  half way up it, where the facet has only reached half its engagement.
+
+### Two coordinate traps worth remembering
+- **`MTX_HOLES` was on the wrong diagonal.** Corrected to bottom-left +
+  top-right, read from the board's component side. A mirrored diagonal is
+  invisible in every view except the one that matters.
+- **The front module's STL is not in assembly coordinates.** It is shifted by
+  `(-REVEAL, -BP_T)` = (-3.6, -4.0) so the part corner is the origin. Probing the
+  STL with assembly coordinates reported the matrix clips entirely missing —
+  they were fine; the scan was 3.6 and 4.0 mm out. Use `part_body`, or add the
+  shift; the run now prints it.
+
+### Still to measure — see `MEASURE-ME.md`
+Written out in plain language with what breaks if each is wrong. The tightest is
+**grille cloth thickness**: the groove leaves 0.40 mm total, so anything over
+0.80 mm per layer and the front module will not go in.
+
+### Mesh traps hit while building the ramps
+All three produced a **valid manifold solid and a broken exported surface** —
+`manifold` reported one clean body while `trimesh` reported 27–271:
+1. **Unioning steps that share a face.** Twelve ramp steps meeting on shared
+   planes → 36 disconnected bodies. Fixed by adding one block and *cutting* the
+   staircase out of it, so no plane carries more than one pair of faces.
+2. **Tangency.** A buttress exactly `BOSS_D` wide has side planes tangent to the
+   Ø6 boss cylinder → 532 zero-area triangles. Pulled in 1.2 mm so the planes cut
+   it transversally.
+3. **Coplanar caps.** The buttress underside sat exactly on the boss's flat tip
+   cap, so a rim circle and a straight edge had to be triangulated in one plane →
+   298 more. 0.2 mm of daylight removed it.
 
 
 ```sh

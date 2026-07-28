@@ -273,7 +273,7 @@ def rear_dome():
     # the UPS 5V switch -- a ROUND panel button, low and left
     o.append(circ(SW_WALL_X, fy(SW_WALL_Y), SW_D))
     o.append(circ(SW_WALL_X, fy(SW_WALL_Y), SW_NUT_D, "phan"))
-    for vx in vent_x():                      # two stacks, flanking the UPS
+    for vx in vent_x():                      # ONE stack, centred above the pipe
         for i in range(VENT_N):
             o.append(rect(vx - VENT_W/2, fy(vent_y(i)) - VENT_HH,
                           VENT_W, 2*VENT_HH, "obj", VENT_HH))
@@ -287,11 +287,22 @@ def rear_internals():
     # >>> right at x=150, Flex left at x=60 -- so the sheet showed them stacked
     # >>> on top of each other in the middle of a wall they no longer share that
     # >>> way. Draw them where rear_wall_items() says they are.
-    o = [rect(UPS_WALL_X - UPS_W/2, fy(BP_T + UPS_H), UPS_W, UPS_H, "hid"),
-         rect(AMP_X - AMP_W/2, fy(AMP_H + AMP_D/2), AMP_W, AMP_D, "phan")]
-    # Flex: the 52-wide BARE BOARD, then the 110 envelope its connectors need
-    o.append(rect(FLEX_WALL_X - FLEX_PCB_W/2, fy(FLEX_WALL_Y + FLEX_PCB_H),
-                  FLEX_PCB_W, FLEX_PCB_H, "hid"))
+    # >>> AND EVERY BOARD IS DRAWN FROM rear_wall_boards(), NOT BY HAND. This view
+    # >>> listed the UPS and the Flex and nothing else, so the LUX and the RTC --
+    # >>> both real, both with four bosses each -- appeared on no sheet at all. The
+    # >>> RTC's standoffs were unidentifiable when they turned up in a model,
+    # >>> because there was nowhere to look them up. Anything added to
+    # >>> rear_wall_boards() from now on draws itself.
+    o = [rect(AMP_X - AMP_W/2, fy(AMP_H + AMP_D/2), AMP_W, AMP_D, "phan")]
+    for nm, cx, cy, bw, bh, hp in rear_wall_boards():
+        o.append(rect(cx - bw/2, fy(cy + bh/2), bw, bh, "hid"))
+        if hp is None:
+            continue
+        for sx in (-1, 1):
+            for sy in (-1, 1):
+                o.append(circ(cx + sx*hp/2, fy(cy + sy*hp/2), BOSS_PILOT_D, "obj"))
+                o.append(circ(cx + sx*hp/2, fy(cy + sy*hp/2), BOSS_D, "phan"))
+    # the Flex additionally needs the 110 envelope its connectors want
     o.append(rect(FLEX_WALL_X - FLEX_W/2, fy(FLEX_WALL_Y + FLEX_H),
                   FLEX_W, FLEX_H, "phan"))
     for hx, hy in flex_holes():                       # 4x M3, 45 x 63 pitch
@@ -307,22 +318,32 @@ def rear_dims():
     # heights, all off the same centreline
     o.append(dim_v(fy(BARREL_Y), fy(0), W + 14, dt(BARREL_Y), ext=W/2 + BARREL_D/2))
     o.append(dim_v(fy(LP_Y), fy(0), W + 26, dt(LP_Y), ext=W/2 + LP_D/2))
+    # >>> ONE VENT STACK NOW, CENTRED. This sheet indexed _vx in five
+    # >>> places, from when there were two stacks either side of the UPS.
+    _vx = vent_x()[-1]
     o.append(dim_v(fy(vent_y(0)), fy(0), W + 38, dt(VENT_Y),
-                   ext=vent_x()[1] + VENT_W/2))
+                   ext=_vx + VENT_W/2))
     o.append(leader(W/2 + BARREL_D/2, fy(BARREL_Y), 46, 26,
                     f"{chr(216)}{dt(BARREL_D)} DC barrel jack - UPS 3S charge in (?)"))
     o.append(leader(W/2 + LP_D/2, fy(LP_Y), 62, 62,
                     f"{chr(216)}{dt(LP_D)} light pipe - BH1750 lux"))
-    o.append(leader(vent_x()[1] + VENT_W/2, fy(vent_y(VENT_N - 1)), 30, -26,
-                    f"2x {VENT_N} LOUVRE {dt(VENT_W)} x {dt(2*VENT_HH)} @ "
+    o.append(leader(_vx + VENT_W/2, fy(vent_y(VENT_N - 1)), 30, -26,
+                    f"{VENT_N} LOUVRE {dt(VENT_W)} x {dt(2*VENT_HH)} @ "
                     f"{dt(VENT_P)} - rises {dt(VENT_RISE)} inward, so a level "
                     f"line of sight is blocked"))
+    o.append(leader(RTC_WALL_X + RTC_PCB_W/2, fy(RTC_WALL_Y), 34, -34,
+                    f"DS3231 RTC {dt(RTC_PCB_W)} x {dt(RTC_PCB_H)}, 4x M"
+                    f"{BOSS_SCREW} @ {dt(RTC_HOLE_P)} - I2C 0x68. ON THIS WALL, "
+                    f"not the bottom plate"))
+    o.append(leader(LUX_WALL_X + LUX_PCB_W/2, fy(LUX_WALL_Y), 44, 18,
+                    f"BH1750 lux {dt(LUX_PCB_W)} x {dt(LUX_PCB_H)}, 4x M"
+                    f"{BOSS_SCREW} @ {dt(LUX_HOLE_P)} - looks through the pipe"))
     o.append(leader(SW_WALL_X - SW_NUT_D/2, fy(SW_WALL_Y), -26, 34,
                     f"{chr(216)}{dt(SW_D)} UPS 5V switch - ROUND panel button, "
                     f"on a {chr(216)}{dt(SW_NUT_D + 2*SW_RIB)} land", "end"))
-    o.append(dim_h(vent_x()[1] - VENT_W/2, vent_x()[1] + VENT_W/2,
+    o.append(dim_h(_vx - VENT_W/2, _vx + VENT_W/2,
                    fy(vent_y(0)) + 10, dt(VENT_W), ext=fy(vent_y(0))))
-    o.append(dim_h(W/2, vent_x()[1], fy(vent_y(VENT_N-1)) - 9, dt(VENT_X_OFF)))
+    o.append(dim_h(W/2, _vx, fy(vent_y(VENT_N-1)) - 9, dt(VENT_W)))
     o.append(leader(UPS_WALL_X - UPS_W/2, fy(BP_T + UPS_H*0.30), -16, 18,
                     f"UPS 3S {dt(UPS_W)} x {dt(UPS_H)}, standing (jack lands here)",
                     "end"))

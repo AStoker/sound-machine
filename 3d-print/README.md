@@ -25,11 +25,65 @@ Every solid is watertight, one connected body, and fits a 220 bed.
 
 | Part | Orientation | Why, and what it costs |
 |---|---|---|
-| Dome | **rear wall down** | The rear wall is the first layer — the flattest face and the one with the most features — and every boss on it then grows straight up off the bed. Cost: anything projecting inward off a SIDE wall or the CROWN is horizontal, so the four side lugs and the two crown mounts each need a 45° gusset. |
+| Dome | **rear wall down** | The rear wall is the first layer — the flattest face and the one with the most features — and every boss on it then grows straight up off the bed. Cost: anything projecting inward off a SIDE wall or the CROWN is horizontal to the build, so the **retaining rib** and the **crown standoffs** each need a 45° ramp, and the front lip's rear face is an unavoidable 5 mm shelf. See "Printing rear-wall down means +z is down". |
 | Front module | **face down** | The facade is the bottom layer, and it is the one surface anyone sees. Everything else grows upward off the bed. |
 | Bottom plate | **underside down** | Counterbores and foot pockets open downward and print as plain holes from layer one; the bosses grow upward. The underside is also what you see picking the machine up. |
 | LED carrier | **strip side down** | A warped carrier is a varying air gap, and that shows through the diffuser. |
 | Knob | **base down** | The base cut is the bed. The steepest overhang is the very first layer, at 42.5° from vertical — inside the support-free limit, which the run checks. |
+
+> ### Printing rear-wall down means +z is *down*
+> This is the single fact that decides which features on the dome need support,
+> and it is easy to get backwards: the bed is at **z = D (64)** and the build runs
+> towards **z = 0**, so a face whose normal points at **+z** is a face pointing at
+> the bed. Two features were built without noticing:
+>
+> - **The retaining rib's rear face** — a 3 mm shelf projecting into open cavity
+>   right round both flanks and the arch. It now **grows in gradually** from 3 mm
+>   further back, a 45° underside that prints unsupported.
+> - **The crown standoffs** — a boss hanging off the ceiling is printed *lying on
+>   its side*, so its whole rear half overhangs. Support there is a tower rising
+>   the full depth of a closed dome, which you then cannot reach in to remove.
+>   Each now has a 45° **buttress** on its rear side only; the front face is
+>   printed last and is self-supporting.
+>
+> **The front lip's rear face cannot be ramped and stays square.** It looks like
+> the same problem as the rib and is not: the rib is *behind* the module, the lip
+> is *in front* of it, and a ramp there would reach inside `REVEAL` and foul the
+> module's rim as it slides up — the same mistake the seating ledge made. It is
+> the last 2 mm of the print, it is a closed ring so the droop is even, and the
+> face it droops onto is the hidden back of the bezel.
+>
+> **Ramps are modelled as true angled faces, never as staircases.** Stepping is
+> the slicer's job — Orca resolves a real 45° surface to the actual nozzle and
+> layer height far better than a 0.25 mm staircase frozen into an STL can. The
+> rib ramp, the crown buttresses and the louvres were all originally built as
+> stacks of ~12 thin slabs; all three are now single lofted solids (the convex
+> hull of two sections, whose lateral surface *is* the straight rule between
+> them). That removed **12 000 triangles** from the dome and eliminated the whole
+> class of mesh failure below — every one of which came from stacked slabs
+> sharing faces. `check_docs.py` fails if either ever goes back to being stepped.
+>
+> `gen_dome.py` now **measures** this off the exported solid rather than trusting
+> the argument above. Four things that check had to learn:
+> - **A tolerance of one degree.** The limit is 45° and the ramps are *built* at
+>   45°, so a strict `> 45` flagged 1757 mm² of the very geometry that fixes the
+>   problem. The rib ramp measures 44.6–45.0° across the arch, because the D
+>   outline insets its semi-axes rather than truly offsetting them.
+> - **Width, not area.** A 3 mm shelf broken into twelve 0.25 mm steps has exactly
+>   the same downward-facing area. Area cannot tell a staircase from a shelf; what
+>   decides support is how far a ledge reaches from whatever holds it up.
+> - **Connected regions, not coplanar facets.** Grouping by coplanarity is blind
+>   to *curved* overhangs — deleting the crown buttresses left every boss hanging
+>   by its rear half and the audit still said ALL CLEAR, because a cylinder has no
+>   flat facet to group.
+> - **A bore's roof is a bridge, not a cantilever.** The six Ø4 insert bores and
+>   the Ø30 knob pocket all have unsupported roofs, and by area they look like the
+>   rib's shelf. They are anchored on *both* sides and span only a chord —
+>   4.9 mm for the Ø30 pocket, not 30. They are excluded by name, with their
+>   bridge spans asserted, rather than by raising the threshold until they stop
+>   complaining.
+>
+> Both ramps are verified by deletion: remove either and the audit fails.
 
 Envelope: **202 × 64 × 155.7**. Both printed parts fit a **220 bed whole** — the
 front module used to be 250.8 wide and had to split; rotating the speakers and
@@ -144,7 +198,7 @@ nothing to support.
 | Zone | What the part does |
 |---|---|
 | **Crescent** | 89 × 62.7 elliptical through aperture, a 1.5 mm ledge, then a 90.5 × 64.2 pocket the opal acrylic drops into **from behind**, then a 12 mm air gap inside a 2 mm cavity wall. The wall runs to z=18.83 and is the part's main stiffener. Six **tapered pads** on its inner face take the LED carrier. |
-| **Clock** | ONE open 84 × 23 aperture — no per-pixel holes. Behind it the two matrices seat on the back face: **2 locating posts + 2 seating pads per board**, then **six clips**, two on each long edge and one at each end. |
+| **Clock** | ONE open 84 × 23 aperture — no per-pixel holes. The two matrices are **recessed into the facade**: the aperture is cut only through the front **2 mm**, and a pocket behind it takes the boards, which seat on the back of that lip. **2 locating posts per board** (no pads — the lip is the datum), then **six clips**, two on each long edge and one at each end, hooking the back of the whole stack. |
 | **Speakers** | Ø40 grille through, and a **post above and below each body on its vertical centreline** (10 × 6, standing 7 mm proud, Ø2.5 pilot). The M3 goes in **from behind**, through the speaker's nub, into the post. **No ribs on any face** — the bodies are rotated 90° so the nubs are top and bottom, and two screws on one line fix x, y and rotation between them. |
 | **Mic array** | 4 × Ø2.5 ports on Ø4.5 raised gasket lands, in a 110.8 × 12.8 × 2 channel, with two M3 pilot bosses. |
 | **Stiffening** | **Two spines**, one above the matrix and one below, spanning the middle between the speaker seats. |
@@ -168,10 +222,27 @@ joint would end up carrying the alignment and would work loose. Instead each
 board is located by its **own** two posts through its own Ø2.0 diagonal holes,
 and the six clips clamp both boards flat against the facade.
 
-The seating pads sit at **mid-width in the strips above and below the LED
-field**, not on the board corners: the corners fall inside the LED field's
-bounding box, and a pad there lands on the outermost LEDs. The 288-LED
-interference check is what caught that.
+**The boards are recessed, and that was worth more than it looks.** They used to
+seat on the plate's *back* face, which put the LEDs 4.6 mm behind the cloth at
+the bottom of an open 84 × 23 well. That well is only 1.34 mm wider than the LED
+field vertically, so the top and bottom rows disappeared at **16°** off-axis —
+and a bedside clock is a thing you look *down* at. Cutting the aperture through
+only the front 2 mm and pocketing the boards behind it holds those rows to
+**34°** (and 63° across). Nothing flagged the original because it was not a
+clearance problem: everything fitted perfectly.
+
+The board seats on the **back of the facade lip**, which overlaps it by 1.18 mm
+at the sides and 2.47 top and bottom — clear of the LED field, which starts
+2.5 mm and 3.8 mm in from the board edges. All four locating posts land on that
+same lip (all four holes are 1.905 mm from a horizontal board edge). The old
+seating pads are retired: the lip *is* the datum, and pads on top of it would
+only lift the board back off it.
+
+**The clips root in the pocket floor, not on the back face.** Recessing the board
+moves the hook forward, and a clip still rooted at the back face would lose that
+length from its beam — which matters more than anything else, because strain goes
+as 1/L². Rooting root and hook together makes the strain independent of how deep
+the boards are recessed, which is what makes the recess a free choice.
 
 Room for the clips came free. The matrix/mic cluster used to be squeezed to
 1 mm and 2 mm gaps back when it set the enclosure height — it doesn't any more
@@ -184,8 +255,8 @@ Room for the clips came free. The matrix/mic cluster used to be squeezed to
 |---|---|---|
 | `SPK_NUB_H` | 6.0 mm | **The important one now.** It sets `SPK_POST_W`, and post width is what keeps the post clear of the mic array (9.9 mm) — which is what lets the array sit above the speaker *body* instead of above the post. |
 | `SPK_NUB_PROJ` | 4.0 mm | Now a *height* driver, not a width one: 6 mm at each end of the body. |
-| `MTX_STACK_GAP` | 5.0 mm | Matrix back → backpack front (your header pins). |
-| `MIC_BOSS_X` | 40.0 mm | Seeed doesn't publish the linear-4 array's hole positions. |
+| `MTX_STACK_H` | **7.0 mm, measured** | Matrix front → backpack back. Derives the header gap (3.8). It is the **lever arm of every clip**, not a clearance: it was assumed at 8.2 and the 1.2 mm error moved the clip strain from 1.20 % to 1.83 %. |
+| `MIC_HOLE_EDGE` | **22.0 mm, measured** | Array end → *near edge* of its M3 hole. The boss centre (31.4 from centre) is derived from it. |
 | `DIFF_GAP` | 12.0 mm | Diffusion air gap — ~0.7 × the LED pitch is the starting point. Test-print a crescent corner. **It moves `CARRIER_Z0` with it.** |
 | `CLOTH_T` | 0.6 mm | Grille cloth per layer; it goes through the dome groove with the module. |
 
@@ -596,7 +667,8 @@ EXPLODED    EXP-TOP, -FRONT, -SIDE
 The **REAR** view is a true flat face — the body is an extrusion, so the back is
 the same "D" as the front. Everything on it is **centred on the width**: the Ø4
 light pipe for the BH1750 lux sensor, the Ø11 DC barrel jack (which lines up with
-the centred UPS pack), and the 4 vent slots above them. It sits bottom-centre on
+the centred UPS pack), and the single 3-slot louvre stack above them. It sits
+bottom-centre on
 the sheet, out of projection, because there is no room for it beside the side
 view; it is labelled as such.
 
@@ -701,7 +773,7 @@ front-to-back** so its 17.8 mm edge clears the 25.4 mm encoder breakout.
 | **Bottom-row pixels were burying themselves** | The crescent baseline is a row *centre*, so it has to clear the speaker seats by the LED radius as well as the gap. |
 | **Speakers hang on nubs, top and bottom** | Not a baffle bolt pattern. One nub per 45 mm face, landing 7 mm behind the front face. Rotated, the posts cost **height**, not width — which is what got the part onto the bed. |
 | **The ribbon fits before the pixel does** | A segment of n pixels is n × 16.5 mm of tape, a full pitch longer than the span between its end LEDs. The bottom row's tape was 0.5 mm too long for the cavity while the dots looked fine. This is why the crescent holds 45 px, not 48. |
-| **A centred vent stack sits behind the Flex** | It would block the slots and bake the board. The vents are two stacks flanking the UPS, which also puts them right above the amp. |
+| **A centred vent stack sits behind the Flex — only if it is level with it** | That objection sent the vents to two flanking stacks, which then fenced off both upper quadrants of the rear wall. Lifted *above* the Flex, over the light pipe, one wide stack answers it and gives both quadrants back at identical free area. |
 | **The lux pipe has a ~5 mm slot to live in** | UPS to y=97, Flex from y=102. A centred pipe gets exactly that gap — Ø3, 1 mm clear each side. Any tighter and it has to move to the crown. |
 | **Fixings are wall lugs, and asymmetric** | The floor is fully spoken for. No lug fits on the front edge at all — the plate's front edge is captured by the ledge and the module instead. |
 | **Charge is a barrel jack** | 12.6 V 2 A, not USB-C. The only USB-C is the XIAO's internal flashing port. |
@@ -767,17 +839,34 @@ below the feet so it rests on rubber, not steel.
 M2.5 self-tappers into printed bosses for the boards; the bottom plate keeps M3
 heat-set inserts, because that is the joint opened over and over.
 
-> ### ⚠️ The rear wall is FULL, and the RTC had to leave it
-> The DS3231 was placed on the rear wall at (178, 108) and one of its four bosses
-> landed **outside the shell** — the arch has curved in to a half-width of 73 mm
-> by that height and the boss wanted 87. A search over the entire wall then found
-> **no** position where a 25 mm board plus bosses clears the UPS, the Flex, both
-> vent stacks, the barrel jack and the lux pipe: below y=97 the two big boards
-> fill it wall to wall, and above that the arch closes in faster than the vents
-> get out of the way.
+> ### ⚠️ The RTC went to the floor and came back, on the strength of a stale search
+> The DS3231 was first placed on the rear wall at (178, 108), where one of its
+> four bosses landed **outside the shell** — the arch curves in to a half-width of
+> 73 mm by that height and the boss wanted 87. A search over the whole wall then
+> reported **no** viable position, and the RTC was moved to the bottom plate.
 >
-> It moved to the **floor**, on the bottom plate left of the amp — which is also
-> a shorter I2C hop from the Flex than the wall was.
+> That search was run against the **old** vent stacks (18 × 24, two of them) and
+> the **old** amp position (depth 50). Both moved afterwards and nobody re-ran it.
+> Re-run, the wall offers **67 151** viable positions; the best has 9.0 mm
+> clearance. A "no solution" result is only as good as the constants it was run
+> against, and it rots silently the moment any of them move — there is nothing in
+> a negative result that announces it has expired.
+>
+> **The floor was never a good home anyway**, and it cost two more moves:
+> - **(20, 44)** put two of its four bosses 4.5 mm **on top of** the left-hand
+>   fixing screws. The position had been searched against floor items and plate
+>   edges, and never against the six screws.
+> - **(26.3, 43.7)** then buried the **board** 0.9 mm inside the dome's left wall
+>   rail, and 1.0 mm into a rear tab. Nothing on the plate could see it: every
+>   check on that part compared Ø6 **boss posts**, and the 25.4 mm board sitting
+>   on them was never modelled. `RTC_PCB_W` was imported into `gen_bottom_plate.py`
+>   and never once referenced.
+>
+> Two checks came out of it, both in the shared geometry so neither part can
+> drift again: `dome_floor_intrusions()` describes everything the dome reaches
+> down into the plate's airspace (rails, rear tabs, seating ledge), and the plate
+> now checks **board outlines**, not just bosses, against it. Re-running the old
+> position reports −1.00 mm and fails.
 
 > ### ⚠️ Three things the dome got wrong, all caught by the mesh check
 > - **Bosses grew the wrong way.** They ran in +z, into the rear wall's own

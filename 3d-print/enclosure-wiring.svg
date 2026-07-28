@@ -45,7 +45,7 @@
 <path class="obj" d="M245.5,0 H338.5 A1.5,1.5 0 0 1 340,1.5 V28.5 A1.5,1.5 0 0 1 338.5,30 H245.5 A1.5,1.5 0 0 1 244,28.5 V1.5 A1.5,1.5 0 0 1 245.5,0 Z"/>
 <text class="lbl" x="248" y="8.5" text-anchor="start">DS3231 RTC</text>
 <text class="dtx" x="336" y="8.5" text-anchor="end">0x68</text>
-<text class="note" x="248" y="16.5" text-anchor="start">rear wall, by the Flex</text>
+<text class="note" x="248" y="16.5" text-anchor="start">rear wall (43,114), above the Flex</text>
 <line class="dim" x1="340" y1="15" x2="366" y2="15" marker-end="url(#arw)"/>
 <path class="obj" d="M367.5,0 H460.5 A1.5,1.5 0 0 1 462,1.5 V28.5 A1.5,1.5 0 0 1 460.5,30 H367.5 A1.5,1.5 0 0 1 366,28.5 V1.5 A1.5,1.5 0 0 1 367.5,0 Z"/>
 <text class="lbl" x="370" y="8.5" text-anchor="start">INA219</text>
@@ -56,7 +56,7 @@
 <path class="obj" d="M489.5,0 H582.5 A1.5,1.5 0 0 1 584,1.5 V28.5 A1.5,1.5 0 0 1 582.5,30 H489.5 A1.5,1.5 0 0 1 488,28.5 V1.5 A1.5,1.5 0 0 1 489.5,0 Z"/>
 <text class="lbl" x="492" y="8.5" text-anchor="start">TPA2016 amp</text>
 <text class="dtx" x="580" y="8.5" text-anchor="end">0x58</text>
-<text class="note" x="492" y="16.5" text-anchor="start">rear wall, above the UPS</text>
+<text class="note" x="492" y="16.5" text-anchor="start">bottom plate, floor (x=80, depth=34)</text>
 <line class="dim" x1="536" y1="30" x2="536" y2="56" marker-end="url(#arw)"/>
 <path class="obj" d="M489.5,56 H582.5 A1.5,1.5 0 0 1 584,57.5 V84.5 A1.5,1.5 0 0 1 582.5,86 H489.5 A1.5,1.5 0 0 1 488,84.5 V57.5 A1.5,1.5 0 0 1 489.5,56 Z"/>
 <text class="lbl" x="492" y="64.5" text-anchor="start">BH1750 lux</text>
@@ -181,17 +181,17 @@
 <text class="lbl" x="185.08" y="108.528" text-anchor="middle">RIGHT SIDE</text>
 </g>
 <g id="CHAIN-LEGEND" transform="translate(790,130)">
-<rect class="tb" x="0" y="0" width="99.76" height="83"/>
+<rect class="tb" x="0" y="0" width="114.34" height="83"/>
 <text class="lbl" x="5" y="11" text-anchor="start">CHAIN KEY  -  balloons on WHERE THEY SIT</text>
 <circle class="bal" cx="9.6" cy="17.46" r="3.6"/>
 <text class="dtx" x="9.6" y="18.96" text-anchor="middle">1</text>
-<text class="note" x="17" y="18.96" text-anchor="start">DS3231 RTC   0x68   rear wall, by the Flex</text>
+<text class="note" x="17" y="18.96" text-anchor="start">DS3231 RTC   0x68   rear wall (43,114), above the Flex</text>
 <circle class="bal" cx="9.6" cy="25.46" r="3.6"/>
 <text class="dtx" x="9.6" y="26.96" text-anchor="middle">2</text>
 <text class="note" x="17" y="26.96" text-anchor="start">INA219   0x41?   on the UPS 3S board</text>
 <circle class="bal" cx="9.6" cy="33.46" r="3.6"/>
 <text class="dtx" x="9.6" y="34.96" text-anchor="middle">3</text>
-<text class="note" x="17" y="34.96" text-anchor="start">TPA2016 amp   0x58   rear wall, above the UPS</text>
+<text class="note" x="17" y="34.96" text-anchor="start">TPA2016 amp   0x58   bottom plate, floor (x=80, depth=34)</text>
 <circle class="bal" cx="9.6" cy="41.46" r="3.6"/>
 <text class="dtx" x="9.6" y="42.96" text-anchor="middle">4</text>
 <text class="note" x="17" y="42.96" text-anchor="start">BH1750 lux   0x23   rear wall, light pipe</text>

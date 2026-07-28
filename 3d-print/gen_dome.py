@@ -99,6 +99,35 @@ def annulus(inset_a, inset_b):
     return d_outline(inset_a, ybot=YBOT_OUT) - d_outline(inset_b, ybot=YBOT_IN)
 
 
+def loft(pts_a, za, pts_b, zb):
+    """The straight-ruled solid between two CONVEX sections at two depths.
+
+    >>> TRUE ANGLED GEOMETRY, NOT A STAIRCASE. Every ramp and every louvre in
+    >>> this part was originally built as a stack of 12 thin slabs approximating
+    >>> a slope. That is the slicer's job, not the model's: Orca resolves a real
+    >>> 45 deg face to the nozzle and layer height far better than a 0.25 mm
+    >>> staircase baked into the STL ever can, and the steps were actively
+    >>> harmful -- they tripled the triangle count, they made the overhang audit
+    >>> measure the wrong thing (a staircase has the same downward AREA as the
+    >>> shelf it replaces), and every one of the three mesh failures in this file
+    >>> came from stacked slabs sharing faces.
+    >>>
+    >>> For CONVEX sections the convex hull of the two boundaries IS the loft --
+    >>> its lateral surface is exactly the straight rule between them. The D
+    >>> outline is convex (flat bottom, rounded corners, straight flanks,
+    >>> elliptical crown), and so is every rectangle here, so one hull_points call
+    >>> gives geometry that is exact rather than approximated.
+    """
+    P = [(float(x), float(y), float(za)) for x, y in pts_a]
+    P += [(float(x), float(y), float(zb)) for x, y in pts_b]
+    return Manifold.hull_points(P)
+
+
+def d_points(inset, ybot=None):
+    """d_outline's vertices, for lofting between two insets."""
+    return d_outline(inset, ybot).to_polygons()[0]
+
+
 def d_outline(inset, ybot=None):
     """The 'D': flat bottom, straight flanks, flattened half-ellipse on top.
 
@@ -214,6 +243,24 @@ body = slab(d_outline(0.0), 0.0, D)
 CAV_Z0, CAV_Z1 = LIP_T, D - WALL
 body = body - slab(d_outline(WALL, ybot=-10.0), CAV_Z0, CAV_Z1)
 # ...and open the front, through the lip's aperture.
+# >>> THE LIP'S REAR FACE IS THE ONE OVERHANG THAT CANNOT BE RAMPED, and it is
+# >>> worth being explicit about why, because it looks like exactly the same
+# >>> problem as the retaining rib and it is not.
+# >>>
+# >>> Printed rear-wall-down it is a LIP_W-wide (5 mm) shelf projecting inward
+# >>> over the groove with nothing below it -- geometrically the same fault the
+# >>> rib had. But the rib is BEHIND the module and the lip is IN FRONT of it. A
+# >>> 45 deg ramp on the lip's rear face would have to occupy z = LIP_T..LIP_T+5,
+# >>> and the module lives at z = 2.5..6.5 and has to SLIDE UP through that band
+# >>> with its rim at inset REVEAL. Any ramp there reaches inside REVEAL long
+# >>> before it has run its 5 mm, so it fouls the rim -- the identical mistake the
+# >>> seating ledge made when it ran across the groove.
+# >>>
+# >>> So it stays square, and the audit reports it separately rather than
+# >>> pretending it is not there. It is the LAST 2 mm of the print, it is a closed
+# >>> ring so the droop is uniform, and the face it droops onto is the BACK of the
+# >>> bezel -- hidden by the module that seats against it. Print it with support
+# >>> on the front face if the finish matters; nothing structural depends on it.
 body = body - slab(d_outline(WALL + LIP_W, ybot=-10.0), -1.0, CAV_Z0)
 
 # --- retaining rib ----------------------------------------------------------
@@ -224,6 +271,40 @@ RIB_Z0 = LIP_T + SLOT_W
 rib = annulus(WALL, WALL + RIB_W)
 rib = rib - rect2(0.0, -10.0, W, BP_T + SEAT_LEDGE_T + 10.0)
 body = body + slab(rib, RIB_Z0, RIB_Z0 + RIB_T)
+
+# >>> AND A RAMP BEHIND IT, BECAUSE OF THE PRINT ORIENTATION. Printed rear-wall
+# >>> down, the build direction runs from z=D towards z=0 -- so a face pointing
+# >>> at +z is a face pointing at the BED, and it needs something underneath it.
+# >>> The rib's rear face (z = RIB_Z0+RIB_T) is exactly that: a RIB_W-wide shelf
+# >>> projecting into open cavity with nothing below it, all the way round both
+# >>> flanks and the arch.
+# >>>
+# >>> So the rib now GROWS IN gradually from further back: zero projection at
+# >>> RIB_W behind it, full projection where the rib proper starts. That is a 45
+# >>> deg underside, which prints unsupported.
+# >>>
+# >>> RAMP BACKWARDS, NEVER FORWARDS. The rib's FRONT face is what grips the
+# >>> module, and everything in front of it at z = LIP_T..RIB_Z0 is the groove the
+# >>> module slides up through. A ramp on that side would both spoil the grip and
+# >>> stick into the one path the joint exists for -- the same mistake the seating
+# >>> ledge made. Behind the rib there is nothing but cavity, so it is free.
+# >>> ONE BLOCK, THEN ONE LOFTED VOID -- a real 45 deg cone, not twelve steps.
+# >>> The void's near cap is the rib's own inner boundary (so it removes nothing
+# >>> where the rib proper is) and its far cap is the cavity wall (so by the end
+# >>> of the ramp the whole band is gone). Between them the hull's lateral
+# >>> surface is the straight rule joining the two, which is the ramp.
+_ramp_z0 = RIB_Z0 + RIB_T
+_ramp_z1 = _ramp_z0 + RIB_W
+# the block: full-width, from inside the rib out to the ramp's far end
+_blk = annulus(WALL, WALL + RIB_W) - rect2(0.0, -10.0, W, BP_T + 10.0)
+body = body + slab(_blk, RIB_Z0, _ramp_z1)
+# >>> THE VOID STOPS ABOVE THE SEATING LEDGE. It reaches out to inset WALL, which
+# >>> is exactly where the ledge is, so carving it full height would eat the ledge
+# >>> away at the very place the bottom plate lands on it.
+_ramp_void = loft(d_points(WALL + RIB_W), _ramp_z0, d_points(WALL), _ramp_z1)
+_ramp_void = _ramp_void - slab(rect2(0.0, -20.0, W, BP_T + SEAT_LEDGE_T + 20.0),
+                               _ramp_z0 - 1.0, _ramp_z1 + 1.0)
+body = body - _ramp_void
 
 # --- bottom-plate seating ledge ---------------------------------------------
 # A continuous shelf all round. The plate is WIDER than the gap between the
@@ -317,20 +398,28 @@ cuts.append(cyl(W / 2, LP_Y, RW0 - 1, RW1 + 1, LP_D))
 # >>> of sight therefore enters the outer opening and lands on the slot's own top
 # >>> face; you can only see in from below the machine. Straight-through slots
 # >>> this size are windows onto the UPS.
-# >>> Built as a stepped stack because slab() extrudes an (x,y) section along z:
-# >>> stepping the section's y as z advances is the same shape as tilting it, and
-# >>> it stays in the one coordinate convention the rest of the file uses.
-VENT_STEPS = 12
+# >>> A SHEARED BOX, NOT A STAIRCASE. This was 12 stacked slabs stepping the
+# >>> section's y as z advanced -- the same shape as a tilt, but delivered to the
+# >>> slicer as 12 little terraces per slot, 36 per stack. A louvre is a plain
+# >>> rectangular slot translated as it crosses the wall, so it is the hull of its
+# >>> two end rectangles: two convex sections, straight rule between them, exact.
+# >>> The slot's own axis is not 45 deg and not the wall normal -- it rises
+# >>> VENT_RISE across (WALL + 1) -- so both ends are computed from that one
+# >>> parameterisation and extrapolated past each face to guarantee a clean cut.
+def _vent_f(f, vy):
+    """(z, y-centre) at fraction f along a louvre's own axis. f=0 inner."""
+    return RW0 - 1.0 + (WALL + 1.0) * f, vy + VENT_RISE * (1.0 - f)
+
+
 for vx in vent_x():
     for i in range(VENT_N):
         vy = VENT_Y + i * VENT_P
-        for k in range(VENT_STEPS):
-            f0, f1 = k / VENT_STEPS, (k + 1) / VENT_STEPS
-            # z runs OUTWARD (RW0 inner -> RW1 outer), so y falls as z rises
-            yk = vy + VENT_RISE * (1.0 - f0) - VENT_HH
-            cuts.append(slab(rect2(vx - VENT_W / 2, yk, VENT_W, 2 * VENT_HH),
-                             RW0 - 1.0 + (WALL + 1.0) * f0,
-                             RW0 - 1.0 + (WALL + 1.0) * f1 + 0.01))
+        P = []
+        for f in (-0.25, 1.25):                  # past both faces, so it cuts
+            z, yc = _vent_f(f, vy)
+            P += [(x, y, z) for x in (vx - VENT_W / 2, vx + VENT_W / 2)
+                  for y in (yc - VENT_HH, yc + VENT_HH)]
+        cuts.append(Manifold.hull_points(P))
 # >>> THE POWER SWITCH -- resolved to rear wall, low and left. It was an open
 # >>> item from the original layout. This band was empty: below the Flex (which
 # >>> starts at y=16) and above the floor, on the opposite side from the UPS.
@@ -438,6 +527,63 @@ def crown_boss(cx, cz, tip_y, top_y):
                  BOSS_PILOT_D, segs=48))
 
 
+def crown_boss_ramp(cx, cz, tip_y, ceil_y, step=0.5):
+    """A 45 deg buttress on the REAR side of a crown boss.
+
+    >>> THESE ARE THE WORST OVERHANGS IN THE PART, AND THE LEAST REACHABLE. A
+    >>> crown boss is a post hanging off the ceiling, and printed rear-wall-down
+    >>> the build direction is horizontal to it -- so the post is printed lying on
+    >>> its side, and its whole rear half hangs over open cavity at the very top
+    >>> of the shell. Support there is a tower rising the entire depth of the part,
+    >>> inside a closed dome, which you then cannot get a hand in to remove.
+    >>>
+    >>> The buttress fills the wedge between the ceiling and the boss's rear face:
+    >>> nothing at STANDOFF_H behind the boss, growing to the full drop where the
+    >>> boss starts. Every added layer then lands on the one before it.
+    >>>
+    >>> IT ONLY GOES ON THE REAR SIDE. The front face of the boss (smaller z) is
+    >>> printed LAST -- it faces away from the bed and is self-supporting. A
+    >>> buttress there would be dead plastic in the board's way.
+    >>>
+    >>> A SINGLE LOFTED WEDGE. This was a block plus a staircase of voids, which
+    >>> put every step's near face on the boss's rear tangent plane and produced
+    >>> degenerate faces at z=23, 33 and 43 -- the three crown bosses -- and
+    >>> stopped the STL being watertight while manifold still reported one clean
+    >>> solid. As a hull of three rectangles it is one convex solid with a real
+    >>> 45 deg underside and nothing to go wrong.
+
+    Returns the wedge, or None where there is no drop to buttress.
+    """
+    drop = ceil_y - tip_y
+    if drop <= 0.05:
+        return None
+    z0 = cz + BOSS_D / 2
+    # >>> NARROWER THAN THE BOSS, DELIBERATELY. At exactly BOSS_D the buttress's
+    # >>> two side planes are TANGENT to the Ø6 boss cylinder -- they touch it
+    # >>> along a line instead of cutting through it -- and a tangency is a sliver
+    # >>> factory: 532 zero-area triangles and 272 non-manifold edges, every one of
+    # >>> them within a millimetre of an encoder boss. manifold reported a single
+    # >>> valid solid throughout; it was only the exported surface that was broken.
+    # >>> Pulled in 1.2 mm, the planes cut the cylinder transversally and the
+    # >>> intersection is an honest curve.
+    RW = BOSS_D - 1.2
+    # >>> AND ITS UNDERSIDE STOPS SHORT OF THE BOSS TIP. Run down to tip_y exactly
+    # >>> and the buttress's bottom face is COPLANAR with the boss's flat tip cap;
+    # >>> the cap's rim circle and the block's straight edge then have to be
+    # >>> triangulated together in one plane, and every one of the 298 remaining
+    # >>> zero-area faces was there -- all at y=149.8168 and 149.1754, the two
+    # >>> tip planes, on the rim circles. 0.2 mm of daylight removes the shared
+    # >>> plane; the boss's last 0.2 mm of rear face is a trivial overhang.
+    TIP_GAP = 0.2
+    x0, x1 = cx - RW / 2, cx + RW / 2
+    y_bot, y_top = tip_y + TIP_GAP, ceil_y + 2.0
+    # full height from the boss centre to its rear tangent, then a true 45 deg
+    # taper back up to the ceiling over `drop`.
+    P = [(x, y, z) for z in (cz, z0) for x in (x0, x1) for y in (y_bot, y_top)]
+    P += [(x, y, z0 + drop) for x in (x0, x1) for y in (ceil_y, y_top)]
+    return Manifold.hull_points(P)
+
+
 crown_mounts = []
 
 # >>> NEITHER CROWN BOARD GETS A MILLED FLAT, AND THAT IS A DELIBERATE RETREAT.
@@ -473,6 +619,9 @@ for _nm, _cx, _cz, _hp, _axis, _stand in (
         _ceil = crown_inner_y(_bx)
         _b, _p = crown_boss(_bx, _bz, _ceil - _stand, _ceil + 1.2)
         adds.append(_b)
+        _rblk = crown_boss_ramp(_bx, _bz, _ceil - _stand, _ceil)
+        if _rblk is not None:
+            adds.append(_rblk)
         pilots.append(_p)
         _crown_bosses.append((_nm, _bx, _bz))
     crown_mounts.append((_nm, _cx, _cz, crown_inner_y(_cx) - _stand))
@@ -526,7 +675,8 @@ say(f"ledge       {SEAT_W} continuous, top of the plate at y={BP_T}")
 say(f"lugs        {len(SCREWS)} x {LUG_L}x{LUG_W}x{LUG_H}, "
     f"{chr(216)}{INSERT_D} blind for M3 heat-set")
 say(f"rear wall   barrel {chr(216)}{BARREL_D} on a {chr(216)}{BARREL_LAND_D} land | "
-    f"lux {chr(216)}{LP_D} | {2*VENT_N} louvres {VENT_W}x{2*VENT_HH} | "
+    f"lux {chr(216)}{LP_D} | {len(vent_x())*VENT_N} louvres "
+    f"{VENT_W}x{2*VENT_HH} | "
     f"switch {chr(216)}{SW_D} @ ({SW_WALL_X},{SW_WALL_Y})")
 say(f"bosses      {len(board_bosses)} board bosses, all blind, all M{BOSS_SCREW} "
     f"except the Flex")
@@ -559,14 +709,30 @@ chk("fits the bed (y)", BED - (bb[4] - bb[1]))
 chk("fits the bed (z, printed rear-wall-down)", BED - (bb[5] - bb[2]))
 
 # every rear-wall boss must sit on the wall, not in an opening
-_open = [("barrel", W / 2, BARREL_Y, BARREL_D / 2), ("lux", W / 2, LP_Y, LP_D / 2)]
+# >>> AS RECTANGLES. The louvres used to be modelled here as CIRCLES of radius
+# >>> max(VENT_W, VENT_HH)/2 -- fine while a slot was 18 wide, absurd once one is
+# >>> 72: a Ø72 disc centred on the stack swallows most of the upper wall and
+# >>> reported the LUX bosses, 8 mm away and perfectly clear, as 28 mm inside a
+# >>> vent. A slot is 72 x 2, and approximating it by its longest dimension in
+# >>> BOTH axes is a 36x overstatement of its height.
+_open = [("barrel", W / 2 - BARREL_D / 2, W / 2 + BARREL_D / 2,
+          BARREL_Y - BARREL_D / 2, BARREL_Y + BARREL_D / 2),
+         ("lux", W / 2 - LP_D / 2, W / 2 + LP_D / 2, LP_Y - LP_D / 2, LP_Y + LP_D / 2),
+         ("switch", SW_WALL_X - SW_D / 2, SW_WALL_X + SW_D / 2,
+          SW_WALL_Y - SW_D / 2, SW_WALL_Y + SW_D / 2)]
 for vx in vent_x():
     for i in range(VENT_N):
-        _open.append(("vent", vx, VENT_Y + i * VENT_P, max(VENT_W, VENT_HH) / 2))
-_bw = 1e9
+        _vy = VENT_Y + i * VENT_P
+        _open.append((f"louvre {i}", vx - VENT_W / 2, vx + VENT_W / 2,
+                      _vy - VENT_HH, _vy + VENT_HH))
+_bw, _bwho = 1e9, ""
 for nm, hx, hy in board_bosses:
-    for onm, ox, oy, orr in _open:
-        _bw = min(_bw, math.hypot(hx - ox, hy - oy) - orr - BOSS_D / 2)
+    for onm, ox0, ox1, oy0, oy1 in _open:
+        _g = max(ox0 - (hx + BOSS_D / 2), (hx - BOSS_D / 2) - ox1,
+                 oy0 - (hy + BOSS_D / 2), (hy - BOSS_D / 2) - oy1)
+        if _g < _bw:
+            _bw, _bwho = _g, f"{nm} boss <-> {onm}"
+say(f"  ---- {_bw:8.2f}   tightest: {_bwho}")
 chk("board bosses clear every rear-wall opening", _bw)
 
 # >>> THE FRONT MODULE HAS TO BE ABLE TO GET IN, and nothing checked that.
@@ -718,6 +884,164 @@ try:
         bad.append("not watertight")
     if n_bodies != 1:
         bad.append(f"{n_bodies} disconnected bodies")
+
+    # >>> EVERY REAR-WALL BOARD'S ENVELOPE, AGAINST THE BUILT SOLID. The board
+    # >>> outlines are checked pairwise against each other by
+    # >>> rear_wall_clearances(), and against the arch analytically -- but nothing
+    # >>> put the actual PCB volume against the actual shell. The equivalent gap on
+    # >>> the bottom plate is exactly how the RTC ended up 0.9 mm inside a rail.
+    # >>> The board's datum is the BOSS TIP plane, not the wall: the rear-wall
+    # >>> bosses stand STANDOFF_H + 2 proud, and getting that wrong reports a
+    # >>> board buried in its own standoffs.
+    import numpy as _np
+    _tip = D - WALL - (STANDOFF_H + 2.0)
+    _bt = 1.6 + 3.0                       # PCB + tallest component, generous
+    _wb = 0
+    for _nm, _cx, _cy, _bw, _bh, _hp in rear_wall_boards():
+        if _hp is None:
+            continue
+        _P = _np.array([[_x, _y, _z]
+                        for _x in _np.linspace(_cx - _bw/2, _cx + _bw/2, 13)
+                        for _y in _np.linspace(_cy - _bh/2, _cy + _bh/2, 13)
+                        for _z in _np.linspace(_tip - _bt + 0.05, _tip - 0.05, 4)])
+        _hit = int(tm.contains(_P).sum())
+        _wb += _hit
+        say(f"  {'ok  ' if not _hit else 'FAIL'} {_nm} board envelope vs the shell "
+            f"({_hit}/{len(_P)} points in material)")
+        if _hit:
+            bad.append(f"{_nm} board is inside the shell")
+
+    # >>> OVERHANG AUDIT -- MEASURED OFF THE SOLID, NOT REASONED ABOUT.
+    # >>> Two of this part's overhangs (the retaining rib's rear face, the crown
+    # >>> bosses' rear halves) were found by reading the code and picturing the
+    # >>> print. That does not scale and it does not survive the next edit: any
+    # >>> new inward feature reintroduces the same fault silently, because no
+    # >>> clearance check has an opinion about which way is down.
+    # >>>
+    # >>> PRINTED REAR-WALL DOWN, THE BED IS AT z=D AND THE BUILD RUNS TOWARDS
+    # >>> z=0. So a facet whose normal points at +z is pointing at the bed, and if
+    # >>> it is within 45 deg of facing straight down it needs support. Area is
+    # >>> reported per z band so a regression says WHERE.
+    # >>> IT MEASURES WIDTH, NOT AREA, AND THAT IS THE WHOLE POINT. The first
+    # >>> version summed downward-facing area, and by that measure the ramp is
+    # >>> WORTHLESS: a 3 mm ledge broken into twelve 0.25 mm steps has exactly the
+    # >>> same area as the 3 mm ledge it replaced. Area cannot tell a staircase
+    # >>> from a shelf. What decides whether a slicer needs support is how far a
+    # >>> ledge reaches out from whatever holds it up -- its WIDTH.
+    # >>>
+    # >>> So the downward faces are grouped into connected coplanar patches and
+    # >>> each patch's mean width is taken as 2*area/perimeter, which is exact for
+    # >>> a long strip and is what every one of these is. The lip ring reports
+    # >>> ~4 mm; each ramp step reports 0.25.
+    # >>>
+    # >>> AND THE BED FACE IS NOT AN OVERHANG. The rear wall's outer face points
+    # >>> straight at the bed and is the largest downward face in the part by an
+    # >>> order of magnitude -- 25431 mm^2 of it, which swamped every real finding.
+    # >>> It is the first layer. It is lying ON the bed.
+    # >>> CONNECTED COMPONENTS, NOT COPLANAR FACETS. Grouping by trimesh's
+    # >>> `facets` (adjacent AND coplanar) catches the rib's flat shelf but is
+    # >>> BLIND TO CURVED OVERHANGS: deleting the crown buttresses left every boss
+    # >>> hanging over open cavity by its whole rear half, and the audit still said
+    # >>> ALL CLEAR -- because a cylinder has no flat facet, so the region came
+    # >>> apart into dozens of slivers each a fraction of a millimetre "wide".
+    # >>> The overhanging region is whatever is CONNECTED and facing the bed,
+    # >>> curved or not, so that is what gets grouped.
+    import numpy as _np
+    from scipy.sparse import coo_matrix as _coo
+    from scipy.sparse.csgraph import connected_components as _cc
+    # >>> 46 deg, NOT 45, AND THE ONE DEGREE IS THE POINT. The limit is 45 and the
+    # >>> ramps are BUILT at 45, so a threshold of exactly 45 flags the very
+    # >>> geometry that fixes the problem -- the rib ramp measures 44.6..45.0 deg
+    # >>> across the arch (the D outline insets its semi-axes rather than truly
+    # >>> offsetting, so the slope varies by a few tenths) and a strict `> 45`
+    # >>> caught 1757 mm^2 of correct, self-supporting surface. One degree of slack
+    # >>> distinguishes "designed at the limit" from "shallower than the limit".
+    _DOWN = math.sin(math.radians(46.0))
+    _down = tm.face_normals[:, 2] > _DOWN
+    _down &= tm.triangles_center[:, 2] <= D - 0.05      # not the bed face
+    _adj = tm.face_adjacency
+    _keep = _down[_adj[:, 0]] & _down[_adj[:, 1]]
+    _e = _adj[_keep]
+    _nf = len(tm.faces)
+    _g = _coo((_np.ones(len(_e)), (_e[:, 0], _e[:, 1])), shape=(_nf, _nf))
+    _ncomp, _lab = _cc(_g, directed=False)
+    # >>> A BORE'S ROOF IS A BRIDGE, NOT A CANTILEVER, AND THAT IS THE WHOLE
+    # >>> DISTINCTION. Every hole whose axis is perpendicular to the build -- the
+    # >>> six Ø4 heat-set bores up the tabs, the Ø3.5 ToF pinhole, the encoder
+    # >>> shaft -- has an unsupported roof, and by pure downward-facing-area those
+    # >>> look exactly like the rib's shelf. They are not the same thing: a roof is
+    # >>> anchored on BOTH sides and spans its own diameter, and 4 mm of bridge is
+    # >>> nothing. A ledge is anchored on one side only and droops.
+    # >>> So bores are excluded BY NAME, with their diameters asserted small -- not
+    # >>> by raising the threshold until they stop complaining, which would have
+    # >>> blinded the check to the 2.24 mm ledges it is actually for.
+    # >>> EACH EXCLUSION IS A CYLINDER WITH A HEIGHT RANGE, NOT A DISC. The knob's
+    # >>> seating pocket is Ø30 and centred at (W/2, ENC_Y) -- and so are the two
+    # >>> ENCODER BOSSES, 10 mm either side of that same axis. Excusing the pocket
+    # >>> by (x,z) proximity alone would have swallowed them whole, and deleting
+    # >>> the crown buttresses would then have gone unnoticed: the check would have
+    # >>> been excusing the very thing it exists to find. The pocket is up at the
+    # >>> outer skin (y ~155) and the bosses hang off the inner ceiling (y ~150),
+    # >>> so the height is what separates them.
+    _pd = flat_depth(KNOB_BOSS_D)
+    _bores = [(sx, sd, INSERT_D / 2, BP_T - 1.5, BP_T + LUG_H + 0.5, "insert bore")
+              for sx, sd in SCREWS]
+    _bores += [(TOF_X, TOF_Y, TOF_HOLE_D / 2, H - 26.0, H + 1.5, "ToF pinhole"),
+               (W / 2, KNOB_Z, ENC_SHAFT_D / 2, H - 26.0, H + 1.5, "encoder shaft"),
+               (W / 2, KNOB_Z, KNOB_BOSS_D / 2, H - _pd - 0.3, H + 0.3,
+                "knob seating pocket")]
+    _bores += [(_bx, _bz, BOSS_PILOT_D / 2, crown_inner_y(_bx) - 6.0,
+                crown_inner_y(_bx) + 2.0, "crown pilot")
+               for _n, _bx, _bz in _crown_bosses]
+    # >>> AND THE TEST IS THE BRIDGE SPAN, NOT THE DIAMETER. A round hole lying
+    # >>> across the build direction closes gradually: the widest gap its topmost
+    # >>> layer must span is the chord 2*sqrt(2*r*t), not 2*r. For the Ø30 knob
+    # >>> pocket that is 4.9 mm, not 30 -- which is why a diameter limit rejected
+    # >>> it and a span limit accepts it, correctly.
+    _LAYER = 0.2
+    for _bx, _bz, _br, _y0, _y1, _bn in _bores:
+        _span = 2.0 * math.sqrt(2.0 * _br * _LAYER)
+        if _span > 10.0:
+            bad.append(f"{_bn} bridges {_span:.1f} mm -- too far to excuse")
+
+    _worst, _wworst, _lip, _nbore = 0.0, "", 0.0, 0
+    for _c in range(_ncomp):
+        _fi = _np.where((_lab == _c) & _down)[0]
+        if not len(_fi):
+            continue
+        _ar = float(tm.area_faces[_fi].sum())
+        if _ar < 0.5:
+            continue
+        _ctr = tm.triangles_center[_fi].mean(axis=0)
+        if any(math.hypot(_ctr[0] - _bx, _ctr[2] - _bz) <= _br + 0.4
+               and _y0 <= _ctr[1] <= _y1
+               for _bx, _bz, _br, _y0, _y1, _bn in _bores):
+            _nbore += 1
+            continue
+        _cz = float(tm.triangles_center[_fi][:, 2].mean())
+        _edges = tm.edges_sorted[_np.concatenate(
+            [_np.arange(3) + 3 * _f for _f in _fi])]
+        _uniq, _cnt = _np.unique(_edges, axis=0, return_counts=True)
+        _bnd = _uniq[_cnt == 1]
+        _per = float(_np.linalg.norm(
+            tm.vertices[_bnd[:, 0]] - tm.vertices[_bnd[:, 1]], axis=1).sum())
+        _wid = 2.0 * _ar / _per if _per > 1e-9 else 0.0
+        if _cz < LIP_T + 0.05:
+            _lip = max(_lip, _wid)
+        elif _wid > _worst:
+            _worst, _wworst = _wid, f"{_ar:.0f} mm^2 region at z={_cz:.2f}"
+    say("")
+    say(f"overhang audit (build runs z={D} -> 0; faces pointing at the bed)")
+    say(f"  front lip's rear face      width {_lip:5.2f} mm   (unavoidable, see note)")
+    say(f"  bore roofs skipped         {_nbore:5d}      bridges, not cantilevers")
+    say(f"  worst elsewhere            width {_worst:5.2f} mm   {_wworst}")
+    # >>> THE THRESHOLD IS 1.0 mm, AND IT IS NOT ARBITRARY. The widest thing left
+    # >>> behind the lip is the touch pocket's leading end wall -- the 0.9 mm step
+    # >>> where the thinned wall goes back to full thickness -- and a 0.9 mm ledge
+    # >>> bridges without support on any FDM machine. Setting the bar below that
+    # >>> would mean chamfering a feature that does not need it, and a check that
+    # >>> fails on things that are fine is a check people learn to ignore.
+    chk("no unsupported ledge wider than 1 mm behind the front lip", 1.00 - _worst)
 except ImportError:
     say("validate skipped: no trimesh")
 
