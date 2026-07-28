@@ -33,8 +33,8 @@
 <g id="fm-body">
 <path class="obj" d="M3.6,151.69 V74.74 A97.4,71.14 0 0 1 198.4,74.74 V151.69 Z"/>
 <path class="phan" d="M3.6,151.69 V74.74 A97.4,71.14 0 0 1 198.4,74.74 V151.69 Z"/>
-<path class="obj" d="M10.5,74.74 A90.5,64.24 0 0 1 191.5,74.74 Z"/>
-<path class="obj" d="M8.5,74.74 A92.5,66.24 0 0 1 193.5,74.74 Z"/>
+<path class="obj" d="M9.6,74.74 A91.4,65.14 0 0 1 192.4,74.74 Z"/>
+<path class="obj" d="M7.6,74.74 A93.4,67.14 0 0 1 194.4,74.74 Z"/>
 <rect class="phan" x="57.82" y="105.37" width="86.36" height="27.94"/>
 <line class="phan" x1="101" y1="105.37" x2="101" y2="133.31"/>
 <path class="hid" d="M61,107.84 H141 A2,2 0 0 1 143,109.84 V128.84 A2,2 0 0 1 141,130.84 H61 A2,2 0 0 1 59,128.84 V109.84 A2,2 0 0 1 61,107.84 Z"/>
@@ -76,9 +76,9 @@
 <line class="ctr" x1="101" y1="-10" x2="101" y2="161.69"/>
 <line class="ext" x1="0" y1="155.69" x2="0" y2="183.69"/><line class="ext" x1="202" y1="155.69" x2="202" y2="183.69"/><line class="dim" x1="0" y1="181.69" x2="202" y2="181.69" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="101" y="180.29" text-anchor="middle">194.8</text>
 <line class="ext" x1="71" y1="3.6" x2="-24" y2="3.6"/><line class="ext" x1="71" y1="151.69" x2="-24" y2="151.69"/><line class="dim" x1="-22" y1="3.6" x2="-22" y2="151.69" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="-23.4" y="77.645" text-anchor="middle" transform="rotate(-90 -23.4 77.645)">148.1</text>
-<line class="dim" x1="35.84" y1="30.414" x2="17.84" y2="16.414" marker-start="url(#arw)"/><line class="dim" x1="17.84" y1="16.414" x2="11.84" y2="16.414"/><text class="dtx" x="10.64" y="17.514" text-anchor="end">diffuser pocket 90.5x64.2 x 3.2 deep</text>
-<line class="dim" x1="62.15" y1="15.124" x2="48.15" y2="-10.876" marker-start="url(#arw)"/><line class="dim" x1="48.15" y1="-10.876" x2="42.15" y2="-10.876"/><text class="dtx" x="40.95" y="-9.776" text-anchor="end">cavity wall 2</text>
-<line class="dim" x1="154.4" y1="35.841" x2="198.4" y2="17.841" marker-start="url(#arw)"/><line class="dim" x1="198.4" y1="17.841" x2="204.4" y2="17.841"/><text class="dtx" x="205.6" y="18.941" text-anchor="start">45 px on a 11 row pitch, 6 rows - the strip fills the diffuser, no fade band</text>
+<line class="dim" x1="35.192" y1="29.793" x2="17.192" y2="15.793" marker-start="url(#arw)"/><line class="dim" x1="17.192" y1="15.793" x2="11.192" y2="15.793"/><text class="dtx" x="9.992" y="16.893" text-anchor="end">diffuser pocket 91.4x65.1 x 3.2 deep</text>
+<line class="dim" x1="61.772" y1="14.314" x2="47.772" y2="-11.686" marker-start="url(#arw)"/><line class="dim" x1="47.772" y1="-11.686" x2="41.772" y2="-11.686"/><text class="dtx" x="40.572" y="-10.586" text-anchor="end">cavity wall 2</text>
+<line class="dim" x1="154.4" y1="35.841" x2="198.4" y2="17.841" marker-start="url(#arw)"/><line class="dim" x1="198.4" y1="17.841" x2="204.4" y2="17.841"/><text class="dtx" x="205.6" y="18.941" text-anchor="start">48 px on a 10.4 row pitch, 6 rows - the strip fills the diffuser, no fade band</text>
 <line class="dim" x1="79.41" y1="133.31" x2="53.41" y2="175.31" marker-start="url(#arw)"/><line class="dim" x1="53.41" y1="175.31" x2="47.41" y2="175.31"/><text class="dtx" x="46.21" y="176.41" text-anchor="end">2x matrix - 4 posts + 6 clips, see note h</text>
 <line class="dim" x1="186.875" y1="103.365" x2="216.875" y2="73.365" marker-start="url(#arw)"/><line class="dim" x1="216.875" y1="73.365" x2="222.875" y2="73.365"/><text class="dtx" x="224.075" y="74.465" text-anchor="start">2x Seeed 45x50x22 - ROTATED 90, nubs top+bottom</text>
 <line class="dim" x1="170.9" y1="90.99" x2="202.9" y2="70.99" marker-start="url(#arw)"/><line class="dim" x1="202.9" y1="70.99" x2="208.9" y2="70.99"/><text class="dtx" x="210.1" y="72.09" text-anchor="start">nub post 10x6 on the centreline - see note g</text>
@@ -271,7 +271,7 @@
 <text class="note" x="0" y="46.7" text-anchor="start">    everything else - matrix aperture, grilles, mic ports, diffuser - is now on ONE part, so there are no stacked tolerances.</text>
 <text class="note" x="0" y="51.4" text-anchor="start">b   The facade went 3 -> 4 mm. Two 45x50 sealed boxes on an unsupported 3 mm plate will flex and buzz; it is a baffle now, not a cover.</text>
 <text class="note" x="0" y="56.1" text-anchor="start">    Ribs run from each baffle ring out to the perimeter for the same reason.</text>
-<text class="note" x="0" y="60.8" text-anchor="start">c   AIR GAP IS A GUESS. 12 mm is ~0.7x the 16.5 mm LED pitch, the usual starting point for not seeing 45 dots through opal.</text>
+<text class="note" x="0" y="60.8" text-anchor="start">c   AIR GAP IS A GUESS. 12 mm is ~0.7x the 16.5 mm LED pitch, the usual starting point for not seeing 48 dots through opal.</text>
 <text class="note" x="0" y="65.5" text-anchor="start">    Test-print the crescent corner before committing - this is the one number most likely to need changing.</text>
 <text class="note" x="0" y="70.2" text-anchor="start">d   FIXINGS ARE WALL LUGS, NOT FLOOR BOSSES. Each lug is a pad that projects inward off the dome wall with a blind heat-set hole; the</text>
 <text class="note" x="0" y="74.9" text-anchor="start">    screw comes up through the bottom plate and grabs it. Lugs live at the perimeter where the plate needs support anyway, and they</text>

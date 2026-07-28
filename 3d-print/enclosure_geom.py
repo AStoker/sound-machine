@@ -13,7 +13,7 @@ sheets import this, so they cannot drift apart:
 """
 import math
 
-from drawlib import n, rect, circ
+from drawlib import n, rect, circ, line
 
 # ---- envelope --------------------------------------------------------------
 # ONLY D IS CHOSEN. W and H are both DERIVED from what has to fit on the front
@@ -125,7 +125,18 @@ def _rim_min():
 # from behind -- you cannot print an even diffuser.
 DIFF_T      = 3.0    # (?) opal acrylic thickness
 DIFF_REBATE = DIFF_T + 0.2           # pocket depth on the back of the facade
-DIFF_MARGIN = 1.5                    # pocket oversize on the crescent radius
+# >>> THE POCKET OVERSIZE IS ALSO THE RETAINING LEDGE, and it is set as large as
+# >>> the shell allows FOR FREE. The acrylic has to be notched to clear the
+# >>> carrier pads on its way in (it passes through them to reach the pocket), and
+# >>> the ledge is what hides those notches from the front. Every extra mm of
+# >>> ledge is a mm less notch on show.
+# >>> 2.4, not 1.5, because RIM_MIN = REVEAL + BOSS_EDGE + DIFF_MARGIN + CAV_WALL
+# >>> = 3.6 + 4 + 2.4 + 2 = 12.0, which is exactly RIM_MIN_LOOK -- so the pocket
+# >>> grows outward into the rim's spare 0.9 and the LIT CRESCENT DOES NOT SHRINK.
+# >>> Beyond this it costs pixels: pulling the aperture in to hide the notch
+# >>> completely needs 5 mm and takes the crescent from 48 px to 40. Not worth it
+# >>> for six 2.9 mm nicks behind opal acrylic and grille cloth.
+DIFF_MARGIN = 2.4                    # pocket oversize = the retaining ledge
 CAV_WALL    = 2.0                    # diffusion cavity wall, follows the arc
 
 RIM_MIN   = _rim_min()               # <<< DERIVED, see above -- not a look
@@ -171,15 +182,25 @@ LED_PITCH = 16.5     # MEASURED, cut line to cut line. Was 16.7 from the nominal
 # >>> lines sit half a pitch outboard of the end LEDs and you cannot trim past
 # >>> them without losing the solder pads. On the bottom row that ribbon is
 # >>> 6.9 mm longer than the LED span, and it did not fit.
-# >>> At CROWN_K 0.74 the crescent physically holds 45. Fitting 48 needs 0.80,
-# >>> which is TALLER than the design was before this session. 45 was the call.
+# >>> With the rows BUTTING (pitch 10.0 = STRIP_W) the crescent holds exactly 48
+# >>> at CROWN_K 0.74. It held only 45 while the pitch carried a 1 mm gap, and
+# >>> recovering 48 that way would have needed CROWN_K 0.80 -- a taller shell.
+# >>> Closing the row gap was free.
 # >>> See crescent_capacity_note() and the ribbon cap in _crescent_row_cap().
-CRES_PX   = 45       # DERIVED from the cavity -- see above. Cut 3 px off the
-                     #   48-px strip; they are simply not laid.
+CRES_PX   = 48       # DERIVED from the cavity -- see above. The whole reel fits
+                     #   again now the rows butt; at an 11.0 pitch it was 45.
 LED_D     = 5.2      # SK6812 package, drawn indicatively
 STRIP_W   = 10.0     # MEASURED. Ribbon width. Two jobs: it floors the ROW pitch
-                     #   (rows any closer overlap) and, being wider than the LED,
-                     #   it is what reaches the cavity wall first.
+                     #   and, being wider than the LED, it is what reaches the
+                     #   cavity wall first.
+# >>> ROWS BUTT. The pitch floor is STRIP_W exactly, not STRIP_W + 1 -- adjacent
+# >>> ribbons are allowed to touch edge to edge. The old 1 mm gap was pure
+# >>> caution and it cost three pixels: at an 11.0 pitch the crescent holds 45,
+# >>> at 10.0 it holds 48, which is the whole reel, on the same shell height.
+# >>> There is no manufacturing slack left in the row direction, so if the tape
+# >>> measures over 10.0 the rows overlap -- STRIP_W is the number to re-measure
+# >>> if the layout ever looks wrong.
+STRIP_ROW_GAP = 0.0  # designed gap between adjacent ribbons
 # ROW pitch is the one spacing we actually control: within a row the strip fixes
 # it at LED_PITCH, but the gap BETWEEN rows is ours to choose. Earlier revisions
 # derived it by stretching however many rows we had across the full radius,
@@ -413,7 +434,7 @@ def _solve_row_pitch():
     >>> and threw away three pixels. Capacity here is the true per-row cap, both
     >>> limits applied.
     """
-    lo = STRIP_W + 1.0
+    lo = STRIP_W + STRIP_ROW_GAP
     best, best_p = -1, lo
     p = LED_PITCH
     while p >= lo - 1e-9:
@@ -633,7 +654,7 @@ STRIP_END_CLR  = 0.5                 # per end, cut segment to stop
 # >>> on the wall -- but the top row's RIBBON runs right through it. The row is
 # >>> only 2 px, so the LEDs are nowhere near, which is exactly why a check that
 # >>> looked at pixels alone waved it through and the preview did not.
-CARRIER_FIX_DEG = [7.5, 34.2, 72.5, 107.5, 145.8, 172.5]
+CARRIER_FIX_DEG = [7.0, 33.2, 61.8, 118.2, 146.8, 173.0]
 # >>> M2.5, NOT M3, AND THIS IS THE REASON. Everything else on the build is M3,
 # >>> but an M3 pad is 8 mm across and at 8 mm the lowest usable band is 20 deg
 # >>> -- which leaves the plate's two bottom corners, and with them the widest
@@ -659,6 +680,36 @@ PAD_W          = 6.5                 # pad diameter -- a round boss, so this is
 PAD_WALL_CLR   = 0.3
 PAD_OFFSET_IN  = PAD_W / 2 - CAV_WALL + PAD_WALL_CLR
 PAD_PROJ       = PAD_W - CAV_WALL + PAD_WALL_CLR   # DERIVED inward projection
+# >>> THE PAD IS A TAPERED BOSS, NOT A STRAIGHT EXTRUSION. It is PAD_W across at
+# >>> the seating plane and PAD_W + 2*PAD_DRAFT at the facade. The module prints
+# >>> FACE DOWN, so features that widen as they rise overhang; narrowing upward
+# >>> is the self-supporting direction, and supports inside a diffusion cavity
+# >>> would leave scarring visible through the acrylic. The flare doubles as a
+# >>> gusset at the root, where a boss standing CARRIER_Z0 tall off a 2 mm wall
+# >>> wants to snap off.
+# >>> 1.5 over 18.83 is about 4.6 deg -- gentle, but it is the whole bottom of
+# >>> the boss rather than a token fillet, and it costs nothing: everything the
+# >>> pad must clear sits at the TOP of the cavity, where it is narrowest.
+# >>> PAD_DRAFT IS 0. It was 1.5, which put a gusset at the boss root -- good --
+# >>> but a round flare grows BOTH ways: outward through the cavity wall (now
+# >>> clipped) and INWARD, 1.5 mm deeper into the disc's path. That inward 1.5
+# >>> became 1.5 mm of extra notch depth on the acrylic, i.e. 1.5 mm more nick
+# >>> showing past the ledge. The 45 deg underside ramp already IS the gusset and
+# >>> costs the disc nothing, so the flare went and the ramp stayed.
+PAD_DRAFT      = 0.0                 # extra radius at the base, per side
+# >>> AND IT STARTS ABOVE THE ACRYLIC, ON A 45 DEG RAMP. A pad running all the
+# >>> way down to the facade sits squarely in the opal acrylic's pocket -- the
+# >>> disc is CRES_R + 0.2 across and the pad reaches 4.8 mm inside DIFF_R, so
+# >>> the acrylic simply cannot drop in past it (607 mm^3 of interference). The
+# >>> alternative was scalloping the acrylic, but that makes a hand-cut part
+# >>> depend on six boss positions, and it is a part you may recut.
+# >>> So the pad begins at the pocket floor and grows OUT OF THE WALL on a 45 deg
+# >>> underside ramp: zero projection at PAD_Z0, full section one pad-radius
+# >>> later. 45 deg is self-supporting on FDM, so the underside needs no support
+# >>> inside the optical cavity. This is the "gradual rise" -- the boss is never
+# >>> a square shelf hanging off the wall at any height.
+PAD_Z0         = DIFF_LIP + DIFF_REBATE          # pocket floor: clear of acrylic
+PAD_RAMP       = PAD_W / 2 + PAD_DRAFT           # 45 deg -> rise == radius
 PAD_PILOT_D    = 2.1                 # M2.5 self-tapping pilot
 PAD_PILOT_Z    = 8.0                 # pilot depth into the pad
 CARRIER_SCREW  = 2.5                 # M2.5 -- see the note on PAD_W
@@ -1128,9 +1179,37 @@ def carrier_pads():
 
 def pad_wall_margins():
     """How far each pad's OUTER edge stays inside the cavity wall's outer face.
-    Must be >= 0 or the boss stands in the dome's rib band. Measured as a true
-    distance to the CAV ellipse, for the same reason ell_dist exists."""
+
+    >>> MEASURED AT THE PAD'S WIDEST RADIUS, WHICH IS THE BASE, NOT THE SHAFT.
+    >>> This used to subtract PAD_W/2 and reported a comfortable +0.3 while the
+    >>> base flare -- PAD_DRAFT bigger -- was 1.2 mm out through the wall and into
+    >>> the dome's rib band. A margin check against the wrong radius is worse
+    >>> than no check: it actively vouched for the failure.
+    >>>
+    >>> The geometry is clipped to the cavity envelope now, so this can no longer
+    >>> go negative in the built part. It is kept as the DESIGN margin -- if it
+    >>> reads negative the boss is being silently trimmed, which means the screw
+    >>> has less meat around it than the numbers here suggest.
+    """
     return [(deg, ell_dist(px, py, CAV_R_G, CAV_RY_G) - PAD_W / 2)
+            for px, py, deg in carrier_pads()]
+
+
+def pad_flare_trim():
+    """How much of the BASE FLARE the cavity envelope clips off, per pad.
+
+    Positive here is expected and intended: the flare is a gusset that only needs
+    to exist on the INBOARD side, where there is room. Growing it as a full
+    circle and clipping the outboard half flush is the simplest way to get "a
+    reverse cone that does not break the outside plane" -- the alternative,
+    pushing the whole boss further in so the untrimmed circle fits, would spend
+    PAD_DRAFT of clearance at the TOP of the cavity, which is the one place the
+    pad has none to spare.
+
+    What must stay true is that the SHAFT -- the part with the screw in it -- is
+    NOT being trimmed. That is `pad_wall_margins()`, and it must be >= 0."""
+    r_max = PAD_W / 2 + PAD_DRAFT
+    return [(deg, max(0.0, r_max - ell_dist(px, py, CAV_R_G, CAV_RY_G)))
             for px, py, deg in carrier_pads()]
 
 
@@ -1257,13 +1336,33 @@ def crescent_px():
     return sum(c for _, c, _ in crescent_rows())
 
 
-def crescent_leds():
-    """The LED positions, laid out on the crescent (indicative)."""
+def crescent_leds(with_ribbon=True):
+    """The crescent LEDs, and by default the RIBBON they are cut from.
+
+    >>> DRAW THE RIBBON, NOT JUST THE DOTS. Circles alone show where the light
+    >>> comes from and hide the thing that actually constrains the layout: the
+    >>> strip is STRIP_W wide and each pixel carries half a pitch of ribbon
+    >>> either side of it, so a row of n pixels is n * LED_PITCH of physical tape
+    >>> -- a full pitch longer than the span between the end LEDs. Drawn as dots,
+    >>> an 11-pixel bottom row looked fine on every sheet while its tape was
+    >>> 0.5 mm too long for the cavity. Each row is now drawn as its outline with
+    >>> the CUT LINES marked, one per pixel, LED centred in its own segment.
+    """
     o = []
     for (w, k, run), y in zip(crescent_rows(), crescent_row_ys()):
+        if k == 0:
+            continue
+        cy = fy(CRES_Y + y)
+        if with_ribbon:
+            seg = k * LED_PITCH                       # the physical tape
+            x0 = W/2 - seg/2
+            o.append(rect(x0, cy - STRIP_W/2, seg, STRIP_W, "phan"))
+            for i in range(k + 1):                    # every cut line, ends too
+                cx = x0 + i * LED_PITCH
+                o.append(line(cx, cy - STRIP_W/2, cx, cy + STRIP_W/2, "hid"))
         for i in range(k):
             x = W/2 - run/2 + i * LED_PITCH if k > 1 else W/2
-            o.append(circ(x, fy(CRES_Y + y), LED_D, "led"))
+            o.append(circ(x, cy, LED_D, "led"))
     return o
 
 

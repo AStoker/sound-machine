@@ -1,14 +1,30 @@
 # WIP — resume here
 
-**All five generators are `ALL CLEAR`.** Firmware is in sync with the geometry.
-Nothing is committed. `HARDWARE.md` and `README.md` are still stale (last
-section).
+**All five generators are `ALL CLEAR`, and `check_docs.py` is `ALL SYNCED`.**
+Firmware and all four documents are in sync with the geometry.
+Nothing is committed.
+
 
 ```sh
 python3 gen_drawing.py && python3 gen_internals.py && python3 gen_wiring.py
 ../.venv/bin/python gen_front_plate.py
 ../.venv/bin/python gen_led_carrier.py
+python3 check_docs.py          # <- prose vs geometry; ends in ALL SYNCED
 ```
+
+## `check_docs.py` — new, and the reason it exists
+
+Numbers live in five places: `enclosure_geom.py` (truth),
+`packages/lighting.yaml` (the firmware's copy of the LED layout), and three
+markdown docs. Prose does not fail a unit test, so every rework left documents
+describing a machine that no longer existed — the 258-wide split enclosure was
+still documented as current three revisions after it stopped being built.
+
+`check_docs.py` asserts the facts and flags stale values, and **history is
+allowed**: a stale-value rule only fires when the old value appears outside a
+line that marks itself historical ("used to", "no longer", "there is no", …).
+Keep using those markers when writing a why-it-changed note. It does not judge
+whether prose is *good* — read the diff too.
 
 ## Envelope
 
@@ -20,10 +36,12 @@ python3 gen_drawing.py && python3 gen_internals.py && python3 gen_wiring.py
 | MIC_Y0 / MIC_Y1 | 70.7 / 82.7 | **64.35 / 76.35** |
 | CRES_Y | 87.3 | **80.95** |
 | crescent ellipse | 89 × 60.72 | **89 × 62.74** |
-| LED rows | 10/10/10/8/7/3 = 48 | **10/10/9/8/6/2 = 45** |
-| min LED → diffuser | −0.58 (overhang) | **+2.26** |
+| LED rows | 10/10/10/8/7/3 = 48 | **10/10/9/8/7/4 = 48** |
+| row pitch | 11.0 (1 mm gap) | **10.4 — the ribbons BUTT** |
+| pocket ledge | 1.5 | **2.4** (free; hides the acrylic notches) |
+| min LED → diffuser | −0.58 (overhang) | **+2.95** |
 | front module | 194.8 × 152.4 × 22.2 | **194.8 × 148.1 × 21.33** |
-| parts | 5 | **6** (LED carrier added) |
+| parts | 5 | **7** (LED carrier + generated diffuser) |
 
 Both printed parts fit a 220 bed whole. Front module mesh: watertight, one
 connected body, 70.3 cm³. Carrier: watertight, one body, 25.2 cm³.
@@ -122,16 +140,42 @@ LED plane — so it shrouds the ribbon and its back face is the carrier's seat.
 `DIFF_LIP` and `CAV_Z` moved into `enclosure_geom.py`; two files each deriving a
 z stack from a constant only one of them owned is how the last drift bugs started.
 
-**Fixing: 6 × M2.5 into pads on the INSIDE of the cavity wall.** Three
-alternatives were considered and cost more:
+**Fixing: 6 × M2.5 into pads on the INSIDE of the cavity wall.** Alternatives
+considered and rejected:
 
 - *ears reaching outward onto the rim* — only **0.9 mm** of rim is free outside
   the cavity wall before the dome's rib keep-out. Making room means RIM_MIN
   12 → ~16, which shrinks the crescent to 85 × 58.7 and drops it to five rows.
 - *pillars from the facade floor* — 12 mm columns inside a lit cavity.
 - *captured by the dome, no screws* — locates the plate, never clamps it.
+- *cantilever / snap fit*, as used for the clock matrices — **does not work
+  here.** A clip gripping the plate's edge must flex *outward*, into that same
+  0.9 mm. Clips deflecting *inward* need the plate inside the cavity, and then it
+  cannot seat on the wall's back face, which is the air gap's datum. And clips
+  hold a plate wherever the worst clip decides: over a 185 mm span on FDM, six
+  screws pulling onto a hard seat is the difference between an even glow and a
+  bright band. Screws also keep the five soldered segment joints serviceable.
 
 The pads also buttress what is otherwise a 2 mm × 19 mm unsupported fin.
+
+**Pad shape is FDM-driven.** The module prints face down, so anything widening as
+it rises overhangs. Each pad starts at the acrylic pocket floor on a **45°
+underside ramp** growing out of the wall (self-supporting — no support inside the
+optical cavity, where scarring would show through the acrylic), then **narrows**
+going up: Ø9.5 at the base, Ø6.5 at the seat. The flare is a gusset at the root.
+
+Three things the pads got wrong first, all now fixed and all now checked:
+
+1. **Built before the cuts** — the acrylic-pocket / air-gap bore sliced them away,
+   leaving a 1.13 mm stub with an 8 mm pilot drilling into air. The presence
+   probe passed because it sampled inside that stub. *A single probe near a
+   feature's tip cannot tell a boss from a lid.* Now sampled at three heights
+   plus a pilot depth/breakthrough pair.
+2. **Ran down to the facade** — 607 mm³ into the opal acrylic's pocket; the disc
+   could not drop in.
+3. **The air-gap clash subtracted a plain cylinder** as a stand-in. Once the pad
+   grew a taper the stand-in stopped matching and the check reported its own
+   approximation error. It now subtracts the exact solid the part is built from.
 
 **M2.5, not M3, deliberately.** An M3 pad is 8 mm across and at 8 mm the lowest
 usable angle is 20°, which leaves the plate's bottom corners — and the widest,
@@ -179,11 +223,21 @@ comment block rewritten for the measured strip and the ribbon constraint.
 > used to. **The Circadian Sunrise effect should be re-checked against this** —
 > it fills whole rows bottom-up and was written for a fuller apex.
 
+## Drawings now show the ribbon, not just the dots
+
+`crescent_leds()` draws each row's **tape outline with its cut lines** — one per
+pixel, LED centred in its own segment. Drawn as circles alone, an over-long row
+looked fine on every sheet while its tape was 0.5 mm too long for the cavity.
+The carrier preview does the same.
+
+Also fixed on the sheets: `gen_internals.py` was drawing the **pre-rotation
+speaker mount** (side posts on the horizontal axis, flank seat rings, flank
+stiffening ribs) and note g still read "hangs on side nubs". `gen_wiring.py` drew
+the crescent with `semi()` — a true **semicircle** — making it 26 mm taller on
+sheet 3 than on sheets 1 and 2.
+
 ## Still open
 
-- `HARDWARE.md` and `3d-print/README.md` still describe the **258-wide, split**
-  design: side nubs, array flanked by speakers, semicircular crown, R117/R96
-  crescent with a 21 mm fade band, two-piece front module. All wrong.
 - Measure `SPK_NUB_H` / `SPK_NUB_PROJ` / `SPK_NUB_W` before printing.
 - `DIFF_GAP` (12) is still a guess — tune on a test print. It is the one number
   most likely to need changing, and it moves `CARRIER_Z0` with it.
@@ -191,3 +245,77 @@ comment block rewritten for the measured strip and the ribbon constraint.
   +6 mm of height.
 - `.png` files are NOT regenerated by the scripts — they are rendered separately
   from the `.svg`s (`cairosvg`, scale 3).
+
+
+## Late changes (same session)
+
+**Rows butt now.** The pitch floor was `STRIP_W + 1`; it is `STRIP_W` +
+`STRIP_ROW_GAP` (0), and the solver lands on **10.4**. That recovered the three
+pixels lost to the ribbon constraint — **48 again**, on the same shell height.
+Recovering them via `CROWN_K` would have cost 6 mm of height.
+
+**The acrylic could not be fitted, and nothing had noticed.** The carrier pads
+stand inside the cavity wall over z = 4.7..18.8. The pane's *home* is in front of
+all of it, but it has to travel the full depth of the cavity to get there — past
+the pads. Un-notched it simply will not go in.
+
+Fixed as **ledge + notches**:
+- `DIFF_MARGIN` 1.5 → **2.4**, which is free: `RIM_MIN = REVEAL + BOSS_EDGE +
+  DIFF_MARGIN + CAV_WALL` = 12.0 = exactly `RIM_MIN_LOOK`, so the pocket grows
+  outward into the rim's spare 0.9 and **the lit crescent does not shrink**.
+- `PAD_DRAFT` 1.5 → **0**. A round flare grows both ways: outward through the
+  wall (1.2 mm into the dome's rib band) and inward, 1.5 mm deeper into the
+  pane's path — i.e. 1.5 mm more notch on show. The 45° ramp already is the
+  gusset, so the flare went.
+- New **`gen_diffuser.py` → `diffuser.svg`**, a 1:1 Glowforge cut file with the
+  six notches placed from the same `carrier_pads()` the module is built from.
+
+**3.5 mm of each notch still shows past the aperture**, at six points. Hiding
+them completely needs the aperture pulled in ~5 mm, which costs 8 pixels
+(48 → 40). They sit behind opal acrylic *and* grille cloth in the dimmest part of
+the field, so they should read as slight local dimming rather than as cuts.
+
+### Three more checks that were lying
+
+1. **The pads were built before the cuts** — the air-gap bore sliced them to a
+   1.13 mm stub over a hole, with an 8 mm pilot drilling into air. The presence
+   probe passed because it sampled inside the stub.
+2. **`pad_wall_margins()` measured the shaft radius**, not the base flare, and
+   reported +0.3 while the flare was 1.2 mm out through the wall. There is now a
+   geometric clash test as well, and the pad is *clipped* to the cavity envelope
+   so it cannot break the outer plane whatever draft it is given.
+3. **`check_docs.py` banned "48 px"** because 48 was the superseded value that
+   day. When the count went back to 48 it failed every correct document. The
+   stale set is derived from the geometry now.
+
+The pattern is the same each time: **the check was written around the answer it
+expected, not around the thing it was meant to prove.**
+
+
+## Pad ramp + notch shape (final pass)
+
+**The ramp had a floating tip.** A straight cone on the pad's own axis tapers to
+a point `PAD_OFFSET_IN` = 1.55 mm clear of the wall, with nothing under it — the
+bore removed everything below `PAD_Z0`. Unbuildable on FDM, and it looked fine in
+section. The apex is now buried `APEX_BURY` into the wall and the ramp is the
+convex hull of that apex and the shaft base — a skewed half-cone that grows out
+of the wall, every layer attached.
+
+> `connected bodies == 1` does NOT catch a floating tip: it is still joined to
+> the shaft above it. New probe: at three heights up each ramp there must be
+> material AT the wall's inner face.
+
+**The diffuser notches are round.** The pane sits in front of the pads, so each
+notch is a straight-through hole in the diffuser that leaks undiffused light. It
+only has to clear a cylinder, and the pane travels straight along z — so a
+circular bite of `PAD_W/2 + clearance` is the exact minimum. 31.3 mm² vs 42.0 for
+the square bite: **26% less open area**, 186 mm² instead of 252 over six. It also
+hugs the pad, so the clear-glue fillet is a constant gap.
+
+Getting `gen_diffuser.py` right took four attempts, each caught by a check rather
+than by eye: depth measured from the origin instead of along the normal (notches
+came out as *tabs*); wrong winding order (self-crossing path); arc samples still
+drawn across the notch mouth; and arc endpoints taken from the tangent alone, so
+they were not on the circle. Verified by area against closed form, a
+self-intersection sweep, and a pad-clearance check — the last of which failed
+once for comparing SVG-space points against model-space pads.

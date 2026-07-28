@@ -47,7 +47,9 @@ from enclosure_geom import (
     SPK_NUB_SCREW, SPK_NUB_Y, SPK_NUB_Z, SPK_POST_WALL, SPK_RING_W, SPK_SEAT_W,
     SPK_NUB_H, SPK_NUB_W, SPK_POST_W, SPK_POST_H_Y, CLR_POST_MIC,
     DIFF_LIP, CAV_Z, CARRIER_Z0, CARRIER_T, LED_STRIP_T, DIFF_R_G, CAV_RY_G,
-    PAD_PROJ, PAD_W, PAD_PILOT_D, PAD_PILOT_Z, carrier_pads, pad_led_clearances,
+    PAD_PROJ, PAD_W, PAD_DRAFT, PAD_Z0, PAD_RAMP, PAD_OFFSET_IN, PAD_PILOT_D,
+    PAD_PILOT_Z, carrier_pads, DIFF_RY_G,
+    pad_led_clearances,
     pad_wall_margins,
     SPK_FIT, SPK_X, SPK_Y, SPK_Y0, SPK_Y1, TRAY_D, TRAY_H, TRAY_REBATE, TRAY_W, TRAY_Y0,
     TRAY_Y1, W, mic_x,
@@ -231,17 +233,8 @@ cav_wall = (half_disc(W / 2, CRES_Y, CAV_R, skirt=CAV_WALL, ry=CAV_RY)
             - half_disc(W / 2, CRES_Y, DIFF_R, ry=DIFF_RY))
 body = body + slab(cav_wall, 0.0, CARRIER_Z0)
 
-# --- LED carrier fixing pads ------------------------------------------------
-# Six local thickenings on the INSIDE of the cavity wall, at the angles the
-# clearance sweep picked (see enclosure_geom.carrier_pads). They run the full
-# height of the wall, so they also buttress what is otherwise a 2 mm x 20 mm
-# unsupported fin -- the reason for the wall's aspect ratio is optical, not
-# structural, and it prints better braced.
-pad_pts = []
-for _px, _py, _deg in carrier_pads():
-    _x, _y = W / 2 + _px, CRES_Y + _py
-    pad_pts.append((_x, _y))
-    body = body + cyl(_x, _y, 0.0, CARRIER_Z0, PAD_W)
+# (The LED carrier fixing pads used to be built HERE, and it was wrong -- see
+#  the note where they are actually built, below the cuts.)
 
 cuts = []
 cuts.append(slab(half_disc(W / 2, CRES_Y, DIFF_R, ry=DIFF_RY), DIFF_LIP, CAV_Z + 1))
@@ -276,6 +269,105 @@ body = body - union(cuts)
 # ADDITIVE FEATURES (all behind the facade, all growing upward off the bed)
 # ---------------------------------------------------------------------------
 adds = []
+
+# --- LED carrier fixing pads ------------------------------------------------
+# Local thickenings on the INSIDE of the cavity wall, at the angles
+# enclosure_geom.pad_angle_bands() found clear of the pixels, the end stops and
+# the ribbons. They run the full height of the wall, so they also buttress what
+# is otherwise a 2 mm x 19 mm unsupported fin -- that wall's aspect ratio is set
+# by optics, not structure, and it prints better braced.
+#
+# >>> THESE MUST BE BUILT AFTER THE CUTS, AND THEY ONCE WERE NOT. Added up with
+# >>> the cavity wall, they were promptly sliced away by the acrylic-pocket /
+# >>> air-gap bore, which is a half_disc of DIFF_R running z=DIFF_LIP..CAV_Z+1 --
+# >>> and the pads live INSIDE DIFF_R by definition, that being the entire point
+# >>> of them. All that survived was 1.13 mm of stub at the very top, with an
+# >>> 8 mm pilot drilling into thin air below it. The presence probe passed
+# >>> because it happened to sample inside that stub.
+#
+# >>> THEY TAPER: wider at the base, PAD_W at the seating plane. Two reasons.
+# >>> FDM prints face down here, so anything that gets WIDER as it rises
+# >>> overhangs -- narrowing upward is the self-supporting direction and needs no
+# >>> support inside an optical cavity, where support scarring would be visible
+# >>> through the diffuser. And the flare is a gusset: it puts the material at
+# >>> the root, where a boss standing 19 mm off a 2 mm wall wants to snap.
+# >>> Everything the pad has to stay clear of -- ribbons, stops, pixels -- sits
+# >>> at the TOP of the cavity, where the pad is at its narrowest PAD_W. The
+# >>> flare only ever grows into the air gap, which is empty.
+# How far past the cavity's inner face the ramp's apex is buried, so the tip
+# starts inside solid wall rather than on its surface. A tip exactly ON the face
+# is still a knife edge for the slicer to resolve.
+APEX_BURY = 1.0
+
+
+def _pad_axis(x, y):
+    """Outward unit normal of the cavity ellipse at this pad's position -- the
+    direction 'towards the wall'."""
+    dx, dy = x - W / 2, y - CRES_Y
+    nx, ny = dx / (DIFF_R_G ** 2), dy / (DIFF_RY_G ** 2)
+    nl = math.hypot(nx, ny) or 1.0
+    return nx / nl, ny / nl
+
+
+def carrier_pad_solid(x, y, grow=0.0):
+    """One fixing pad: a 45 deg cone growing out of the wall from the acrylic
+    pocket floor, then a drafted column up to the seating plane.
+
+    Built by a named function because the diffusion-air-gap clash has to subtract
+    the EXACT same solid. An approximation there (it used to be a plain cylinder
+    of PAD_W) stops matching the moment the pad grows a taper, and the check then
+    reports interference that is really just its own bad stand-in."""
+    r1 = PAD_W / 2 + grow
+
+    # >>> THE RAMP IS A SKEWED CONE WITH ITS APEX IN THE WALL, NOT A STRAIGHT ONE
+    # >>> ON THE PAD AXIS. A straight cone tapering to a point on the pad's own
+    # >>> centreline puts that point PAD_OFFSET_IN (1.55 mm) clear of the wall,
+    # >>> hanging in the middle of the cavity with nothing beneath it -- the bore
+    # >>> has removed everything below PAD_Z0. On FDM that first layer prints into
+    # >>> thin air. It is the classic floating tip: it looks like a tidy taper in
+    # >>> section and is unbuildable.
+    # >>>
+    # >>> Instead the apex is pushed OUTWARD, past the cavity's inner face and
+    # >>> into the wall's own material, and the solid is the convex hull of that
+    # >>> apex and the shaft's base circle. Every layer of the result therefore
+    # >>> touches the wall -- the pad grows gradually out of it rather than
+    # >>> appearing beside it -- and the whole thing is one half-cone leaning on
+    # >>> a face that is already solid all the way down.
+    _o = _pad_axis(x, y)                       # outward normal at this pad
+    apex = (x + _o[0] * (PAD_OFFSET_IN + APEX_BURY),
+            y + _o[1] * (PAD_OFFSET_IN + APEX_BURY))
+    ramp = Manifold.batch_hull([
+        Manifold.cylinder(0.01, 0.35, 0.35, SEG)
+        .translate((apex[0], apex[1], PAD_Z0 - grow)),
+        Manifold.cylinder(0.01, r1, r1, SEG)
+        .translate((x, y, PAD_Z0 + PAD_RAMP)),
+    ])
+    shaft = (Manifold.cylinder(CARRIER_Z0 - PAD_Z0 - PAD_RAMP + 2*grow, r1, r1,
+                               SEG)
+             .translate((x, y, PAD_Z0 + PAD_RAMP)))
+    pad = ramp + shaft
+    # >>> CLIPPED TO THE CAVITY'S OUTER FACE. A round boss centred inside the
+    # >>> wall grows BOTH ways, and the base flare -- the whole point of which is
+    # >>> to put material at the root -- pushed 1.2 mm straight out through the
+    # >>> wall's outer face and into the 0.9 mm rim, which is the dome's
+    # >>> retaining-rib band. That is the one place on this part where a boss
+    # >>> jams the whole assembly.
+    # >>> `pad_wall_margins()` did not catch it because it measured the SHAFT
+    # >>> radius and the flare is bigger. Rather than fix only the number, the
+    # >>> geometry is now clipped: intersecting with the cavity envelope means no
+    # >>> pad can EVER break the outer plane, whatever draft it is given. The
+    # >>> outer side of the boss simply comes out flush with the wall.
+    return pad ^ slab(half_disc(W / 2, CRES_Y, CAV_R + grow,
+                                skirt=CAV_WALL, ry=CAV_RY + grow),
+                      -1.0, CARRIER_Z0 + 1.0)
+
+
+pad_pts, pad_solids = [], []
+for _px, _py, _deg in carrier_pads():
+    _x, _y = W / 2 + _px, CRES_Y + _py
+    pad_pts.append((_x, _y))
+    pad_solids.append(carrier_pad_solid(_x, _y))
+adds.extend(pad_solids)
 
 # --- matrix locating posts + seating pads, ONE SET PER BOARD ----------------
 # Per board: two posts through its diagonal O2.0 holes, and two plain pads on
@@ -642,10 +734,23 @@ clash("opal acrylic disc",
 # measured separately, in the pad table.
 _gap_env = slab(half_disc(W / 2, CRES_Y, CRES_R, ry=CRES_RY),
                 DIFF_LIP + DIFF_REBATE, CAV_Z)
-for _px, _py, _ in carrier_pads():
-    _gap_env = _gap_env - cyl(W / 2 + _px, CRES_Y + _py, -1.0, CARRIER_Z0 + 1,
-                              PAD_W + 0.02)
+# Grown by a hair so the subtraction is watertight against the pad's own faces.
+# NOT .scale() -- that scales about the ORIGIN, which slides the pads sideways by
+# metres of x and leaves the real ones fully inside the envelope.
+for _px, _py in pad_pts:
+    _gap_env = _gap_env - carrier_pad_solid(_px, _py, grow=0.05)
 clash("diffusion air gap (carrier pads excepted)", _gap_env)
+# >>> AND PROVE THE PADS STAY INSIDE THE CAVITY. `pad_wall_margins()` is
+# >>> arithmetic on a radius; this is the geometry itself. Intersect the built
+# >>> pads with everything OUTSIDE the cavity's outer face -- it has to be zero.
+# >>> The arithmetic version of this check measured the shaft radius, missed that
+# >>> the base flare was 1.5 mm bigger, and cheerfully vouched for a boss sitting
+# >>> 1.2 mm inside the dome's retaining-rib band.
+_outside = (slab(outline2(), 0.0, CARRIER_Z0)
+            - slab(half_disc(W / 2, CRES_Y, CAV_R, skirt=CAV_WALL, ry=CAV_RY),
+                   -1.0, CARRIER_Z0 + 1.0))
+clash("carrier pads stay inside the cavity wall",
+      union([_ps ^ _outside for _ps in pad_solids]))
 # each speaker body, plus the nubs sweeping in from behind
 for _sx in (SPK_X, W - SPK_X):
     clash(f"speaker body @ x={_sx:.1f}",
@@ -716,12 +821,38 @@ for _sx in (SPK_X, W - SPK_X):
           _sx + (SPK_BODY_W/2 + SPK_FLANK/2)
     probe(f"speaker {side} OUTBOARD flank stays bare", _fo, SPK_Y, FP_T + 2.0,
           want=False)
+# >>> PROBE THE PAD DOWN ITS WHOLE HEIGHT, NOT JUST AT THE TOP. The first
+# >>> version sampled once at CARRIER_Z0 - 1.0 and passed while the pad was a
+# >>> 1.13 mm stub floating over a hole -- the bore had eaten everything below.
+# >>> A single probe near a feature's tip cannot tell a boss from a lid.
 for _px, _py, _deg in carrier_pads():
-    # material at the pad, and a HOLE down its centre a little deeper in
-    probe(f"carrier pad @ {_deg:.0f} deg",
-          W/2 + _px + PAD_W*0.35, CRES_Y + _py, CARRIER_Z0 - 1.0)
-    probe(f"  ...its pilot is open", W/2 + _px, CRES_Y + _py,
-          CARRIER_Z0 - PAD_PILOT_Z / 2, want=False)
+    _pxx, _pyy = W/2 + _px, CRES_Y + _py
+    # Sample between PAD_Z0 (the pocket floor it starts on) and the seat -- not
+    # from z=0, which is inside the acrylic pocket where the pad is absent BY
+    # DESIGN and a probe would fail for the wrong reason.
+    _pz0, _pz1 = PAD_Z0 + PAD_RAMP + 0.5, CARRIER_Z0 - 0.5
+    for _f, _lab in ((0.05, "at the seat"), (0.50, "mid-height"),
+                     (0.95, "just above the ramp")):
+        probe(f"carrier pad @ {_deg:.0f} deg, {_lab}",
+              _pxx + PAD_W*0.30, _pyy, _pz1 - _f * (_pz1 - _pz0))
+    # ...and the pilot must be a HOLE through that solid, to its full depth
+    probe(f"  ...pilot open to depth @ {_deg:.0f} deg", _pxx, _pyy,
+          CARRIER_Z0 - PAD_PILOT_Z + 0.5, want=False)
+    # ...but must NOT break through into the air gap below it
+    probe(f"  ...pilot bottoms out @ {_deg:.0f} deg", _pxx, _pyy,
+          CARRIER_Z0 - PAD_PILOT_Z - 1.0)
+# >>> NO FLOATING LAYER IN THE RAMP. "connected bodies == 1" does NOT catch this:
+# >>> a tip hanging in mid-air is still joined to the shaft above it, so the part
+# >>> stays one body while its first layers print into nothing. The ramp exists to
+# >>> grow the pad OUT OF the wall, so the test is that every height in it has
+# >>> material AT the wall's inner face -- attached, not merely nearby.
+for _px, _py, _deg in carrier_pads():
+    _x, _y = W/2 + _px, CRES_Y + _py
+    _ox, _oy = _pad_axis(_x, _y)
+    for _f in (0.08, 0.4, 0.75):
+        _z = PAD_Z0 + PAD_RAMP * _f
+        probe(f"pad @ {_deg:.0f} deg ramp touches the wall at z={_z:.1f}",
+              _x + _ox * PAD_OFFSET_IN, _y + _oy * PAD_OFFSET_IN, _z)
 probe("stiffening spine (above matrix)", W / 2,
       (SPINE_Y0 + SPINE_Y1) / 2, FP_T + 2.0)
 probe("stiffening spine (below matrix)", W / 2,
@@ -855,7 +986,11 @@ checks = [
     ("pilot stays out of the acrylic pocket",
      (CARRIER_Z0 - PAD_PILOT_Z) - (DIFF_LIP + DIFF_REBATE)),
     ("tightest pad -> nearest pixel", min(c for _, c in pad_led_clearances())),
-    ("tightest pad inside the wall outer face",
+    # The SHAFT -- the part the screw goes into -- must clear the wall's outer
+    # face on its own. The base flare is deliberately clipped flush by the
+    # cavity envelope (see carrier_pad_solid), and how much gets taken is
+    # reported separately below; that is a gusset, not structure.
+    ("tightest pad SHAFT inside the wall outer face",
      min(m for _, m in pad_wall_margins())),
     ("mic boss clear of the array end", MIC_PCB_W / 2 - MIC_BOSS_X),
     ("facade left in front of the acrylic", DIFF_LIP),

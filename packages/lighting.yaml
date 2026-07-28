@@ -230,25 +230,25 @@ light:
     # cut-line pitch, 2.13mm thick. See 3d-print/enclosure_geom.crescent_rows --
     # that is the source of truth, this is a copy of its output.
     #
-    # >>> 45 PIXELS, NOT 48. The strip is a 48-px reel; three are cut off and not
-    # >>> laid. What limits it is the RIBBON, not the LEDs: a cut segment of n
+    # >>> WHAT LIMITS THE COUNT IS THE RIBBON, NOT THE LEDs. A cut segment of n
     # >>> pixels is n * 16.5mm long, because the cut lines sit half a pitch
     # >>> outboard of the end LEDs and trimming past them loses the solder pads.
-    # >>> On the bottom row that is 6.9mm more than the LED span, and it did not
-    # >>> fit the diffusion cavity. Every earlier layout measured only the LED
-    # >>> bodies and so overcounted. Fitting 48 needs CROWN_K 0.80, which is a
-    # >>> TALLER shell than the design started at -- 45 was the deliberate call.
+    # >>> On the bottom row that is 6.9mm more than the LED span. Every layout
+    # >>> before this one measured only the LED bodies and so overcounted.
     #
-    # THE ROW PITCH IS 11.0, NOT 16.5. It is DERIVED: the flattened crown leaves
+    # THE ROW PITCH IS 10.4, NOT 16.5. It is DERIVED: the flattened crown leaves
     # only 62.7mm of height, so the pitch is whatever gets the most pixels on,
-    # floored at the ribbon width + 1. Rows are therefore CLOSER together than
-    # the pixels within a row - the grid is not square.
+    # floored at the ribbon width (10.0) - THE ROWS BUTT, edge to edge. That
+    # floor used to carry a 1mm gap and it cost three pixels: at 11.0 the
+    # crescent holds 45, at 10.4 it holds the whole 48-px reel, same shell.
+    # Rows are much CLOSER together than the pixels within a row - the grid is
+    # deliberately not square.
     #
     # NO FADE BAND. The LED field IS the diffuser ellipse now; the old R96-inside-
     # R117 arrangement with a 21mm unlit band is gone. Tightest LED-body-to-
-    # diffuser gap is 2.26mm.
-    # Row chords 177.8/173.5/163.4/146.2/118.6/69.6 mm -> 10/10/9/8/6/2 = 45 px.
-    num_leds: 45
+    # diffuser gap is 2.95mm.
+    # Row chords 177.8/174.1/165.2/150.0/126.3/87.7 mm -> 10/10/9/8/7/4 = 48 px.
+    num_leds: 48
     # Hard current ceiling: caps max PWM to led_max_pct of full scale, so the
     # strip physically can't exceed that current no matter what HA commands.
     # Sized against the UPS 5V/5A rail with the amp at full tilt (see subs).
@@ -280,21 +280,21 @@ light:
             // whichever binds first: the LED body staying inside the diffuser, or
             // the RIBBON (n x 16.5mm) fitting the cavity. On rows 0, 2 and 4 it
             // is the ribbon.
-            //   row 0: 177.8mm -> 10   row 3: 146.2mm -> 8
-            //   row 1: 173.5mm -> 10   row 4: 118.6mm -> 6
-            //   row 2: 163.4mm ->  9   row 5:  69.6mm -> 2   total 45
+            //   row 0: 177.8mm -> 10   row 3: 150.0mm -> 8
+            //   row 1: 174.1mm -> 10   row 4: 126.3mm -> 7
+            //   row 2: 165.2mm ->  9   row 5:  87.7mm -> 4   total 48
             //
-            // >>> ROW 5 IS TWO PIXELS. It was 4 on the old circular arc. The apex
-            // >>> is nearly bare now, so any effect that assumes a usefully wide
-            // >>> top row -- or that treats the crescent as roughly circular --
-            // >>> needs re-checking against this table. Rows are also only 11mm
-            // >>> apart, so vertical gradients have ~2/3 the physical travel they
-            // >>> used to.
+            // >>> ROWS ARE ONLY 10.4mm APART -- they BUTT, ribbon edge to ribbon
+            // >>> edge -- against 16.5mm between pixels along a row. Vertical
+            // >>> gradients therefore have well under half the physical travel a
+            // >>> square grid would give, so any effect that sweeps up the
+            // >>> crescent will look much faster vertically than horizontally
+            // >>> unless it compensates.
             //
             // If the strip is laid serpentine, every ODD row runs right-to-left.
             // The sunrise only fills whole rows so that doesn't matter here, but
             // it will for any effect with horizontal structure.
-            static const uint8_t leds_per_row[] = {10, 10, 9, 8, 6, 2};
+            static const uint8_t leds_per_row[] = {10, 10, 9, 8, 7, 4};
             const uint8_t row_count = sizeof(leds_per_row) / sizeof(leds_per_row[0]);
 
             // Dawn keyframes across normalized progress 0..1.

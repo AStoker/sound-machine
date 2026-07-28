@@ -302,10 +302,19 @@ def preview():
             color="#334", lw=1.4)
     ax.plot([CRES_R * math.cos(u) for u in t], [CRES_RY * math.sin(u) for u in t],
             color="#c66", lw=0.9, ls="--")
+    # Ribbon outline + every CUT LINE, so it is obvious where the tape can be
+    # divided and that each pixel sits mid-segment. The cut lines are the whole
+    # reason a row of n pixels needs n * LED_PITCH of plate rather than (n-1).
     for (chord, n, run), y in zip(rows, ys):
-        seg = run + LED_PITCH
+        if not n:
+            continue
+        seg = n * LED_PITCH
         ax.add_patch(Rectangle((-seg / 2, y - STRIP_W / 2), seg, STRIP_W,
-                               fc="#dde6f2", ec="#8899aa", lw=0.6))
+                               fc="#dde6f2", ec="#8899aa", lw=0.8))
+        for i in range(n + 1):
+            cx = -seg / 2 + i * LED_PITCH
+            ax.plot([cx, cx], [y - STRIP_W / 2, y + STRIP_W / 2],
+                    color="#8899aa", lw=0.5, ls=(0, (2, 2)))
         for i in range(n):
             x = (-run / 2 + i * LED_PITCH) if n > 1 else 0.0
             ax.add_patch(Circle((x, y), LED_D / 2, fc="#ffd", ec="#aa8", lw=0.5))

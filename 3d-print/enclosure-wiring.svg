@@ -98,7 +98,7 @@
 <line class="ext" x1="0" y1="13.4" x2="300" y2="13.4"/>
 <text class="lbl" x="0" y="22" text-anchor="start">GPIO1  / D0</text>
 <text class="note" x="58" y="22" text-anchor="start">SK6812 data</text>
-<text class="note" x="130" y="22" text-anchor="start">45 px crescent, front module</text>
+<text class="note" x="130" y="22" text-anchor="start">48 px crescent, front module</text>
 <line class="ext" x1="0" y1="24.4" x2="300" y2="24.4"/>
 <text class="lbl" x="0" y="33" text-anchor="start">GPIO4  / D3</text>
 <text class="note" x="58" y="33" text-anchor="start">touch L + R</text>

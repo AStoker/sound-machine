@@ -105,6 +105,18 @@
 <circle class="obj" cx="150.5" cy="85.34" r="1.25"/>
 </g>
 <g id="asm-front-crescent-leds">
+<rect class="phan" x="18.5" y="67.14" width="165" height="10"/>
+<line class="hid" x1="18.5" y1="67.14" x2="18.5" y2="77.14"/>
+<line class="hid" x1="35" y1="67.14" x2="35" y2="77.14"/>
+<line class="hid" x1="51.5" y1="67.14" x2="51.5" y2="77.14"/>
+<line class="hid" x1="68" y1="67.14" x2="68" y2="77.14"/>
+<line class="hid" x1="84.5" y1="67.14" x2="84.5" y2="77.14"/>
+<line class="hid" x1="101" y1="67.14" x2="101" y2="77.14"/>
+<line class="hid" x1="117.5" y1="67.14" x2="117.5" y2="77.14"/>
+<line class="hid" x1="134" y1="67.14" x2="134" y2="77.14"/>
+<line class="hid" x1="150.5" y1="67.14" x2="150.5" y2="77.14"/>
+<line class="hid" x1="167" y1="67.14" x2="167" y2="77.14"/>
+<line class="hid" x1="183.5" y1="67.14" x2="183.5" y2="77.14"/>
 <circle class="led" cx="26.75" cy="72.14" r="2.6"/>
 <circle class="led" cx="43.25" cy="72.14" r="2.6"/>
 <circle class="led" cx="59.75" cy="72.14" r="2.6"/>
@@ -115,41 +127,92 @@
 <circle class="led" cx="142.25" cy="72.14" r="2.6"/>
 <circle class="led" cx="158.75" cy="72.14" r="2.6"/>
 <circle class="led" cx="175.25" cy="72.14" r="2.6"/>
-<circle class="led" cx="26.75" cy="61.14" r="2.6"/>
-<circle class="led" cx="43.25" cy="61.14" r="2.6"/>
-<circle class="led" cx="59.75" cy="61.14" r="2.6"/>
-<circle class="led" cx="76.25" cy="61.14" r="2.6"/>
-<circle class="led" cx="92.75" cy="61.14" r="2.6"/>
-<circle class="led" cx="109.25" cy="61.14" r="2.6"/>
-<circle class="led" cx="125.75" cy="61.14" r="2.6"/>
-<circle class="led" cx="142.25" cy="61.14" r="2.6"/>
-<circle class="led" cx="158.75" cy="61.14" r="2.6"/>
-<circle class="led" cx="175.25" cy="61.14" r="2.6"/>
-<circle class="led" cx="35" cy="50.14" r="2.6"/>
-<circle class="led" cx="51.5" cy="50.14" r="2.6"/>
-<circle class="led" cx="68" cy="50.14" r="2.6"/>
-<circle class="led" cx="84.5" cy="50.14" r="2.6"/>
-<circle class="led" cx="101" cy="50.14" r="2.6"/>
-<circle class="led" cx="117.5" cy="50.14" r="2.6"/>
-<circle class="led" cx="134" cy="50.14" r="2.6"/>
-<circle class="led" cx="150.5" cy="50.14" r="2.6"/>
-<circle class="led" cx="167" cy="50.14" r="2.6"/>
-<circle class="led" cx="43.25" cy="39.14" r="2.6"/>
-<circle class="led" cx="59.75" cy="39.14" r="2.6"/>
-<circle class="led" cx="76.25" cy="39.14" r="2.6"/>
-<circle class="led" cx="92.75" cy="39.14" r="2.6"/>
-<circle class="led" cx="109.25" cy="39.14" r="2.6"/>
-<circle class="led" cx="125.75" cy="39.14" r="2.6"/>
-<circle class="led" cx="142.25" cy="39.14" r="2.6"/>
-<circle class="led" cx="158.75" cy="39.14" r="2.6"/>
-<circle class="led" cx="59.75" cy="28.14" r="2.6"/>
-<circle class="led" cx="76.25" cy="28.14" r="2.6"/>
-<circle class="led" cx="92.75" cy="28.14" r="2.6"/>
-<circle class="led" cx="109.25" cy="28.14" r="2.6"/>
-<circle class="led" cx="125.75" cy="28.14" r="2.6"/>
-<circle class="led" cx="142.25" cy="28.14" r="2.6"/>
-<circle class="led" cx="92.75" cy="17.14" r="2.6"/>
-<circle class="led" cx="109.25" cy="17.14" r="2.6"/>
+<rect class="phan" x="18.5" y="56.74" width="165" height="10"/>
+<line class="hid" x1="18.5" y1="56.74" x2="18.5" y2="66.74"/>
+<line class="hid" x1="35" y1="56.74" x2="35" y2="66.74"/>
+<line class="hid" x1="51.5" y1="56.74" x2="51.5" y2="66.74"/>
+<line class="hid" x1="68" y1="56.74" x2="68" y2="66.74"/>
+<line class="hid" x1="84.5" y1="56.74" x2="84.5" y2="66.74"/>
+<line class="hid" x1="101" y1="56.74" x2="101" y2="66.74"/>
+<line class="hid" x1="117.5" y1="56.74" x2="117.5" y2="66.74"/>
+<line class="hid" x1="134" y1="56.74" x2="134" y2="66.74"/>
+<line class="hid" x1="150.5" y1="56.74" x2="150.5" y2="66.74"/>
+<line class="hid" x1="167" y1="56.74" x2="167" y2="66.74"/>
+<line class="hid" x1="183.5" y1="56.74" x2="183.5" y2="66.74"/>
+<circle class="led" cx="26.75" cy="61.74" r="2.6"/>
+<circle class="led" cx="43.25" cy="61.74" r="2.6"/>
+<circle class="led" cx="59.75" cy="61.74" r="2.6"/>
+<circle class="led" cx="76.25" cy="61.74" r="2.6"/>
+<circle class="led" cx="92.75" cy="61.74" r="2.6"/>
+<circle class="led" cx="109.25" cy="61.74" r="2.6"/>
+<circle class="led" cx="125.75" cy="61.74" r="2.6"/>
+<circle class="led" cx="142.25" cy="61.74" r="2.6"/>
+<circle class="led" cx="158.75" cy="61.74" r="2.6"/>
+<circle class="led" cx="175.25" cy="61.74" r="2.6"/>
+<rect class="phan" x="26.75" y="46.34" width="148.5" height="10"/>
+<line class="hid" x1="26.75" y1="46.34" x2="26.75" y2="56.34"/>
+<line class="hid" x1="43.25" y1="46.34" x2="43.25" y2="56.34"/>
+<line class="hid" x1="59.75" y1="46.34" x2="59.75" y2="56.34"/>
+<line class="hid" x1="76.25" y1="46.34" x2="76.25" y2="56.34"/>
+<line class="hid" x1="92.75" y1="46.34" x2="92.75" y2="56.34"/>
+<line class="hid" x1="109.25" y1="46.34" x2="109.25" y2="56.34"/>
+<line class="hid" x1="125.75" y1="46.34" x2="125.75" y2="56.34"/>
+<line class="hid" x1="142.25" y1="46.34" x2="142.25" y2="56.34"/>
+<line class="hid" x1="158.75" y1="46.34" x2="158.75" y2="56.34"/>
+<line class="hid" x1="175.25" y1="46.34" x2="175.25" y2="56.34"/>
+<circle class="led" cx="35" cy="51.34" r="2.6"/>
+<circle class="led" cx="51.5" cy="51.34" r="2.6"/>
+<circle class="led" cx="68" cy="51.34" r="2.6"/>
+<circle class="led" cx="84.5" cy="51.34" r="2.6"/>
+<circle class="led" cx="101" cy="51.34" r="2.6"/>
+<circle class="led" cx="117.5" cy="51.34" r="2.6"/>
+<circle class="led" cx="134" cy="51.34" r="2.6"/>
+<circle class="led" cx="150.5" cy="51.34" r="2.6"/>
+<circle class="led" cx="167" cy="51.34" r="2.6"/>
+<rect class="phan" x="35" y="35.94" width="132" height="10"/>
+<line class="hid" x1="35" y1="35.94" x2="35" y2="45.94"/>
+<line class="hid" x1="51.5" y1="35.94" x2="51.5" y2="45.94"/>
+<line class="hid" x1="68" y1="35.94" x2="68" y2="45.94"/>
+<line class="hid" x1="84.5" y1="35.94" x2="84.5" y2="45.94"/>
+<line class="hid" x1="101" y1="35.94" x2="101" y2="45.94"/>
+<line class="hid" x1="117.5" y1="35.94" x2="117.5" y2="45.94"/>
+<line class="hid" x1="134" y1="35.94" x2="134" y2="45.94"/>
+<line class="hid" x1="150.5" y1="35.94" x2="150.5" y2="45.94"/>
+<line class="hid" x1="167" y1="35.94" x2="167" y2="45.94"/>
+<circle class="led" cx="43.25" cy="40.94" r="2.6"/>
+<circle class="led" cx="59.75" cy="40.94" r="2.6"/>
+<circle class="led" cx="76.25" cy="40.94" r="2.6"/>
+<circle class="led" cx="92.75" cy="40.94" r="2.6"/>
+<circle class="led" cx="109.25" cy="40.94" r="2.6"/>
+<circle class="led" cx="125.75" cy="40.94" r="2.6"/>
+<circle class="led" cx="142.25" cy="40.94" r="2.6"/>
+<circle class="led" cx="158.75" cy="40.94" r="2.6"/>
+<rect class="phan" x="43.25" y="25.54" width="115.5" height="10"/>
+<line class="hid" x1="43.25" y1="25.54" x2="43.25" y2="35.54"/>
+<line class="hid" x1="59.75" y1="25.54" x2="59.75" y2="35.54"/>
+<line class="hid" x1="76.25" y1="25.54" x2="76.25" y2="35.54"/>
+<line class="hid" x1="92.75" y1="25.54" x2="92.75" y2="35.54"/>
+<line class="hid" x1="109.25" y1="25.54" x2="109.25" y2="35.54"/>
+<line class="hid" x1="125.75" y1="25.54" x2="125.75" y2="35.54"/>
+<line class="hid" x1="142.25" y1="25.54" x2="142.25" y2="35.54"/>
+<line class="hid" x1="158.75" y1="25.54" x2="158.75" y2="35.54"/>
+<circle class="led" cx="51.5" cy="30.54" r="2.6"/>
+<circle class="led" cx="68" cy="30.54" r="2.6"/>
+<circle class="led" cx="84.5" cy="30.54" r="2.6"/>
+<circle class="led" cx="101" cy="30.54" r="2.6"/>
+<circle class="led" cx="117.5" cy="30.54" r="2.6"/>
+<circle class="led" cx="134" cy="30.54" r="2.6"/>
+<circle class="led" cx="150.5" cy="30.54" r="2.6"/>
+<rect class="phan" x="68" y="15.14" width="66" height="10"/>
+<line class="hid" x1="68" y1="15.14" x2="68" y2="25.14"/>
+<line class="hid" x1="84.5" y1="15.14" x2="84.5" y2="25.14"/>
+<line class="hid" x1="101" y1="15.14" x2="101" y2="25.14"/>
+<line class="hid" x1="117.5" y1="15.14" x2="117.5" y2="25.14"/>
+<line class="hid" x1="134" y1="15.14" x2="134" y2="25.14"/>
+<circle class="led" cx="76.25" cy="20.14" r="2.6"/>
+<circle class="led" cx="92.75" cy="20.14" r="2.6"/>
+<circle class="led" cx="109.25" cy="20.14" r="2.6"/>
+<circle class="led" cx="125.75" cy="20.14" r="2.6"/>
 </g>
 <g id="asm-front-bottom-plate">
 <path class="obj" d="M4.3,151.69 H197.7 A1.5,1.5 0 0 1 199.2,153.19 V154.19 A1.5,1.5 0 0 1 197.7,155.69 H4.3 A1.5,1.5 0 0 1 2.8,154.19 V153.19 A1.5,1.5 0 0 1 4.3,151.69 Z"/>
@@ -172,7 +235,7 @@
 <line class="ctr" x1="-2" y1="74.74" x2="204" y2="74.74"/>
 <line class="dim" x1="172.407" y1="21.899" x2="202.407" y2="-22.101" marker-start="url(#arw)"/><line class="dim" x1="202.407" y1="-22.101" x2="208.407" y2="-22.101"/><text class="dtx" x="209.607" y="-21.001" text-anchor="start">shell arch 101 x 74.7 - FLATTENED (k=0.74), not a semicircle</text>
 <line class="dim" x1="145.5" y1="20.407" x2="199.5" y2="-9.593" marker-start="url(#arw)"/><line class="dim" x1="199.5" y1="-9.593" x2="205.5" y2="-9.593"/><text class="dtx" x="206.7" y="-8.493" text-anchor="start">diffuser 89 x 62.7, 12 rim</text>
-<line class="dim" x1="56.5" y1="20.407" x2="26.5" y2="-23.593" marker-start="url(#arw)"/><line class="dim" x1="26.5" y1="-23.593" x2="20.5" y2="-23.593"/><text class="dtx" x="19.3" y="-22.493" text-anchor="end">89 x 62.7 LED field = the diffuser, no fade band - 45 px, tightest body-to-edge 2.3</text>
+<line class="dim" x1="56.5" y1="20.407" x2="26.5" y2="-23.593" marker-start="url(#arw)"/><line class="dim" x1="26.5" y1="-23.593" x2="20.5" y2="-23.593"/><text class="dtx" x="19.3" y="-22.493" text-anchor="end">89 x 62.7 LED field = the diffuser, no fade band - 48 px, tightest body-to-edge 2.9</text>
 <line class="ext" x1="190" y1="74.74" x2="216" y2="74.74"/><line class="ext" x1="190" y1="155.69" x2="216" y2="155.69"/><line class="dim" x1="214" y1="74.74" x2="214" y2="155.69" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="212.6" y="115.215" text-anchor="middle" transform="rotate(-90 212.6 115.215)">80.9</text>
 <line class="ext" x1="101" y1="12" x2="228" y2="12"/><line class="ext" x1="101" y1="155.69" x2="228" y2="155.69"/><line class="dim" x1="226" y1="12" x2="226" y2="155.69" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="224.6" y="83.845" text-anchor="middle" transform="rotate(-90 224.6 83.845)">143.7</text>
 <line class="ext" x1="59" y1="155.69" x2="59" y2="167.69"/><line class="ext" x1="143" y1="155.69" x2="143" y2="167.69"/><line class="dim" x1="59" y1="165.69" x2="143" y2="165.69" marker-start="url(#arw)" marker-end="url(#arw)"/><text class="dtx" x="101" y="164.29" text-anchor="middle">84</text>
@@ -474,7 +537,7 @@
 <text class="note" x="17" y="50.96" text-anchor="start">KNOB - pebble Ø34 x 20 on a Ø28 base flat</text>
 <circle class="bal" cx="9.6" cy="57.46" r="3.6"/>
 <text class="dtx" x="9.6" y="58.96" text-anchor="middle">6</text>
-<text class="note" x="17" y="58.96" text-anchor="start">LED CARRIER - 2.5 plate, 45 px in 6 cut segments, 6x M2.5 into the cavity wall</text>
+<text class="note" x="17" y="58.96" text-anchor="start">LED CARRIER - 2.5 plate, 48 px in 6 cut segments, 6x M2.5 into the cavity wall</text>
 </g>
 <g id="TITLE-BLOCK" transform="translate(936,640)">
 <rect class="tb" x="0" y="0" width="238" height="90"/>

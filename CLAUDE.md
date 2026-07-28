@@ -20,6 +20,19 @@ choices (see "Remote-hosting constraints" below). Repo slug: `astoker/sound-mach
 - **[`SOUNDMACHINE.md`](SOUNDMACHINE.md)** — the project narrative: goals, how
   the pieces fit, roadblocks already overcome, and open work. Start here to
   understand *why* the project is the way it is before changing behavior.
+- **[`3d-print/README.md`](3d-print/README.md)** — the enclosure: generated
+  drawing sheets and printable solids, the constraints they turned up, and how
+  each part is validated. Start here for anything about the physical shell.
+
+> **The enclosure geometry and the firmware are coupled, and the coupling is
+> one-way.** `3d-print/enclosure_geom.py` is the source of truth for the LED
+> crescent — pixel count, row layout, row pitch. `packages/lighting.yaml` carries
+> a *copy* of that output (`num_leds` and `leds_per_row[]`). **If you change the
+> crescent, re-run `gen_drawing.py` and re-sync those two values**, or the
+> firmware will address pixels that are not there. Currently **48 px**,
+> `{10, 10, 9, 8, 7, 4}`.
+>
+> `3d-print/check_docs.py` enforces this — run it after any geometry change.
 
 ## Commands
 

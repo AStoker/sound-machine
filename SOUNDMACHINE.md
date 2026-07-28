@@ -209,7 +209,10 @@ match the code in this repo. Current code wins. The notable drifts:
 | Topic | Historical note | Current repo (authoritative) |
 |-------|-----------------|------------------------------|
 | **Power** | Battery retention was an *open decision* (LiPo + USB-C candidate; Qi2 already dropped) | **Resolved: Waveshare UPS Module 3S** (3× 18650), 5V/5A rail, INA219 monitoring |
-| **LED strip** | SK6812 **144 LED/m**, powered via an **XL6009 boost converter** | SK6812 **60 LED/m, 48 px**, powered directly from the **UPS 5V rail** (no boost converter) |
+| **LED strip** | SK6812 **144 LED/m**, powered via an **XL6009 boost converter** | SK6812 **60 LED/m, 48 px in 6 cut segments**, powered directly from the **UPS 5V rail** (no boost converter) |
+| **Crescent shape** | A half **circle** — diffuser R117 with the LED field on a smaller R96 and a 21 mm unlit fade band between them | A flattened half-**ellipse**, **89 × 62.7** (`CROWN_K = 0.74`). **The LED field IS the diffuser** — no fade band. Row counts are limited by the physical **ribbon** (n × 16.5 mm), not the LED bodies, which is what sets the row counts; the rows BUTT so the whole 48-px reel fits |
+| **Enclosure size** | **258 × 64 × 190**, front module split in two for the bed | **202 × 64 × 155.7**, both printed parts fit a 220 bed **whole**. Speakers rotated 90° (nubs top/bottom), mic array moved above them, crown flattened |
+| **Printed parts** | dome, front module, bottom plate, knob | …plus an **LED carrier** (part 6) and a generated **notched acrylic diffuser** (part 7) — a plate holding the six strip segments at the 12 mm standoff, screwed to pads inside the diffusion cavity wall |
 | **MCU** | XIAO ESP32-S3 **Plus** | Either works; **standard XIAO ESP32-S3 is a confirmed drop-in** (`board: esp32-s3-devkitc-1`, 8MB flash) |
 | **ToF sensor** | VL53L0X treated as part of the sensor stack | **Kept**, but **not yet implemented** in firmware — on the bus map only |
 | **SHT40 temp/hum** | Part of the planned sensor stack | **Removed** from the design entirely |
