@@ -351,6 +351,16 @@ Mounting inside:
 See sheet 2 of the drawing set for the joint, the fixings and the clearances,
 and [`gen_front_plate.py`](3d-print/gen_front_plate.py) for the printable part.
 
+> **The front module prints in two pieces.** At 250.8 mm wide it does not fit a
+> 220 mm bed (Flashforge Adventurer 5M Pro) at any orientation — rotating a "D"
+> only grows its footprint, and the 45° tilt that *does* fit would put supports
+> across the facade. It splits at **x = 73.8** with a 5 mm Z-lap and four
+> alignment pegs. The seam location is forced: it keeps the **whole clock on one
+> piece** (the matrices are the thing that isn't rigid — a glue joint between
+> them would undo the posts-and-clips arrangement), and its lap has to sit in the
+> one 6.95 mm corridor that contains no boss standing on the thinned mic-channel
+> floor. See [`3d-print/README.md`](3d-print/README.md).
+
 **The clock aperture is one open rectangle** — 84 × 23, no per-pixel holes.
 Through a 4 mm facade a per-pixel tunnel would be a light pipe and would gut the
 viewing angle; one open window avoids that and avoids a registration problem.

@@ -1,6 +1,6 @@
 # 3D-printed parts
 
-Three reference sheets and two printable parts, all generated, all sharing one
+Three reference sheets and the printable parts, all generated, all sharing one
 source of truth.
 
 | Sheet | File | What it answers |
@@ -12,7 +12,9 @@ source of truth.
 | Part | File | Status |
 |---|---|---|
 | Matrix tray | [`matrix-tray.stl`](matrix-tray.stl) | printable — **no longer in the assembly**, the front module carries the matrices itself |
-| **Front module** | [`front-module.stl`](front-module.stl) | printable — 250.8 × 182 × 16.7 |
+| **Front module** (whole) | [`front-module.stl`](front-module.stl) | 250.8 × 182 × 16.7 — reference; **too wide for a 220 bed** |
+| **Front module, left** | [`front-module-L.stl`](front-module-L.stl) | printable — 72.5 × 170.3 × 16.7 |
+| **Front module, right** | [`front-module-R.stl`](front-module-R.stl) | printable — 182.9 × 182 × 16.7 |
 | Dome, bottom plate, knob, LED carrier | — | still to do |
 
 ```sh
@@ -33,7 +35,7 @@ enclosure_geom.py   every parameter, every derived value, the part outlines
 drawlib.py          SVG primitives, dimensions, leaders, sheet chrome
 gen_drawing.py      sheet 1        gen_internals.py    sheet 2
 gen_wiring.py       sheet 3        gen_tray.py         matrix-tray.stl
-                                   gen_front_plate.py  front-module.stl
+                                   gen_front_plate.py  front-module{,-L,-R}.stl
 ```
 
 `enclosure_geom.py` also carries the clearance model. Every generator ends in
@@ -72,10 +74,10 @@ trimmed, and that has to be zero too.
 
 # Front module
 
-`front-module.stl` — **250.8 × 182 × 16.7**, one printed part carrying the whole
-facade. Print **face down**: the facade is then the bottom layer (the one surface
-anyone sees) and every boss, wall and clip grows upward off the bed, so there is
-nothing to support. Fits a 256 mm bed with 5.2 mm to spare.
+**250.8 × 182 × 16.7**, one part carrying the whole facade — printed as two,
+see "Printing it on a 220 bed" below. Print **face down**: the facade is then the
+bottom layer (the one surface anyone sees) and every boss, wall and clip grows
+upward off the bed, so there is nothing to support.
 
 | Zone | What the part does |
 |---|---|
@@ -108,12 +110,59 @@ Room for the clips came free. The matrix/mic cluster used to be squeezed to
 |---|---|---|
 | `SPK_NUB_PROJ` | 4.0 mm | **The important one** — it is a *width driver*. Every +1 mm is +4 mm of body width and +2 mm of height. |
 | `MTX_STACK_GAP` | 5.0 mm | Matrix back → backpack front (your header pins). |
-| `MIC_BOSS_X` | 50.0 mm | Seeed doesn't publish the linear-4 array's hole positions. |
+| `MIC_BOSS_X` | 40.0 mm | Seeed doesn't publish the linear-4 array's hole positions. **If you move it, re-check it against the print seam** — see below. |
 | `DIFF_GAP` | 12.0 mm | Diffusion air gap — ~0.7 × the LED pitch is the starting point. Test-print a crescent corner. |
 | `CLOTH_T` | 0.6 mm | Grille cloth per layer; it goes through the dome groove with the module. |
 
 Snap features can't be simulated for fit. Test-print one corner of the clock
 zone and tune `CLIP_REACH`, `CLIP_RAMP`, `CLIP_T` and `CLIP_W`.
+
+## Printing it on a 220 bed
+
+The module is **250.8** wide and the Flashforge Adventurer 5M Pro is
+**220 × 220 × 220**. Neither trick works:
+
+- **Rotating on the bed doesn't help.** This is a D — near-rectangular — so
+  rotating only *grows* the axis-aligned footprint. 0° is already the best case.
+- **Tilting does fit, and is still wrong.** At 45° it comes to 185.7 × 182 ×
+  185.7, inside the box. But that stands the facade up on supports, and the
+  facade is the one surface anyone looks at.
+- **Shrinking the design doesn't reach.** The width is 2 × (speaker + post + gap
+  + half the 110 mm array). Even moving the array out from between the speakers
+  only gets to ~227.
+
+So it splits, into `front-module-L.stl` + `front-module-R.stl`.
+
+**Where the seam goes is not free.** Two constraints fix it:
+
+1. **The whole clock stays on one piece.** The two matrices are the thing that
+   isn't rigid; putting a glue joint between them would undo the posts-and-clips
+   arrangement entirely. A centre seam fits the bed just as well and is exactly
+   the wrong place.
+2. **The lap zone must contain no boss standing on thinned facade.** The joint is
+   a Z-lap at mid-thickness (2 mm), and the mic channel floor is *exactly* that
+   thick — so a boss standing in the channel ends up above the lap plane (one
+   piece) while the floor it stands on is below it (the other), and it prints as
+   a floating island. This bit twice: first the mic mounting boss, then a gasket
+   land.
+
+That leaves one corridor — left speaker seat (ends 70.3) to first gasket land
+(starts 77.25), **6.95 mm wide** — so the seam is at **x = 73.8** with a **5 mm**
+lap. The lap width is sized by the corridor, not chosen.
+
+| | |
+|---|---|
+| joint | 5 mm Z-lap stepped at z=2, 0.25 clearance on every mating face |
+| alignment | 4 × Ø2.5 pegs on the lap face, into matching holes |
+| left piece | 72.5 × 170.3 × 16.7, 23.7 cm³ |
+| right piece | 182.9 × 182.0 × 16.7, 50.3 cm³ — carries the whole clock |
+| assembly | glue the lap (epoxy or CA); the dome groove and bottom plate then capture the joined module all round |
+
+The generator proves the split three ways: each half is **one connected body**
+(this is what caught both floating-island bugs — the *whole* part stayed
+connected, the half didn't), rejoining the halves reproduces the whole part
+minus only the clearance film, and each peg is verified solid on the left and
+hollow on the right.
 
 ---
 
@@ -427,6 +476,8 @@ Building the real part surfaced a class of error the 2D views are blind to:
 | **Pads cannot go on the board corners** | The corners are inside the LED field's bounding box; a Ø4 pad there lands on the outermost LEDs. Only the strips above the top row and below the bottom row are genuinely clear, so the pads sit at mid-width. |
 | **Clip roots need real estate the tight cluster had spent** | 1 mm below the matrix and 2 mm above it was fine when the cluster set the height. It does not — the speaker seats do, at y=56 — so ~9 mm of slack was sitting unused. Spending 4 mm above and below buys clips on all four sides for free. |
 | **A rib down the speaker flanks would foul the nubs** | The nubs stand 4 mm off the body at mid-height. Locating ribs are top-and-bottom only; the posts do the locating in x. |
+| **A split can sever a boss from its own floor** | The lap plane sits at mid-thickness; the mic channel floor is exactly that thick. Any boss standing in the channel lands on one half while its floor lands on the other, and prints as a floating island. The *whole* part stays connected, so only a per-half body count finds it. |
+| **250.8 wide does not fit a 220 bed, at any angle** | Rotating a D only grows its footprint; the 45° tilt that fits would put supports across the facade. It splits, and the seam has exactly one corridor it can use. |
 
 ### Sourced vs. still guessed
 

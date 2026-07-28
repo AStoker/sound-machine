@@ -83,11 +83,32 @@ SPK_PILOT_Z = 5.5     # pilot depth into the 7 mm post
 MIC_FIT     = 0.4     # per side, board to channel
 MIC_LAND_H  = 0.6     # gasket land height above the channel floor
 MIC_BOSS_D  = 5.0     # M3 pilot boss beside the channel
-MIC_BOSS_X  = 50.0    # (?) from centre -- Seeed does not publish the hole
-MIC_PILOT_D = 2.5     #     positions. MEASURE before printing.
+# (?) from centre -- Seeed does not publish the array's hole positions, so this
+# is a guess either way. 40, not 50: the boss stands on the CHANNEL FLOOR, which
+# is only 2 mm of facade, and at 50 it landed inside the print seam's lap. The
+# lap plane is at mid-thickness, so it severed the boss (above the plane) from
+# the floor it stands on (below it) and left it floating on the other half.
+# >>> If the real holes are elsewhere, re-check them against SPLIT_X +/- LAP_W/2.
+MIC_BOSS_X  = 40.0
+MIC_PILOT_D = 2.5
 # --- stiffening -------------------------------------------------------------
 RIB_H       = 5.0     # general stiffening rib height
 RIB_T       = 2.0
+
+# --- the print seam ---------------------------------------------------------
+# The module is 250.8 wide; the target bed is 220. No rotation helps (this is a
+# D, so rotating only grows the bounding box) and the 45 deg tilt that does fit
+# would stand the facade up on supports. So it splits -- see the long note at
+# the split itself for where the seam can and cannot go.
+BED       = 220.0     # Flashforge Adventurer 5M Pro
+SPLIT_X   = 73.8      # seam, centred in the one usable corridor
+LAP_W     = 5.0       # tongue length -- sized to fit that corridor, not chosen
+LAP_Z     = FP_T / 2  # the step: front half / back half of a 4 mm plate
+LAP_CLR   = 0.25      # clearance on every mating face
+PEG_D     = 2.5       # alignment pegs on the lap face
+PEG_H     = 1.5
+PEG_Y     = [15.0, 30.0, 56.0, 169.0]   # where the seam has material both sides
+_L0, _L1  = SPLIT_X - LAP_W / 2, SPLIT_X + LAP_W / 2
 
 _out = []
 
@@ -286,14 +307,20 @@ SPINE_Y1 = CRES_Y - CAV_WALL - 2.0
 adds.append(slab(rect2(REVEAL + BOSS_EDGE, SPINE_Y0,
                        W - 2 * (REVEAL + BOSS_EDGE), SPINE_Y1 - SPINE_Y0),
                  FP_T, FP_T + RIB_H))
-#  2. Short ribs INBOARD from each speaker towards the tray. Outboard there is
+#  2. Short ribs INBOARD from each speaker towards the clock. Outboard there is
 #     no room -- an earlier version ran them out past the module edge.
+#     A rib is SKIPPED if it would cross the print seam: it would come out as a
+#     1 mm fin on one half, which is worse than no rib.
 for sx in (SPK_X, W - SPK_X):
     sgn = 1 if sx < W / 2 else -1
     x0 = sx + sgn * (SPK_BODY_W / 2 + SPK_SEAT_W)
     x1 = sx + sgn * (SPK_BODY_W / 2 + SPK_SEAT_W + 11.0)
-    adds.append(slab(rect2(min(x0, x1), SPK_Y - RIB_T / 2,
-                           abs(x1 - x0), RIB_T), FP_T, FP_T + RIB_H))
+    lo, hi = min(x0, x1), max(x0, x1)
+    if hi > SPLIT_X - LAP_W/2 - 1 and \
+       lo < SPLIT_X + LAP_W/2 + 1:
+        continue                       # the seam runs through it
+    adds.append(slab(rect2(lo, SPK_Y - RIB_T / 2, hi - lo, RIB_T),
+                     FP_T, FP_T + RIB_H))
 
 body = body + union(adds)
 
@@ -384,22 +411,86 @@ for mxc in mic_x():
 body = body - union(pilots)
 
 # ---------------------------------------------------------------------------
+# SPLIT FOR THE PRINT BED
+# ---------------------------------------------------------------------------
+# The module is 250.8 wide and the target bed is 220. No rotation helps -- this
+# is a D, so rotating only grows the bounding box, and the 45 deg tilt that does
+# fit geometrically would stand the facade up at 45 deg on supports, which ruins
+# the one surface anyone looks at. So it splits.
+#
+# WHERE: a single seam, threading the only usable corridor across the width --
+# between the left speaker seat (ends x=70.3) and the matrix's end clip (starts
+# x=83.4). That keeps the ENTIRE clock on one piece, which matters: the two
+# matrices are the thing that is not rigid, and putting a glue joint between
+# them would undo the whole posts-and-clips arrangement. A centre seam would fit
+# the bed just as well and is exactly the wrong place.
+#
+# HOW: a Z-LAP, not a butt joint. The front half of the plate carries on past
+# the seam as a tongue; the back half of the other piece laps over it. Bosses
+# are unaffected -- they all live above the lap plane, so each one lands whole
+# on the right-hand piece rather than being cut in two.
+# >>> THE LAP ZONE MUST CONTAIN NO BOSS THAT STANDS ON THINNED FACADE. The lap
+# >>> plane sits at mid-thickness, and the mic channel's floor is exactly that
+# >>> thick -- so a boss standing in the channel ends up ABOVE the plane (right
+# >>> piece) while the floor it stands on is BELOW it (left piece), and the boss
+# >>> prints as a floating island. That is what the per-half body count catches.
+# >>> The usable corridor is therefore speaker seat (ends 70.3) -> first gasket
+# >>> land (starts 77.25), 6.95 wide, and the lap has to live inside it.
+# (SPLIT_X / LAP_* / PEG_* / BED are up top with the other print parameters --
+#  the rib layout has to know where the seam is, and that happens earlier.)
+BIG = 1000.0
+
+
+def _halfspace(x0, x1, z0, z1):
+    return slab(rect2(x0, -BIG / 2, x1 - x0, BIG), z0, z1)
+
+
+# left keeps everything before the lap, plus the front-layer tongue through it
+left_region = (_halfspace(-BIG, _L0, -BIG, BIG)
+               + _halfspace(_L0, _L1 - LAP_CLR, -BIG, LAP_Z - LAP_CLR))
+# right keeps everything after the lap, plus the back layer through it
+right_region = (_halfspace(_L1, BIG, -BIG, BIG)
+                + _halfspace(_L0 + LAP_CLR, _L1, LAP_Z, BIG))
+
+pegs, peg_holes = [], []
+for _py in PEG_Y:
+    pegs.append(cyl(SPLIT_X, _py, LAP_Z - LAP_CLR, LAP_Z - LAP_CLR + PEG_H, PEG_D))
+    peg_holes.append(cyl(SPLIT_X, _py, LAP_Z - 0.3,
+                         LAP_Z + PEG_H + 0.3, PEG_D + 2 * LAP_CLR))
+
+left_part = (body ^ left_region) + union(pegs)
+right_part = (body ^ right_region) - union(peg_holes)
+# a peg may land where the right piece has no material to receive it (the mic
+# channel, say) -- trim any that are not actually inside the mating face
+left_part = left_part ^ (body + union(pegs))
+
+# ---------------------------------------------------------------------------
 # EXPORT
 # ---------------------------------------------------------------------------
-body = body.translate((-REVEAL, -BP_T, 0.0))        # part origin at its corner
-mesh = body.to_mesh()
-V, F = mesh.vert_properties[:, :3], mesh.tri_verts
 base = os.path.dirname(os.path.abspath(__file__))
-buf = bytearray(b"\0" * 80 + struct.pack("<I", len(F)))
-for f in F:
-    a, b, c = V[f[0]], V[f[1]], V[f[2]]
-    ux, uy, uz = b - a
-    vx, vy, vz = c - a
-    nx, ny, nz = uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx
-    L = math.sqrt(nx * nx + ny * ny + nz * nz) or 1.0
-    buf += struct.pack("<12fH", nx / L, ny / L, nz / L, *a, *b, *c, 0)
-open(os.path.join(base, "front-module.stl"), "wb").write(buf)
 
+
+def write_stl(solid, name):
+    m = solid.to_mesh()
+    vv, ff = m.vert_properties[:, :3], m.tri_verts
+    buf = bytearray(b"\0" * 80 + struct.pack("<I", len(ff)))
+    for f in ff:
+        a, b, c = vv[f[0]], vv[f[1]], vv[f[2]]
+        ux, uy, uz = b - a
+        vx, vy, vz = c - a
+        nx, ny, nz = uy*vz - uz*vy, uz*vx - ux*vz, ux*vy - uy*vx
+        L = math.sqrt(nx*nx + ny*ny + nz*nz) or 1.0
+        buf += struct.pack("<12fH", nx/L, ny/L, nz/L, *a, *b, *c, 0)
+    open(os.path.join(base, name), "wb").write(buf)
+    return vv, ff
+
+
+body = body.translate((-REVEAL, -BP_T, 0.0))        # part origin at its corner
+left_part = left_part.translate((-REVEAL, -BP_T, 0.0))
+right_part = right_part.translate((-REVEAL, -BP_T, 0.0))
+V, F = write_stl(body, "front-module.stl")
+write_stl(left_part, "front-module-L.stl")
+write_stl(right_part, "front-module-R.stl")
 bb = body.bounding_box()
 say(f"wrote front-module.stl   {len(F)} triangles")
 say(f"bbox        {bb[3]-bb[0]:.2f} x {bb[4]-bb[1]:.2f} x {bb[5]-bb[2]:.2f} mm")
@@ -571,6 +662,72 @@ probe("facade around the aperture (the boards seat on it)", W / 2,
 probe("clock aperture is OPEN (no per-pixel holes)", W / 2, CLK_Y, 1.0,
       want=False)
 
+# ---------------------------------------------------------------------------
+# THE SPLIT
+# ---------------------------------------------------------------------------
+say("")
+_lb, _rb = left_part.bounding_box(), right_part.bounding_box()
+_lw, _lh = _lb[3] - _lb[0], _lb[4] - _lb[1]
+_rw, _rh = _rb[3] - _rb[0], _rb[4] - _rb[1]
+say(f"split       seam x={SPLIT_X}, {LAP_W} lap stepped at z={LAP_Z}, "
+    f"{LAP_CLR} clearance, {len(PEG_Y)} alignment pegs")
+say(f"  front-module-L.stl  {_lw:6.2f} x {_lh:6.2f} x {_lb[5]-_lb[2]:5.2f}   "
+    f"{left_part.volume()/1000:5.1f} cm3")
+say(f"  front-module-R.stl  {_rw:6.2f} x {_rh:6.2f} x {_rb[5]-_rb[2]:5.2f}   "
+    f"{right_part.volume()/1000:5.1f} cm3")
+
+# The two halves must ADD BACK UP. Re-union them (with the pegs removed from the
+# comparison, since they are new material) and the only difference from the
+# whole part should be the joint clearance -- a thin film, not a chunk.
+_rejoin = left_part + right_part
+_lost = (body - _rejoin).volume()
+_gain = (_rejoin - body).volume()
+split_checks = [
+    ("L fits the bed in x", BED - _lw),
+    ("L fits the bed in y", BED - _lh),
+    ("R fits the bed in x", BED - _rw),
+    ("R fits the bed in y", BED - _rh),
+    # Rejoined, the halves must reproduce the whole part: the only material
+    # missing is the clearance film along the seam, and NOTHING may be gained
+    # (the pegs are reassigned material, not new -- they sit inside the original
+    # plate and are matched by holes in the other half).
+    ("rejoined loses only the clearance film", 400.0 - _lost),
+    ("rejoined gains nothing", 0.01 - _gain),
+    # the seam must miss every boss, or a boss ends up in two halves
+    ("seam clear of the L speaker seat",
+     (SPLIT_X - LAP_W/2) - (SPK_X + SPK_BODY_W/2 + SPK_SEAT_W)),
+    ("seam clear of the matrix end clip",
+     (mtx_x0 - CLIP_GAP - CLIP_T) - (SPLIT_X + LAP_W/2)),
+    ("whole clock is on ONE piece", mtx_x0 - (SPLIT_X + LAP_W/2)),
+    # A boss stands on the facade. If the lap plane runs between a boss and the
+    # material it stands on, the boss ends up floating on the wrong half -- so
+    # every boss has to sit clear of the lap in x.
+    ("mic boss clear of the lap",
+     (W/2 - MIC_BOSS_X - MIC_BOSS_D/2) - (SPLIT_X + LAP_W/2)),
+]
+for _nm, _v in split_checks:
+    say(f"  {'FAIL' if _v < 0 else 'ok  '} {_v:8.2f}   {_nm}")
+bad += [c for c in split_checks if c[1] < 0]
+say(f"  (rejoin: {_lost:.1f} mm3 lost to clearance, {_gain:.1f} gained)")
+
+
+# A peg is only doing its job if the LEFT half has material there above the lap
+# plane AND the RIGHT half has a hole to receive it. Check both, per peg.
+def _in(solid, x, y, z):
+    return (solid ^ Manifold.cube((0.8, 0.8, 0.8))
+            .translate((x - 0.4, y - 0.4, z - 0.4))).volume() > 1e-6
+
+
+for _i, _py in enumerate(PEG_Y):
+    _z = LAP_Z + PEG_H / 2
+    _pl = _in(left_part.translate((REVEAL, BP_T, 0)), SPLIT_X, _py, _z)
+    _pr = _in(right_part.translate((REVEAL, BP_T, 0)), SPLIT_X, _py, _z)
+    ok = _pl and not _pr
+    say(f"  {'FAIL' if not ok else 'ok  '}   peg {_i} @ y={_py:5.1f}   "
+        f"L={'solid' if _pl else 'empty'}  R={'empty' if not _pr else 'SOLID'}")
+    if not ok:
+        bad.append((f"peg {_i}", -1))
+
 # ---- checks ---------------------------------------------------------------
 say("")
 checks = [
@@ -638,6 +795,35 @@ try:
     say(f"connected bodies={nb}  (must be 1 -- more means a feature is floating)")
     if nb > 1:
         bad.append(("disconnected geometry", -1))
+
+    # EACH HALF has to be one body too, and that is a stricter test than the
+    # whole part passing: the split can sever a boss from the material it
+    # stands on, which is exactly what happened to the mic boss when the lap
+    # ran through it. The whole part stays connected; the half does not.
+    def bodies(solid):
+        m = solid.to_mesh()
+        vv, ff = m.vert_properties[:, :3], m.tri_verts
+        par = list(range(len(vv)))
+
+        def fnd(i):
+            while par[i] != i:
+                par[i] = par[par[i]]
+                i = par[i]
+            return i
+
+        for tri in ff:
+            a = fnd(int(tri[0]))
+            for v in tri[1:]:
+                b = fnd(int(v))
+                if a != b:
+                    par[b] = a
+        return len({fnd(i) for i in range(len(vv))})
+
+    for _nm, _p in (("front-module-L", left_part), ("front-module-R", right_part)):
+        _n = bodies(_p)
+        say(f"  {'FAIL' if _n != 1 else 'ok  '}  {_nm}.stl  bodies={_n}")
+        if _n != 1:
+            bad.append((f"{_nm} disconnected", -1))
 except Exception as e:
     say(f"validate skipped: {e}")
 
