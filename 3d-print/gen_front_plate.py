@@ -53,6 +53,7 @@ from enclosure_geom import (
     pad_wall_margins, MODEL_DIR, HERE,
     SPK_FIT, SPK_X, SPK_Y, SPK_Y0, SPK_Y1, TRAY_D, TRAY_H, TRAY_REBATE, TRAY_W, TRAY_Y0,
     TRAY_Y1, W, mic_x,
+    MTX_WINDOW, MTX_LED_PITCH, MTX_LED_COLS, MTX_LED_ROWS, mtx_led_xy,
 )
 
 SEG = 96              # facets on the big arcs -- this part is 245 mm wide
@@ -93,7 +94,15 @@ _UNUSED_STANDOFF = 0.6  # was: posts stand the boards off the facade a touch, so
 # >>> four locating posts land on that same frame; all four are 1.905 mm from a
 # >>> horizontal board edge, so all four are under the lip.
 # >>> Seating on the lip also retires the standoff pads: the lip IS the datum.
-MTX_INSET    = 2.0    # matrix FRONT face, behind the facade's front face
+# >>> 1.5, AND PER-PIXEL WINDOWS INSTEAD OF ONE OPEN APERTURE. The single 84 x 23
+# >>> hole meant the lip only touched the board round its rim, so the recess could
+# >>> not go below ~2 without the seating frame getting silly-thin. With 288
+# >>> windows the lip becomes a perforated sheet that supports the board over its
+# >>> WHOLE area, and each LED pokes into its own window -- so the lip can be
+# >>> thinner, not thicker. 1.5 gives a 31 deg half-angle through a 1.8 window,
+# >>> against 34 deg for the open aperture at 2.0: near-identical, with far better
+# >>> per-pixel isolation and no light bleeding sideways between digits.
+MTX_INSET    = 1.5    # matrix FRONT face, behind the facade's front face
 # >>> AND THE CLIPS ROOT IN THE POCKET, NOT ON THE BACK FACE. Recessing the board
 # >>> moves the hook forward, and a clip still rooted at z=FP_T would lose that
 # >>> length from its beam -- 3.05 % strain at a 1.5 mm inset. Rooted at the
@@ -212,7 +221,7 @@ MIC_BOSS_D  = 5.0     # M3 pilot boss beside the channel
 MIC_HOLE_EDGE = 22.0  # board END -> NEAR EDGE of its M3 hole -- MEASURED
 MIC_HOLE_D    = 3.2   # M3 clearance hole in the array board
 MIC_BOSS_X  = MIC_PCB_W / 2 - (MIC_HOLE_EDGE + MIC_HOLE_D / 2)
-MIC_PILOT_D = 2.5
+MIC_PILOT_D = 1.6     # M2 self-tapper -- a THIN screw, as asked
 # --- stiffening -------------------------------------------------------------
 # >>> A RIB GETS ITS STIFFNESS FROM HEIGHT, NOT FOOTPRINT. These were 5 mm-proud
 # >>> PADS filling the whole band between features -- 92 x 6.6 and 92 x 10.9 --
@@ -360,9 +369,14 @@ cuts.append(slab(half_disc(W / 2, CRES_Y, CRES_R, ry=CRES_RY), -1.0, DIFF_LIP))
 # The matrices seat on the BACK FACE, not in a pocket. A pocket would locate the
 # PAIR; the two boards are only loosely soldered to each other, so each one is
 # located by its OWN posts instead and the pair is clamped by clips all round.
-cuts.append(slab(rect2(W / 2 - CLK_W / 2, CLK_Y - CLK_H / 2, CLK_W, CLK_H),
-                 -1.0, MTX_INSET))
 MTX_X0 = W / 2 - TRAY_W / 2                # left edge of the butted pair
+# >>> ONE SQUARE WINDOW PER LED, cut only through the facade lip. Positions come
+# >>> from mtx_led_xy(), which applies the same board->part flip as the mounting
+# >>> holes -- the grid sits 3.683 from one board edge and 3.937 from the other,
+# >>> so reading it unflipped would shift all 288 windows by 0.254 mm.
+_w = MTX_WINDOW
+for _lx, _ly in mtx_led_xy(MTX_X0, TRAY_Y0):
+    cuts.append(slab(rect2(_lx - _w / 2, _ly - _w / 2, _w, _w), -1.0, MTX_INSET))
 # ...and behind the facade lip, a pocket the board and its clips drop into.
 # Sized to clear the clip beams AND leave a flex slot behind each, or the clips
 # would be fused to the pocket wall along their whole length and could not move.
@@ -520,9 +534,26 @@ for mxc in mic_x():
     adds.append(cyl(mxc, MIC_Y, MIC_Z0, MIC_Z0 + MIC_LAND_H,
                     MIC_PORT_D + 2 * MIC_GASKET))
 # --- mic board fixing bosses ------------------------------------------------
+# >>> THE BOSS USED TO STAND 2.5 mm ABOVE THE BOARD'S TOP FACE, so a screw head
+# >>> bottomed out on the boss and never touched the PCB. The array was not being
+# >>> held down at all -- it just had a post through its hole. That is why the
+# >>> foam could not be relied on to seal: nothing was compressing it.
+# >>> The boss now stops MIC_SCREW_SINK below the board's top face, so the head
+# >>> lands on the PCB and pulls it onto the gasket lands. Short on purpose: the
+# >>> array only has to be held against thin foam, not clamped.
+MIC_PCB_T     = 1.6                       # array board thickness
+# >>> FLUSH WITH THE SEATING PLANE, NOT PROUD OF IT. Sinking the boss to just
+# >>> under the board's TOP face was still wrong, because the boss is Ø5.0 and the
+# >>> board's hole is M3 -- Ø3.2. The board cannot pass over it at all, so it was
+# >>> resting on the boss top and sitting 1.2 mm high, which is exactly why the
+# >>> foam was never getting compressed.
+# >>> The boss is now a flat pad level with the gasket lands: the board lands on
+# >>> the lands, the screw passes through its hole and threads into the pilot bored
+# >>> down into the facade. Nothing protrudes into the board's space.
+MIC_BOSS_TOP  = MIC_Z0 + MIC_LAND_H
 for sgn in (-1, 1):
     adds.append(cyl(W / 2 + sgn * MIC_BOSS_X, MIC_Y, MIC_Z0,
-                    MIC_Z0 + MIC_CHAN_D + 2.0, MIC_BOSS_D))
+                    MIC_BOSS_TOP, MIC_BOSS_D))
 
 # --- speaker nub posts (TOP AND BOTTOM) -------------------------------------
 # >>> THE SPEAKERS ARE ROTATED 90 DEG, so the nubs are TOP AND BOTTOM and the
@@ -698,9 +729,21 @@ for sx in (SPK_X, W - SPK_X):
         pilots.append(cyl(sx, py,
                           FP_T + SPK_NUB_Z - SPK_PILOT_Z, FP_T + SPK_NUB_Z + 1,
                           SPK_PILOT_D))
+# >>> THE PILOT NOW GOES DOWN INTO THE FACADE, not up through a boss that is no
+# >>> longer there. The boss is only MIC_BOSS_TOP - MIC_Z0 tall now, so on its own
+# >>> it gives a thin screw almost nothing to bite. Running the pilot into the
+# >>> 1.6 mm of facade under the channel roughly doubles the thread engagement,
+# >>> and it stays BLIND -- MIC_PILOT_FLOOR of skin is left so it cannot show
+# >>> through the front face.
+# >>> Thread depth is now the facade under the channel, minus the skin: about
+# >>> 1.5 mm for an M2. That is under one diameter of engagement -- fine for
+# >>> holding a light board against thin foam, and it is the price of having the
+# >>> board sit right down on the tape. If it ever strips, the fix is a longer
+# >>> screw into a boss on the BACK of the plate, not a taller one in front.
+MIC_PILOT_FLOOR = 0.4                     # skin left in front of the pilot
 for sgn in (-1, 1):
     pilots.append(cyl(W / 2 + sgn * MIC_BOSS_X, MIC_Y,
-                      MIC_Z0 + 0.8, MIC_Z0 + MIC_CHAN_D + 3, MIC_PILOT_D))
+                      MIC_PILOT_FLOOR, MIC_BOSS_TOP + 0.3, MIC_PILOT_D))
 for mxc in mic_x():
     pilots.append(cyl(mxc, MIC_Y, -1.0, MIC_Z0 + MIC_LAND_H + 1, MIC_PORT_D))
 # LED carrier pilots. Blind, from the BACK -- they must not break through into
@@ -828,7 +871,10 @@ say(f"z stack     facade 0-{FP_T}   acrylic {DIFF_LIP}-{DIFF_LIP+DIFF_REBATE}"
 say(f"crescent    aperture R{CRES_R}  acrylic pocket R{DIFF_R}  "
     f"cavity wall R{DIFF_R}-{CAV_R}   LED field R{LED_R} (fade band "
     f"{CRES_R-LED_R:.0f})")
-say(f"clock       OPEN aperture {CLK_W} x {CLK_H} - no per-pixel holes")
+say(f"clock       {MTX_N*MTX_LED_COLS*MTX_LED_ROWS} square windows "
+    f"{MTX_WINDOW} x {MTX_WINDOW} on a "
+    f"{MTX_LED_PITCH} pitch, web {MTX_LED_PITCH-MTX_WINDOW:.2f}, "
+    f"through a {MTX_INSET} mm lip")
 say(f"            {MTX_N} matrices {MTX_BOARD_W} x {TRAY_H} butted = "
     f"{TRAY_W:.2f} wide, RECESSED -- front face {MTX_INSET} mm behind the "
     f"facade, seating on the aperture lip")
@@ -888,12 +934,15 @@ clash("driver backpacks behind them",
 # facade (they have to be inside the aperture) and not the seating pads or
 # posts. Checked against ACTUAL LED positions -- a bounding box round the field
 # clips the board corners, where the pads legitimately live.
-LED_PITCH_PCB, LED_COLS, LED_ROWS = 2.54, 16, 9
-LED_X0_PCB, LED_Y0_PCB = 2.413, 3.683
-LED_BODY = 1.6        # (?) 0606-ish package on the CharliePlex boards
-led_xy = [(MTX_X0 + b * MTX_BOARD_W + LED_X0_PCB + c * LED_PITCH_PCB,
-           TRAY_Y0 + LED_Y0_PCB + r * LED_PITCH_PCB)
-          for b in range(MTX_N) for c in range(LED_COLS) for r in range(LED_ROWS)]
+# >>> ONE DEFINITION OF WHERE THE LEDs ARE. This block used to re-derive them
+# >>> from its own copy of the pitch and origin -- and it did NOT apply the
+# >>> board->part flip, so it disagreed with the windows by 0.254 mm. With only
+# >>> 0.2 mm of clearance per side that is most of the margin, and the check duly
+# >>> reported 42.61 mm^3 of interference that was entirely its own doing.
+# >>> Third time this project has been bitten by a duplicated geometry
+# >>> definition. It now calls the shared function, like the windows do.
+LED_BODY = 1.6        # (?) 0603 package, long axis -- MEASURE if the fit is tight
+led_xy = mtx_led_xy(MTX_X0, TRAY_Y0)
 leds = union([cyl(x, y, 0.0, MTX_Z0, LED_BODY) for x, y in led_xy])
 clash(f"{len(led_xy)} LEDs vs facade / pads / posts", leds)
 # the opal acrylic, dropped in from behind onto the ledge
@@ -1091,10 +1140,17 @@ for _i, (_px, _py) in enumerate([] if MTX_STANDOFF == 0.0 else mtx_pads):
 for _mx in mic_x():
     probe(f"gasket land @ x={_mx:.1f}", _mx + (MIC_PORT_D + MIC_GASKET) / 2,
           MIC_Y, MIC_Z0 + MIC_LAND_H / 2)
-probe("facade around the aperture (the boards seat on it)", W / 2,
-      CLK_Y + CLK_H / 2 + (TRAY_H / 2 - CLK_H / 2) / 2, FP_T / 2)
-probe("clock aperture is OPEN (no per-pixel holes)", W / 2, CLK_Y, 1.0,
-      want=False)
+# >>> THE LIP IS A PERFORATED SHEET NOW, not a frame round an open hole, so the
+# >>> board seats on it across the whole field. Probe a WEB between two windows.
+probe("facade web between two LED windows (the board seats on it)",
+      (led_xy[0][0] + led_xy[MTX_LED_ROWS][0]) / 2, led_xy[0][1],
+      MTX_INSET / 2, size=0.3)
+# >>> AND THE WINDOWS THEMSELVES MUST BE OPEN. This used to assert the single
+# >>> aperture was clear at its centre; there are 288 windows now, so check that a
+# >>> window is open AND that its neighbour web is solid -- the pair is what says
+# >>> the grid actually got cut rather than the whole area being removed.
+probe("an LED window is open through the lip", led_xy[0][0], led_xy[0][1],
+      MTX_INSET / 2, want=False, size=0.3)
 
 # ---------------------------------------------------------------------------
 # THE SPLIT

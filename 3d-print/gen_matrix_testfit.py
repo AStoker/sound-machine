@@ -115,10 +115,18 @@ want("left end is CLEAR for the STEMMA QT cable",
      not solid_at(_fp.MTX_X0 - 0.6, _ymid, _hook_z, 0.4))
 want("right end is CLEAR for the STEMMA QT cable",
      not solid_at(_fp.MTX_X0 + _fp.TRAY_W + 0.6, _ymid, _hook_z, 0.4))
-want("facade lip is present beside the aperture",
-     solid_at(_fp.W / 2 - _fp.CLK_W / 2 - 1.0, _fp.CLK_Y, _fp.MTX_INSET / 2))
-want("aperture is open through the lip",
-     not solid_at(_fp.W / 2, _fp.CLK_Y, _fp.MTX_INSET / 2))
+# >>> PER-PIXEL WINDOWS NOW, not one open aperture. Check a WINDOW is open and a
+# >>> WEB is solid: either alone is satisfiable by the wrong geometry (a fully
+# >>> open hole passes the first, a blank sheet passes the second). The pair is
+# >>> what says a grid was actually cut.
+_leds = _fp.led_xy
+want("an LED window is open through the lip",
+     not solid_at(_leds[0][0], _leds[0][1], _fp.MTX_INSET / 2, 0.3))
+want("the web between two windows is solid",
+     solid_at((_leds[0][0] + _leds[_fp.MTX_LED_ROWS][0]) / 2, _leds[0][1],
+              _fp.MTX_INSET / 2, 0.3))
+want("facade lip is present outside the LED field",
+     solid_at(_fp.MTX_X0 + 0.8, _fp.TRAY_Y0 + 0.8, _fp.MTX_INSET / 2))
 want("pocket floor is at the inset, not the back face",
      not solid_at(_fp.W / 2 - _fp.CLK_W / 2 - 1.0, _fp.CLK_Y,
                   _fp.MTX_INSET + 0.5))
@@ -162,6 +170,8 @@ say(f"            (the front module is {full.volume()/1000:.1f} cm^3 -- "
 say("")
 say("what it is testing")
 say(f"  recess      matrix front face {_fp.MTX_INSET} mm behind the facade")
+say(f"  windows     {len(_fp.led_xy)} squares {_fp.MTX_WINDOW} x {_fp.MTX_WINDOW}, "
+    f"web {_fp.MTX_LED_PITCH - _fp.MTX_WINDOW:.2f} mm")
 say(f"  lip         board seats on the back of the {_fp.MTX_INSET} mm aperture lip")
 say(f"  posts       {len(_fp.mtx_posts)} x {chr(216)}{_fp.MTX_POST_D} into the "
     f"boards' own {chr(216)}{_fp.MTX_HOLE_D} diagonal holes")

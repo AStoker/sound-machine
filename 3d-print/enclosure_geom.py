@@ -195,6 +195,36 @@ MTX_HOLES_BOARD = [(1.905, 26.035), (41.275, 1.905)]
 # >>> quotable and the transform is visible.
 MTX_HOLES = [(hx, MTX_BOARD_H - hy) for hx, hy in MTX_HOLES_BOARD]
 MTX_HOLE_D  = 2.0
+# ---- the LED grid, for per-pixel windows -----------------------------------
+# >>> FROM THE SAME BOARD FILE. 16 x 9 on a 2.54 pitch, first LED centre at
+# >>> (2.413, 3.683) board-local. Same board->part flip as the holes: the grid is
+# >>> NOT symmetric about the board's mid-height (3.683 from one edge, 3.937 from
+# >>> the other), so skipping the flip shifts every window by 0.254 mm.
+MTX_LED_COLS, MTX_LED_ROWS = 16, 9
+MTX_LED_PITCH = 2.54
+MTX_LED_X0, MTX_LED_Y0 = 2.413, 3.683      # board-local, component side
+# >>> SQUARE WINDOWS, NOT ROUND. A 1.8 mm square slices cleanly at any nozzle
+# >>> width; a Ø1.8 circle gets approximated and the webs between neighbours end
+# >>> up over- or under-extruded. Square also passes more light for the same web.
+# >>> 2.54 pitch - 1.8 window leaves 0.74 mm of web, which is two 0.4 lines minus
+# >>> a whisker. Going to 2.0 would leave 0.54 and force single-extrusion webs.
+MTX_WINDOW = 1.8
+
+
+def mtx_led_xy(board_x0, tray_y0, n_boards=None):
+    """Every LED centre in PART coordinates, for the whole butted pair."""
+    n = MTX_N if n_boards is None else n_boards
+    out = []
+    for b in range(n):
+        bx = board_x0 + b * MTX_BOARD_W
+        for i in range(MTX_LED_COLS):
+            for j in range(MTX_LED_ROWS):
+                lx = MTX_LED_X0 + i * MTX_LED_PITCH
+                ly = MTX_LED_Y0 + j * MTX_LED_PITCH
+                out.append((bx + lx, tray_y0 + (MTX_BOARD_H - ly)))
+    return out
+
+
 # ---- the DRIVER ("backpack") board -----------------------------------------
 # >>> FROM ADAFRUIT'S FAB PRINT, cross-checked against the .brd. The fab print
 # >>> dimensions the hole pattern as 1.5" x 0.9" inside a 1.7" x 1.1" board, i.e.
@@ -968,11 +998,20 @@ AMP_W, AMP_D, AMP_H = 27.94, 21.59, 8.0      # Adafruit #1712, from the .brd
 # >>> same mistake had already been made once on that board.
 # >>> Absence in the part of a file you happened to read is not absence.
 # >>>
-# >>> Positions from Adafruit's fab print: both holes on the RIGHT edge, centres
-# >>> 0.71" from the left edge, 0.9" apart vertically (so 0.1" from top and
-# >>> bottom). Cross-check: a Ø2.5 hole at 0.71" leaves 0.091" from its edge to
-# >>> the board edge, and the print dimensions that as 0.1" -- consistent.
-AMP_HOLES     = [(18.03, 2.54), (18.03, 25.40)]   # board-local, from the fab print
+# >>> POSITIONS FROM THE FILE, NOT FROM READING THE PICTURE. x was 18.03 (0.71")
+# >>> with a note reconciling the print's 0.1" as an edge-to-edge distance. That
+# >>> reconciliation was built to fit the guess: 0.71" locates the TERMINAL
+# >>> BLOCKS, not the holes -- the other dimension object at that same x,
+# >>>   <dimension x1="18.034" y1="17.78" x2="18.034" y2="10.16">  -> 0.3"
+# >>> is the terminal pitch.
+# >>> Eagle <dimension> objects SNAP to what they measure, and the two that land
+# >>> on the holes are:
+# >>>   <dimension x1="19.05" y1="25.4" x2="19.05" y2="2.54">   -> 0.9"  pitch
+# >>>   <dimension x1="19.05" y1="25.4" x2="21.59" y2="25.4">   -> 0.1"  to the edge
+# >>> So the centres are at x = 19.05, i.e. 2.54 from the right edge -- and 0.1"
+# >>> is centre-to-edge, not edge-to-edge. 19.05/21.59 = 88% across, which is
+# >>> where they sit in the print; 18.03 would be 83.5%.
+AMP_HOLES     = [(19.05, 2.54), (19.05, 25.40)]   # board-local, from the .brd
 AMP_HOLE_D    = 2.5
 AMP_HOLE_PITCH = 22.86                            # 0.9", vertical; both same x
 # >>> MOVED FORWARD, OFF THE REAR TAB. At depth 50 the amp spanned 40..60 and the
