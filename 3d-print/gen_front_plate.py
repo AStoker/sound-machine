@@ -177,7 +177,20 @@ SPK_PILOT_D = 2.5     # (?) pilot for an M3 self-tapper -- suits PETG/PLA
 SPK_PILOT_Z = 5.5     # pilot depth into the 7 mm post
 # --- mic array --------------------------------------------------------------
 MIC_FIT     = 0.4     # per side, board to channel
-MIC_LAND_H  = 0.6     # gasket land height above the channel floor
+# >>> THE ARRAY IS *MEANT* TO STAND OFF THE CHANNEL FLOOR. It seats on four
+# >>> raised Ø4.5 lands, one ringing each Ø2.5 port, and touches nothing else --
+# >>> so there is a deliberate 0.6 mm gap everywhere except at the ports. That
+# >>> looks like a mistake and is the opposite: pressing the whole board flat
+# >>> onto the floor would seal nothing, because an FDM floor is not flat, while
+# >>> four small rings can be made to seal.
+# >>>
+# >>> BUT THE SEAL IS A GASKET, NOT THE PLASTIC. Bare printed plastic against a
+# >>> PCB leaks through the layer lines, and a leaking port is worse than a long
+# >>> one: it lets sound reach the mic by two paths, which is exactly what the
+# >>> XVF3800's beamforming and echo canceller assume is not happening. Each land
+# >>> needs a thin adhesive foam ring (~1 mm uncompressed, Ø2.5 hole) -- that is
+# >>> what MIC_LAND_H is clearance FOR, and why it is 0.6 and not 0.
+MIC_LAND_H  = 0.6     # gasket land: standoff for a ~1 mm foam ring, compressed
 MIC_BOSS_D  = 5.0     # M3 pilot boss beside the channel
 # >>> MEASURED, NOT GUESSED, AND DERIVED FROM THE MEASUREMENT RATHER THAN TYPED.
 # >>> Seeed does not publish the array's hole positions; 40 mm from centre was a
@@ -637,9 +650,18 @@ mtx_y0, mtx_y1 = TRAY_Y0, TRAY_Y0 + TRAY_H
 # clamped near its own centre rather than relying on the solder joint.
 CLIP_TOP_X = [W / 2 - TRAY_W / 4, W / 2 + TRAY_W / 4]
 CLIP_BOT_X = [W / 2 - TRAY_W / 4, W / 2 + TRAY_W / 4]
-clips = [clip("x", mtx_x0, -1, (mtx_y0 + mtx_y1) / 2, BP_ZB + CLIP_STACK_CLR),
-         clip("x", mtx_x1, +1, (mtx_y0 + mtx_y1) / 2, BP_ZB + CLIP_STACK_CLR)]
-clips += [clip("y", mtx_y0, -1, cx, BP_ZB + CLIP_STACK_CLR) for cx in CLIP_BOT_X]
+# >>> NO CLIPS ON THE ENDS -- THE STEMMA QT PORTS LIVE THERE. Adafruit's driver
+# >>> carries a JST-SH connector on each SHORT edge, and gen_tray.py already knew
+# >>> it: that part notches both END walls 18 mm tall and centred, and puts its
+# >>> four snap fingers on the LONG walls only. This file grew end clips anyway,
+# >>> centred on exactly the band the notch exists to keep clear -- they would
+# >>> have landed on the connectors, and there is no way to dodge: an 18 mm port
+# >>> band in a 27.94 mm board leaves 4.97 mm at each end, and a clip is 6.
+# >>> Four clips on the long edges is what the tray proved, at the same 25/75 %
+# >>> spacing. The ends stay free for the cables.
+_CLIP_AXES = ["y"] * (len(CLIP_BOT_X) + len(CLIP_TOP_X))
+MTX_PORT_BAND = 18.0        # from gen_tray.py: clears TWO stacked STEMMA QT ports
+clips = [clip("y", mtx_y0, -1, cx, BP_ZB + CLIP_STACK_CLR) for cx in CLIP_BOT_X]
 clips += [clip("y", mtx_y1, +1, cx, BP_ZB + CLIP_STACK_CLR) for cx in CLIP_TOP_X]
 body = body + union(clips)
 
@@ -803,7 +825,8 @@ say(f"            {MTX_N} matrices {MTX_BOARD_W} x {TRAY_H} butted = "
 say(f"            LOOSELY SOLDERED PAIR -> {len(mtx_posts)} locating posts "
     f"({chr(216)}{MTX_POST_D} into their own {chr(216)}{MTX_HOLE_D} holes) + "
     f"seating on the lip (pads retired)")
-say(f"            {len(clips)} clips on all four sides, {CLIP_W} wide, hook "
+say(f"            {len(clips)} clips on the LONG edges only (ends left free for "
+    f"the STEMMA QT ports), {CLIP_W} wide, hook "
     f"{CLIP_ENGAGE} onto the STACK back at z={BP_ZB:.2f}, rooted at "
     f"{CLIP_ROOT_Z}, "
     f"{CLIP_T} thk, strain "
@@ -1019,9 +1042,7 @@ if len(_rib2_y) == 2:
 probe("band above the matrix is no longer a solid pad", W / 2,
       SPINE_Y0 + 0.8, FP_T + RIB_H - 1.0, want=False)
 probe("cavity wall at the apex", W / 2, CRES_Y + DIFF_RY + CAV_WALL / 2, CAV_Z - 1)
-_clip_spec = ([("end L", "x", mtx_x0, -1, (mtx_y0 + mtx_y1) / 2),
-               ("end R", "x", mtx_x1, +1, (mtx_y0 + mtx_y1) / 2)]
-              + [(f"bottom {i}", "y", mtx_y0, -1, cx)
+_clip_spec = ([(f"bottom {i}", "y", mtx_y0, -1, cx)
                  for i, cx in enumerate(CLIP_BOT_X)]
               + [(f"top {i}", "y", mtx_y1, +1, cx)
                  for i, cx in enumerate(CLIP_TOP_X)])
@@ -1199,6 +1220,12 @@ checks = [
     ("clip actually overlaps the stack (>=0.3)", CLIP_ENGAGE - 0.3),
     ("clip overlap is under a third of the board edge",
      MTX_BP_T / 3.0 - CLIP_ENGAGE),
+    # >>> AND NOTHING MAY SIT ON A CONNECTOR. Ø of this was checked before: the
+    # >>> end clips were built straight onto the driver's STEMMA QT ports, which
+    # >>> gen_tray.py has notched around since it was written. The keep-out is
+    # >>> that notch, taken from the same number.
+    ("no clip on the STEMMA QT end ports (none on the ends at all)",
+     0.0 if not any(_a == "x" for _a in _CLIP_AXES) else -1.0),
     ("gap between the two lower ribs is printable",
      (_rib2_y[1] - (_rib2_y[0] + RIB_T)) - RIB_MIN_GAP if len(_rib2_y) == 2
      else 0.0),

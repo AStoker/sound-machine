@@ -17,6 +17,7 @@ source of truth.
 | **Dome** | [`dome.stl`](models/dome.stl) | printable — 202 × 155.7 × 64, 146.8 cm³ |
 | **Bottom plate** | [`bottom-plate.stl`](models/bottom-plate.stl) | printable — 196.4 × 58.4 × 6.6, 45.3 cm³ |
 | **Knob** | [`knob.stl`](models/knob.stl) | printable — Ø34 × 20, 13.2 cm³ |
+| **Matrix test coupon** | [`matrix-testfit.stl`](models/matrix-testfit.stl) | print **this first** — 103 × 45 × 13, 14 cm³. The clock mount cut straight out of the front module: lip, pocket, posts and all six clips. Validates the fit for ~20 min of filament instead of several hours. |
 | Matrix tray | [`matrix-tray.stl`](models/matrix-tray.stl) | printable — **no longer in the assembly**, the front module carries the matrices itself |
 
 Every solid is watertight, one connected body, and fits a 220 bed.

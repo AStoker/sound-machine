@@ -31,6 +31,9 @@ GENERATORS = {
     "gen_bottom_plate.py": "bottom-plate.stl",
     "gen_knob.py":         "knob.stl",
     "gen_tray.py":         "matrix-tray.stl",
+    # the test coupon is CUT OUT of the front module, so it is stale the moment
+    # the front module changes -- exactly the case this file exists for
+    "gen_matrix_testfit.py": "matrix-testfit.stl",
 }
 
 problems = []
@@ -46,9 +49,19 @@ print(f"{'generator':22s} {'reported':>9s} {'in models/':>11s}")
 for gen, stl in GENERATORS.items():
     out = subprocess.run([sys.executable, str(HERE / gen)], cwd=HERE,
                          capture_output=True, text=True)
+    # >>> THE *EXPORT* LINE, NOT THE FIRST LINE MENTIONING TRIANGLES. This took
+    # >>> the first match anywhere in the output, which was fine while every
+    # >>> generator's first mention was its own export. gen_matrix_testfit.py
+    # >>> builds the front module first and reports ITS triangle count, so this
+    # >>> compared the front module's 17526 against the coupon's 2688 and called
+    # >>> the coupon stale. Every generator announces its export with "wrote";
+    # >>> matching that is both narrower and what was always meant.
     said = None
     for line in out.stdout.split("\n"):
-        if "triangles" in line:
+        # "wrote ... triangles" is the usual form; gen_tray.py reports a bare
+        # "triangles   N" line instead, so accept that too -- but only a line
+        # that is ABOUT the export, never one that merely mentions the word.
+        if ("wrote" in line and "triangles" in line) or line.startswith("triangles"):
             for tok in line.split():
                 if tok.isdigit():
                     said = int(tok)

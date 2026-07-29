@@ -118,21 +118,80 @@ deeper.
 
 ---
 
-## 4. Worth a second look, because a mirror is invisible
+## 4. Settled from Adafruit's own board files — do not re-measure
 
-### Which diagonal the clock matrix's mounting holes are on
-Corrected to **bottom-left + top-right** on each board, read looking at the
-board's component side — the way you see it once it faces out of the machine.
+These came out of the EAGLE sources on Adafruit's GitHub, so they are exact and
+`check_docs.py` now asserts them.
 
-This is the one error type no drawing catches: a mirrored diagonal looks
-perfectly correct in every view except the one that matters, and the natural view
-when checking posts is the *back* of the plate, which is mirrored. If the boards
-ever refuse to drop onto their posts, that one line in `enclosure_geom.py` is the
-first suspect — the fix is to swap the two y values back.
+| Value | From | Notes |
+|---|---|---|
+| Matrix outline **43.18 × 27.94**, R2.54 | `CharliePlex Grid.brd` outline wires | The driver is identical — lady ada's guide says they deliberately made it "as large as our 0603-LED 16x9 matrix grids". |
+| Matrix holes **Ø2.0 at (1.905, 26.035) and (41.275, 1.905)** | `Grid.brd` `<plain>`, verbatim `<hole>` tags | **Top-left + bottom-right**, board seen from the LED side. |
+| Driver mounting holes **Ø2.5 plated, 3.2 pad** | `Breakout.brd`, package `MOUNTINGHOLE_2.5_PLATED` | So **M2.5** screws. Positions still unknown — see below. |
+
+> ### ⚠️ The matrix diagonal went wrong twice, in opposite directions
+> Adafruit's file gives the holes in **board** coordinates — the board seen from
+> its component side, the LED side. The board is installed with the LEDs facing
+> **forward**, so its frame is 180° from the part's and one in-plane axis has to
+> invert on the way in. Reading the vendor numbers straight into part coordinates
+> skips that inversion and mirrors the pattern.
+>
+> That is exactly what happened. The original was mirrored; it was corrected from
+> the bench (rightly); then "corrected back" when the vendor file surfaced, on the
+> reasoning that published data outranks an eyeball. **The data did outrank the
+> eyeball — but data still has to be transformed into the frame you are using it
+> in, and the person holding the printed part is measuring the frame you actually
+> shipped.**
+>
+> Part-frame answer: **bottom-left + top-right**, which is what you see from the
+> back — the view the slicer gives you with the facade on the bed. The flip is now
+> applied in code, so the vendor numbers stay quotable *and* the transform is
+> visible; `check_docs.py` asserts both the source values and the flipped result.
 
 ---
 
-## 5. Nice to confirm, low risk
+### Still needed: where the driver's Ø2.5 holes actually are
+Confirmed they exist (plated, Ø2.5 drill, 3.2 mm pad — M2.5 screws). Their
+**positions** are placed as `<element>` entries near the end of the board file,
+and every fetch of that file truncates before them, so I could not read them.
+
+Fastest ways to settle it, in order:
+
+1. Open the **fab print** on the [downloads
+   page](https://learn.adafruit.com/i31fl3731-16x9-charliplexed-pwm-led-driver/downloads)
+   — "STEMMA QT Schematic and Fab Print", the second image. It is dimensioned in
+   inches and will show the hole centres directly.
+2. Or just measure the board: centre-to-centre both ways, and from one corner.
+3. Or open `Adafruit IS31FL3731 STEMMA QT.brd` in EAGLE/Fusion and read them off.
+
+Needed before the backpack-mounted version can be built, along with the **mated
+height** of your female header plus the matrix's pins — that sets the boss
+height, and a guessed stack height is what caused the last round of trouble.
+
+---
+
+## 5. Assembly steps the model can't do for you
+
+### Mic port gaskets — needed, not optional
+The array **deliberately does not sit flat** on the floor of its channel. It
+seats on four raised Ø4.5 rings, one around each Ø2.5 port, leaving a 0.6 mm gap
+everywhere else. That gap is there for a **thin adhesive foam gasket** on each
+land (about 1 mm uncompressed, with a Ø2.5 hole punched through).
+
+Printed plastic pressed against a PCB does not seal — it leaks through the layer
+lines. A leaking port lets sound reach the microphone by two paths at slightly
+different times, which is precisely what the XVF3800's beamforming and echo
+canceller assume isn't happening. The port itself is fine (Ø2.5 × 2.6 mm long,
+first resonance ~23 kHz, well above anything that matters), so the gasket is the
+only thing standing between this working and not.
+
+Two of the four ports sit 18 mm outboard of the nearest fixing screw, so the
+board's ends are held flat by the lands rather than pressed onto them — another
+reason to use a compliant foam rather than relying on contact.
+
+---
+
+## 6. Nice to confirm, low risk
 
 - **Board outlines** — the overall width and height of the RTC (25.4 mm square
   guessed), light sensor (20 × 18), ToF (17.8 × 25.4) and encoder (25.4 square)

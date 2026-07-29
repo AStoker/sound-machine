@@ -168,6 +168,55 @@ draws("3d-print/gen_drawing.py", r"rear_wall_boards\(\)",
       "the rear-wall boards from the shared list")
 draws("3d-print/gen_drawing.py", r"RTC_WALL_X", "the RTC, labelled")
 
+# >>> VENDOR GEOMETRY IS NOT NEGOTIABLE, AND THIS ONE HAS ALREADY MOVED ONCE ON A
+# >>> VERBAL REPORT. Adafruit's "CharliePlex Grid.brd" declares the matrix's two
+# >>> mounting holes outright; they were nonetheless swapped to the other diagonal
+# >>> because the posts LOOKED mirrored -- which is what the plate's back face
+# >>> always looks like. Assert the published numbers so an eyeball cannot
+# >>> overrule them again without someone deleting this rule on purpose.
+_ADAFRUIT_MTX_HOLES = [(1.905, 26.035), (41.275, 1.905)]   # Grid.brd <plain>
+if sorted(g.MTX_HOLES_BOARD) != sorted(_ADAFRUIT_MTX_HOLES):
+    problems.append(
+        f"enclosure_geom.py: MTX_HOLES_BOARD = {g.MTX_HOLES_BOARD} but Adafruit's "
+        f"board file says {_ADAFRUIT_MTX_HOLES}\n"
+        f"      (CharliePlex Grid.brd, <plain>: hole 1.905,26.035 and "
+        f"41.275,1.905, drill 2)")
+# >>> ...AND THE FLIP INTO PART COORDINATES MUST STILL BE THERE. Asserting only
+# >>> the vendor numbers is what let the mirrored version pass review: the source
+# >>> was quoted correctly and used in the wrong frame. Check the RESULT too.
+_want_part = sorted((hx, round(g.MTX_BOARD_H - hy, 3))
+                    for hx, hy in _ADAFRUIT_MTX_HOLES)
+if [(a, round(b, 3)) for a, b in sorted(g.MTX_HOLES)] != _want_part:
+    problems.append(
+        f"enclosure_geom.py: MTX_HOLES = {g.MTX_HOLES}; the board-to-part flip "
+        f"gives {_want_part}. The LEDs face FORWARD, so the board's frame is 180 "
+        f"deg from the part's and one in-plane axis inverts.")
+if (g.MTX_BOARD_W, g.MTX_BOARD_H) != (43.18, 27.94):
+    problems.append(
+        f"enclosure_geom.py: matrix outline {g.MTX_BOARD_W} x {g.MTX_BOARD_H} "
+        f"but the board file's outline wires give 43.18 x 27.94")
+if g.MTX_HOLE_D != 2.0:
+    problems.append(f"enclosure_geom.py: MTX_HOLE_D = {g.MTX_HOLE_D}, "
+                    f"Adafruit drills these 2.0")
+# the driver's pattern, from the fab print (1.5 x 0.9 inside 1.7 x 1.1)
+_ADAFRUIT_BP_HOLES = [(2.54, 2.54), (2.54, 25.4), (40.64, 2.54), (40.64, 25.4)]
+if sorted(g.MTX_BP_HOLES_BOARD) != sorted(_ADAFRUIT_BP_HOLES):
+    problems.append(
+        f"enclosure_geom.py: MTX_BP_HOLES_BOARD = {g.MTX_BP_HOLES_BOARD} but the fab print "
+        f"gives 1.5\" x 0.9\" centred in 1.7\" x 1.1\" = {_ADAFRUIT_BP_HOLES}")
+# >>> AND THE TWO PATTERNS MUST STAY NON-COINCIDENT. The whole architecture rests
+# >>> on this: driver holes are 0.100" in from the edges, matrix holes 0.075", so
+# >>> nothing lines up and the driver cannot be posted through the matrix. If a
+# >>> future edit ever makes them agree, the mount can be simplified -- and if
+# >>> someone assumes they agree without checking, it cannot.
+_closest = min(((dx - mx) ** 2 + (dy - my) ** 2) ** 0.5
+               for dx, dy in g.MTX_BP_HOLES for mx, my in g.MTX_HOLES)
+if _closest < 1.5:
+    pass          # expected: 0.898 mm. Recorded so the number is visible.
+else:
+    problems.append(f"enclosure_geom.py: driver/matrix holes are now {_closest:.2f} "
+                    f"mm apart; the 'cannot post through the matrix' note is stale")
+
 # >>> WHERE THE RTC LIVES IS ASSERTED, NOT DESCRIBED. The docs said "the rear
 # >>> wall is FULL and the RTC had to leave it" for the whole time that had
 # >>> stopped being true. Tie the prose to RTC_ON_FLOOR so it cannot say one and

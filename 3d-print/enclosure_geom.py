@@ -162,20 +162,69 @@ RIM_MIN   = _rim_min()               # <<< DERIVED, see above -- not a look
 MTX_BOARD_W = 43.18                  # one IS31FL3731 16x9 board
 MTX_BOARD_H = 27.94
 MTX_N       = 2                      # butted side by side
-# >>> BOARD-LOCAL, AND THE VIEWING CONVENTION IS THE WHOLE OF THE DIFFICULTY.
-# >>> These are (x from the board's LEFT edge, y UP from its BOTTOM edge) as seen
-# >>> looking at the board's COMPONENT SIDE -- i.e. the way you see it once it is
-# >>> installed and facing out of the machine. That is the same handedness as the
-# >>> part's own coordinates, so gen_front_plate can use them directly.
-# >>> They were on the OTHER diagonal (top-left + bottom-right), which is what you
-# >>> get if you read the positions off the back of the board, or off a drawing of
-# >>> the plate seen from behind -- the face you naturally look at when you are
-# >>> checking the posts, because the posts stand on the plate's BACK. A mirrored
-# >>> diagonal is invisible in every view except the one that matters.
-# >>> If the boards ever refuse to drop on, this line is the first suspect: swap
-# >>> the two y values back.
-MTX_HOLES   = [(1.905, 1.905), (41.275, 26.035)]   # diagonal pair, board-local
+# >>> VERBATIM FROM ADAFRUIT'S BOARD FILE -- IN *BOARD* COORDINATES. Copied out of
+# >>> the <plain> section of "Adafruit IS31FL3731 CharliePlex Grid.brd":
+# >>>     <hole x="1.905"  y="26.035" drill="2"/>
+# >>>     <hole x="41.275" y="1.905"  drill="2"/>
+# >>> (the same file's outline wires give 43.18 x 27.94 with R2.54 corners, which
+# >>> is where MTX_BOARD_W/H come from).
+MTX_HOLES_BOARD = [(1.905, 26.035), (41.275, 1.905)]
+
+# >>> AND THEY MUST BE FLIPPED TO GET INTO PART COORDINATES. This is the step that
+# >>> was missed, twice, in opposite directions.
+# >>>
+# >>> EAGLE's frame is the board seen from its COMPONENT side -- the LED side. The
+# >>> board is installed with the LEDs facing the machine's FRONT, so its
+# >>> component-side normal points at -z while part z runs front-to-back. The two
+# >>> frames are 180 deg apart, and a 180 deg rotation inverts exactly one in-plane
+# >>> axis. Reading the EAGLE numbers straight into part coordinates skips that
+# >>> inversion and mirrors the pattern.
+# >>>
+# >>> It does not matter WHICH axis you invert -- rotating about x or about y are
+# >>> both physically valid ways to put the board in, they differ by a spin in the
+# >>> board's own plane, and a DIAGONAL pair is symmetric under that spin. Both
+# >>> give {(1.905, 1.905), (41.275, 26.035)}: bottom-left + top-right.
+# >>>
+# >>> HISTORY, BECAUSE IT COST TWO WRONG PARTS. The original value was the mirrored
+# >>> one. It was corrected on a report from the bench -- correctly -- and then
+# >>> "corrected back" when the vendor file turned up, on the reasoning that the
+# >>> vendor must outrank an eyeball. The vendor file was right; the reasoning was
+# >>> not. Authoritative data still has to be transformed into the frame you are
+# >>> using it in, and someone holding the printed part is measuring the frame you
+# >>> actually shipped. The flip is applied in code now, so the source stays
+# >>> quotable and the transform is visible.
+MTX_HOLES = [(hx, MTX_BOARD_H - hy) for hx, hy in MTX_HOLES_BOARD]
 MTX_HOLE_D  = 2.0
+# ---- the DRIVER ("backpack") board -----------------------------------------
+# >>> FROM ADAFRUIT'S FAB PRINT, cross-checked against the .brd. The fab print
+# >>> dimensions the hole pattern as 1.5" x 0.9" inside a 1.7" x 1.1" board, i.e.
+# >>> 0.1" = 2.54 mm in from every edge; the board file's own dimension objects
+# >>> agree (38.10 across, 22.73 up) and its library carries the package
+# >>> MOUNTINGHOLE_2.5_PLATED -> <pad drill="2.5" diameter="3.2"/>.
+# >>> So: FOUR holes, M2.5, one near each corner.
+MTX_BP_HOLES_BOARD = [(2.54, 2.54), (2.54, 25.4), (40.64, 2.54), (40.64, 25.4)]
+# same board-to-part flip as the matrix. It happens to be a no-op here -- this
+# pattern is symmetric about the board's mid-height -- but it is applied anyway,
+# because a pattern that is symmetric today is not necessarily symmetric after
+# the next edit, and a silently-skipped transform is what caused the trouble.
+MTX_BP_HOLES = [(hx, MTX_BOARD_H - hy) for hx, hy in MTX_BP_HOLES_BOARD]
+MTX_BP_HOLE_D = 2.5                  # plated, 3.2 pad
+MTX_BP_HOLE_PITCH = (38.10, 22.86)   # 1.5" x 0.9"
+# >>> AND THEY DO NOT LINE UP WITH THE MATRIX'S. The matrix is drilled 1.905 mm
+# >>> (0.075") in from its edges, the driver 2.54 mm (0.100"), so the closest a
+# >>> driver hole ever gets to a matrix hole is 0.898 mm -- and the other two
+# >>> driver holes are 23.5 mm from anything. This is the fact that decides the
+# >>> architecture: a post rising from the front plate to a driver hole has to
+# >>> pass through the MATRIX, which sits in front of it and has no hole there.
+# >>> The driver therefore cannot be screwed down to the plate through the stack;
+# >>> it has to be held from BEHIND. See the note in gen_front_plate.
+# ---- inter-board sockets (the press-in scheme) ------------------------------
+# >>> (?) THE ONE NUMBER THE PRESS-IN DESIGN TURNS ON. Soldering female headers
+# >>> to the driver and plugging the matrix in replaces a 3.8 mm soldered gap with
+# >>> the socket's body height. A standard 2.54 mm socket is ~8.5; low-profile
+# >>> ones run 5.0-7.0. Every downstream depth follows from it, so MEASURE the
+# >>> mated pair rather than trusting this.
+MTX_SOCKET_H = 8.5                   # (?) female header body height -- MEASURE
 MTX_PCB_T   = 1.6                    # matrix thickness
 MTX_BP_T    = 1.6                    # driver backpack thickness
 # >>> THE STACK HEIGHT IS MEASURED; THE HEADER GAP IS DERIVED FROM IT. It was the
