@@ -496,11 +496,20 @@ text:
           }
           while (!filtered.empty() && filtered.back() == ' ') filtered.pop_back();
           id(matrix_custom_text) = filtered;
-          if (!filtered.empty()) {
+
+button:
+  - platform: template
+    name: "Show Matrix Message"
+    id: matrix_message_show
+    icon: "mdi:message-flash-outline"
+    on_press:
+      - lambda: |-
+          if (id(matrix_custom_text).empty()) {
+            id(matrix_custom_until_ms) = 0;
+          } else {
             int seconds = id(matrix_custom_duration_s);
             if (seconds < ${matrix_message_duration_min}) seconds = ${matrix_message_duration_min};
+            if (seconds > ${matrix_message_duration_max}) seconds = ${matrix_message_duration_max};
             id(matrix_custom_until_ms) = millis() + (uint32_t) seconds * 1000u;
-          } else {
-            id(matrix_custom_until_ms) = 0;
           }
-          id(render_display).execute();
+      - script.execute: render_display
