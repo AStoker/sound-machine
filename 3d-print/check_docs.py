@@ -217,6 +217,80 @@ else:
     problems.append(f"enclosure_geom.py: driver/matrix holes are now {_closest:.2f} "
                     f"mm apart; the 'cannot post through the matrix' note is stale")
 
+# >>> ONE HOLE PATTERN PER BOARD, NEVER A PITCH. rear_wall_boards() and
+# >>> plate_boards() used to hand out a single hole PITCH and the generators built
+# >>> a four-boss square from it. That is only correct for a board with four
+# >>> symmetric holes. The DS3231 has TWO, side by side, so two of its bosses stood
+# >>> on bare PCB and would have rocked the board off the other two; the UPS has
+# >>> four but on 46 x 86, which no single pitch describes. Assert the shape of the
+# >>> data, because the bug was in the shape of the data.
+for _fn, _rows in (("rear_wall_boards", g.rear_wall_boards()),
+                   ("plate_boards", g.plate_boards())):
+    for _r in _rows:
+        _offs = _r[5]
+        if _offs is None:
+            continue
+        if not isinstance(_offs, (list, tuple)) or (_offs and not
+                                                   isinstance(_offs[0], tuple)):
+            problems.append(
+                f"enclosure_geom.py: {_fn}() gives {_r[0]} hole data {_offs!r}. "
+                f"This field is a LIST OF (dx, dy) OFFSETS, not a pitch -- a "
+                f"single number cannot describe a hole pattern, and pretending it "
+                f"could put two of the DS3231's bosses on bare PCB.")
+_rtc_bosses = [len(r[5]) for r in g.rear_wall_boards() if r[0] == "RTC"]
+if _rtc_bosses != [2]:
+    problems.append(
+        f"enclosure_geom.py: the RTC is getting {_rtc_bosses} bosses. Adafruit's "
+        f"DS3231 (STEMMA QT version) has exactly TWO mounting holes, at "
+        f"{g.RTC_HOLES} on a {g.RTC_HOLE_P} mm pitch. A third or fourth boss lands "
+        f"on bare board.")
+if len(g.UPS_HOLES) != 4 or g.UPS_HOLE_D < 3.0:
+    problems.append(
+        f"enclosure_geom.py: UPS_HOLES = {g.UPS_HOLES}, D {g.UPS_HOLE_D}. The "
+        f"Waveshare 3S UPS DXF gives four {chr(216)}3.1 holes on 46 x 86.")
+if g.REAR_BOARD_SCREW.get("UPS") != 3.0:
+    problems.append(
+        "enclosure_geom.py: the UPS wants M3 -- its holes are 3.1. Driving every "
+        "rear-wall boss from one BOSS_PILOT_D gave a 200 g battery pack four "
+        "M2.5 screws in oversize holes.")
+
+# >>> THE AMP HAS ONE HOLE PATTERN AND ONE TRANSFORM. There were two constants for
+# >>> its hole spacing: the real 22.86 read out of Adafruit's board file, and a
+# >>> stale AMP_HOLE_P = 20.0 "(?) MEASURE" placeholder 800 lines further down --
+# >>> and it was the placeholder that every generator imported. Assert the vendor
+# >>> numbers, assert the placeholder is gone, and assert the lay-down transform is
+# >>> a rigid motion, because the amp lies with its long axis across the machine
+# >>> and the bosses did not follow it round.
+_ADAFRUIT_AMP_HOLES = [(19.05, 2.54), (19.05, 25.40)]     # TPA2016D2.brd
+if sorted(g.AMP_HOLES) != sorted(_ADAFRUIT_AMP_HOLES):
+    problems.append(
+        f"enclosure_geom.py: AMP_HOLES = {g.AMP_HOLES} but the board file's "
+        f"dimension objects snap to {_ADAFRUIT_AMP_HOLES} "
+        f"(MOUNTINGHOLE_2.5_PLATED_THICK elements, not <plain> holes)")
+if hasattr(g, "AMP_HOLE_P"):
+    problems.append(
+        "enclosure_geom.py: AMP_HOLE_P is back. It was a placeholder that shadowed "
+        "the measured pattern; there must be exactly one amp hole definition.")
+_ap = g.amp_holes_part()
+_span_b = max(((a[0]-b[0])**2 + (a[1]-b[1])**2)**0.5
+              for a in g.AMP_HOLES for b in g.AMP_HOLES)
+_span_p = max(((a[0]-b[0])**2 + (a[1]-b[1])**2)**0.5
+              for a in _ap for b in _ap)
+if abs(_span_b - _span_p) > 0.01:
+    problems.append(
+        f"enclosure_geom.py: amp_holes_part() moves the holes {_span_p:.2f} mm "
+        f"apart from {_span_b:.2f}. Laying the board down rotates it; a rotation "
+        f"preserves distances.")
+if len({round(y, 3) for _, y in _ap}) != 1 or len({round(x, 3) for x, _ in _ap}) != 2:
+    problems.append(
+        f"enclosure_geom.py: amp_holes_part() = {_ap}. The amp's long axis runs "
+        f"ACROSS the machine, so its two holes must differ in x and share a depth.")
+if abs(_ap[0][1]) < 1.0:
+    problems.append(
+        f"enclosure_geom.py: amp_holes_part() puts the holes {_ap[0][1]:.2f} from "
+        f"the board's depth centre. Both are at board x = 19.05, which is 8.26 off "
+        f"a 21.59-wide centre -- on the centreline the board cannot go on at all.")
+
 # >>> WHERE THE RTC LIVES IS ASSERTED, NOT DESCRIBED. The docs said "the rear
 # >>> wall is FULL and the RTC had to leave it" for the whole time that had
 # >>> stopped being true. Tie the prose to RTC_ON_FLOOR so it cannot say one and

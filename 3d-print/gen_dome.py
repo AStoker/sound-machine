@@ -49,6 +49,7 @@ from enclosure_geom import (
     TOF_PCB_D, TOF_PCB_W, TOF_X, TOF_Y, TOUCH_DEPTH, TOUCH_PAD_L, TOUCH_PAD_W,
     TOUCH_WALL, TOUCH_Y, VENT_HH, VENT_N, VENT_P, VENT_W, VENT_Y, W, WALL,
     flat_depth, flex_holes, rear_wall_boards, touch_x, vent_x,
+    REAR_BOARD_SCREW, REAR_PILOT_D,
 )
 
 SEG = 128
@@ -447,16 +448,23 @@ for hx, hy in flex_holes():
     adds.append(b)
     pilots.append(p)
     board_bosses.append(("Flex", hx, hy))
-for nm, cx, cy, bw, bh, hp in rear_wall_boards():
-    if hp is None:
+# >>> ONE BOSS PER ACTUAL HOLE. This used to take a single pitch and build a
+# >>> four-boss square from it, which is only right for a board with four
+# >>> symmetric holes. The DS3231 has two, on one horizontal line, so two of its
+# >>> bosses were standing on bare PCB -- they would have held the board off its
+# >>> other two and rocked it. The UPS has four but on a 46 x 86 pattern that no
+# >>> single pitch describes either.
+for nm, cx, cy, bw, bh, offs in rear_wall_boards():
+    if not offs:
         continue
-    for sx in (-1, 1):
-        for sy in (-1, 1):
-            hx, hy = cx + sx * hp / 2, cy + sy * hp / 2
-            b, p = boss(hx, hy, STANDOFF_H + 2.0, STANDOFF_H + 1.0)
-            adds.append(b)
-            pilots.append(p)
-            board_bosses.append((nm, hx, hy))
+    _scr = REAR_BOARD_SCREW.get(nm, BOSS_SCREW)
+    _pil = REAR_PILOT_D.get(_scr, BOSS_PILOT_D)
+    for dx, dy in offs:
+        hx, hy = cx + dx, cy + dy
+        b, p = boss(hx, hy, STANDOFF_H + 2.0, STANDOFF_H + 1.0, pilot=_pil)
+        adds.append(b)
+        pilots.append(p)
+        board_bosses.append((nm, hx, hy))
 
 # --- the crown --------------------------------------------------------------
 # The knob's seating pad is the ONE external feature, and it is a pad, not a
@@ -678,8 +686,9 @@ say(f"rear wall   barrel {chr(216)}{BARREL_D} on a {chr(216)}{BARREL_LAND_D} lan
     f"lux {chr(216)}{LP_D} | {len(vent_x())*VENT_N} louvres "
     f"{VENT_W}x{2*VENT_HH} | "
     f"switch {chr(216)}{SW_D} @ ({SW_WALL_X},{SW_WALL_Y})")
-say(f"bosses      {len(board_bosses)} board bosses, all blind, all M{BOSS_SCREW} "
-    f"except the Flex")
+say(f"bosses      {len(board_bosses)} board bosses, all blind; "
+    + ", ".join(f"{_n} M{REAR_BOARD_SCREW.get(_n, BOSS_SCREW)}"
+                for _n in dict.fromkeys(n for n, _, _ in board_bosses)))
 say("")
 
 bad = []
@@ -897,8 +906,8 @@ try:
     _tip = D - WALL - (STANDOFF_H + 2.0)
     _bt = 1.6 + 3.0                       # PCB + tallest component, generous
     _wb = 0
-    for _nm, _cx, _cy, _bw, _bh, _hp in rear_wall_boards():
-        if _hp is None:
+    for _nm, _cx, _cy, _bw, _bh, _offs in rear_wall_boards():
+        if not _offs:
             continue
         _P = _np.array([[_x, _y, _z]
                         for _x in _np.linspace(_cx - _bw/2, _cx + _bw/2, 13)

@@ -1019,6 +1019,25 @@ AMP_HOLE_PITCH = 22.86                            # 0.9", vertical; both same x
 # >>> Depth 34 puts it in the open floor band between the matrix (ends 14.7) and
 # >>> the tabs (start 49.5), which is also easier to get a screwdriver to.
 AMP_X, AMP_DEPTH    = 80.0, 34.0             # floor, forward of the rear tabs
+
+
+def amp_holes_part():
+    """The amp's two holes as (x, depth) offsets from the board CENTRE.
+
+    >>> THE AMP IS LAID DOWN, SO ITS AXES SWAP -- and the bosses did not. The .brd
+    >>> frame is 21.59 WIDE x 27.94 TALL; the board is fitted with its long axis
+    >>> ACROSS the machine, so board-y becomes part-x and board-x becomes DEPTH.
+    >>> The old code placed both bosses at hy = AMP_DEPTH, i.e. on the board's
+    >>> depth centreline, and spread them +-pitch/2 in x. The spread axis was
+    >>> right; the centreline was not. Both holes are at board x = 19.05, which is
+    >>> 8.26 mm off the 21.59-wide centre -- so the board could not have gone on
+    >>> over those bosses at all, at any pitch.
+    >>> It lies COMPONENT SIDE UP, which is a rotation and not a flip, so nothing
+    >>> inverts here; contrast the wall boards, which face into the wall.
+    >>> Sign chosen so the terminal-block edge (board +x, the same edge the holes
+    >>> are near) points FORWARD, at the speaker it drives.
+    """
+    return [(by - AMP_W / 2.0, -(bx - AMP_D / 2.0)) for bx, by in AMP_HOLES]
 AMP_WALL_X, AMP_WALL_Y = AMP_X, AMP_H/2      # (kept for the drawings)
 
 # ---- explode offsets (drawing only) ---------------------------------------
@@ -1649,9 +1668,9 @@ def dome_floor_intrusions():
 
 
 def plate_boards():
-    """Boards mounted on the BOTTOM PLATE, as (name, cx, cd, w, d, hole_pitch).
+    """Boards mounted on the BOTTOM PLATE, as (name, cx, cd, w, d, hole_offsets).
     The RTC used to be here; it is on the rear wall now."""
-    return [("TPA2016", AMP_X, AMP_DEPTH, AMP_W, AMP_D, AMP_HOLE_P)]
+    return [("TPA2016", AMP_X, AMP_DEPTH, AMP_W, AMP_D, amp_holes_part())]
 
 
 def rear_wall_clearances():
@@ -1839,7 +1858,11 @@ SW_RIB       = 1.5        # retaining land around the opening, inside
 # ---- bottom plate ----------------------------------------------------------
 FOOT_POCKET_T = 1.0       # recess depth for a stick-on foot
 FOOT_CLR      = 0.4       # pocket oversize on the foot diameter
-AMP_HOLE_P    = 20.0      # (?) TPA2016 breakout hole pitch -- MEASURE
+# >>> AMP_HOLE_P (a 20.0 "(?) MEASURE" guess) USED TO LIVE HERE, and it is what
+# >>> every consumer actually imported -- 800 lines below the real 22.86 that had
+# >>> already been read out of the board file. Two names for one dimension, and
+# >>> the placeholder won. Deleted: there is now exactly one amp hole pattern,
+# >>> AMP_HOLES, and one transform that puts it in part coordinates.
 
 
 def _resolve_lux():
@@ -1850,17 +1873,52 @@ def _resolve_lux():
 _resolve_lux()
 
 
+# >>> SCREW SIZE PER BOARD, because the boards do not agree. The UPS is drilled
+# >>> Ø3.1 -- M3 -- while the little STEMMA breakouts are Ø2.5. Driving them all
+# >>> from one BOSS_PILOT_D gave the UPS an M2.5 pilot under an M3 hole: the screw
+# >>> would go in, but a 200 g battery pack hanging on four sloppy fits is not
+# >>> something to leave to chance.
+REAR_BOARD_SCREW = {"UPS": 3.0, "lux": 2.5, "RTC": 2.5}
+REAR_PILOT_D = {3.0: 2.5, 2.5: 2.1}          # self-tapper pilot per screw size
+
+
+def board_holes_part(holes, bw, bh):
+    """Board-local hole coordinates -> offsets from the board CENTRE, in part
+    coordinates.
+
+    >>> THIS EXISTS BECAUSE THE FLIP HAS BEEN MISSED TWICE. Vendor files give hole
+    >>> positions in the board's own frame, seen from the COMPONENT side. Every
+    >>> board in this build is installed with its component side facing the
+    >>> machine's FRONT -- the matrix's LEDs point out, the rear-wall boards stand
+    >>> off the wall facing forward -- so each board's frame is 180 deg from the
+    >>> part's and one in-plane axis inverts on the way in.
+    >>> Skipping it mirrors the pattern. On the matrix that put the posts on the
+    >>> wrong diagonal; on a two-hole board like the DS3231, whose holes sit on one
+    >>> horizontal line 5.83 above centre, it would put them 5.83 BELOW.
+    >>> One function, so there is one place to be right.
+    """
+    return [(hx - bw / 2.0, -(hy - bh / 2.0)) for hx, hy in holes]
+
+
 def rear_wall_boards():
     """Every board that mounts on the rear wall, as
-    (name, centre_x, centre_y, w, h, hole_pitch). Used by the dome to place
-    bosses and by the clearance table to prove they do not overlap."""
+    (name, centre_x, centre_y, w, h, hole_offsets). Used by the dome to place
+    bosses and by the clearance table to prove they do not overlap.
+
+    >>> hole_offsets IS AN EXPLICIT LIST NOW, NOT A PITCH. It used to be a single
+    >>> number and the dome built a FOUR-boss square from it -- fine for a board
+    >>> with four symmetric holes, wrong for anything else. The DS3231 has TWO
+    >>> holes on one horizontal line, so two of its four bosses were standing on
+    >>> bare PCB. A pitch cannot express a hole pattern; a list of holes can.
+    """
     return [
         ("Flex",  FLEX_WALL_X, FLEX_WALL_Y + FLEX_H / 2, FLEX_PCB_W, FLEX_PCB_H,
          None),
         ("UPS",   UPS_WALL_X,  FLOOR_Y + UPS_H / 2,      UPS_W,      UPS_H,
-         None),
+         board_holes_part(UPS_HOLES, UPS_W, UPS_H)),
         ("lux",   LUX_WALL_X,  LUX_WALL_Y,               LUX_PCB_W,  LUX_PCB_H,
-         LUX_HOLE_P),
+         [(sx * LUX_HOLE_P / 2, sy * LUX_HOLE_P / 2)
+          for sx in (-1, 1) for sy in (-1, 1)]),
         ("RTC",   RTC_WALL_X,  RTC_WALL_Y,               RTC_PCB_W,  RTC_PCB_H,
-         RTC_HOLE_P),
+         board_holes_part(RTC_HOLES, RTC_PCB_W, RTC_PCB_H)),
     ]

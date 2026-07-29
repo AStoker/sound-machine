@@ -5,7 +5,64 @@
 one body each. Firmware and all four documents are in sync with the geometry.
 Nothing is committed.
 
-## Latest session — the RTC, the vents, and printing rear-wall down
+## Latest session — the three boards are finally *held*
+
+Their hole patterns had been in the docs for a while. Nothing was using them.
+
+**The UPS had no fixing at all.** Four M3 bosses now, on the real 46 × 86
+pattern, and boss pilots are sized **per board** (`REAR_BOARD_SCREW`) rather than
+from one global `BOSS_PILOT_D` — the UPS drills Ø3.1, so it wants M3, and a 200 g
+pack on four M2.5 screws in oversize holes is not a detail to hand-wave.
+
+**A pitch cannot describe a hole pattern.** `rear_wall_boards()` and
+`plate_boards()` returned a single `hole_pitch` and the generators built a
+**four-boss square** from it. Right for a board with four symmetric holes; wrong
+for the DS3231, which has **two**, side by side — so two of its bosses stood on
+bare PCB and would have held the board off the two that mattered. Both functions
+now return explicit `(dx, dy)` offset lists, and `check_docs.py` asserts the
+*shape of the data*, because that is where the bug lived.
+
+**Two independent bugs on the amp, and the first one hid the second.** There were
+two constants for its hole spacing: the measured `AMP_HOLE_PITCH = 22.86` read out
+of Adafruit's board file, and a stale `AMP_HOLE_P = 20.0  # (?) MEASURE`
+placeholder **800 lines further down** — and the placeholder was what every
+generator imported. Under that, both bosses sat on the board's **depth
+centreline** while both holes are 8.26 mm off it, because the amp lies with its
+long axis across the machine and the bosses never followed it round. The board
+could not have gone on at any pitch. `amp_holes_part()` is now the one transform,
+and it is checked as a **rigid motion**: the hole-to-hole span and each hole's
+four edge distances have to survive it. Both broken forms were re-introduced to
+confirm the check fails (−6.34 for a swap, −8.25 for the original centreline bug).
+
+## Stability — `check_stability.py`, and the load case it made up
+
+Answering "does the UPS on the rear wall put too much weight back there?"
+**No — it makes the machine harder to tip, not easier.** The pack is heavy but
+low, and mass low down buys more restoring moment than its 7.4 mm of rearward COM
+shift costs: 53 gf → 56 gf to shove the top over. Static tipping has 14.6 mm of
+margin at the worst corner of the assumption box (light shell, +30 % battery) and
+survives 10.6° of backward tilt.
+
+Two things this script got wrong first, both worth keeping visible:
+
+- **It invented its load case.** It reported a scary 85 gf to lift the front feet
+  by pressing "the front-panel button at z = 100". There is no front-panel button;
+  the height came from a `getattr(g, "SW_Y", 100.0)` fallback that fired silently
+  because the constant is `SW_WALL_Y`. A default masquerading as geometry. The
+  real controls are a rear-wall button 12 mm up (pressing it pushes the machine
+  *forward*, and takes >1 kgf) and two **capacitive** crown pads that need no
+  force at all — which is precisely why the one high control is safe.
+- **It failed on a proxy while the real metric improved.** A 5 mm cap on the COM
+  shift failed at 7.4 mm in the same run that showed the shove force getting
+  better. A threshold invented to look rigorous, contradicting the outcome it
+  stood in for. Removed; the shift is reported as information.
+
+**~55 gf to topple it from the top is low, and it is not the battery's fault** —
+it is 156 mm of height on a 39 mm foot span. The free variable is `FOOT_IN`
+(16 mm today): 8 mm would give **1.5×** the shove resistance and still leave the
+foot 2 mm inside the wall line. Your call.
+
+## Earlier session — the RTC, the vents, and printing rear-wall down
 
 **The reported bug was real but not where it looked.** The bottom plate's screw
 holes were clean — every one of the six is an unobstructed cylinder through the

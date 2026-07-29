@@ -30,7 +30,8 @@ import struct
 from manifold3d import CrossSection, Manifold
 
 from enclosure_geom import (
-    AMP_D, AMP_DEPTH, AMP_H, AMP_HOLE_P, AMP_W, AMP_X, BOSS_CHAMF, BOSS_D,
+    AMP_D, AMP_DEPTH, AMP_H, AMP_HOLES, AMP_W, AMP_X, BOSS_CHAMF, BOSS_D,
+    amp_holes_part,
     BOSS_PILOT_D, BOSS_SCREW, BP_CLR, BP_D, BP_T, BP_W, D, FLEX_WALL_Y,
     FOOT_CLR, FOOT_D, FOOT_IN, FOOT_POCKET_T, IN_D, IN_W, MODEL_DIR, SCREWS,
     SCREW_CBORE, SCREW_CB_T, SCREW_CLR, SPK_BODY_D, SPK_BODY_W, SPK_X, TRAY_D,
@@ -133,9 +134,13 @@ body = body - union(cuts)
 # >>> used. See "board outlines" in the checks below.
 adds = []
 board_holes = []
-for nm, bx, bd, hp in (("amp", AMP_X, AMP_DEPTH, AMP_HOLE_P),):
-    for sx in (-1, 1):
-        hx, hy = bx + sx * hp / 2, bd
+# >>> ONE BOSS PER REAL HOLE, from the board file, through the lay-down transform
+# >>> in amp_holes_part(). This loop used to spread two bosses +-pitch/2 in x ON
+# >>> THE BOARD'S DEPTH CENTRELINE, using a placeholder pitch. Both holes are
+# >>> actually 8.26 mm off that centreline.
+for nm, bx, bd, offs in (("amp", AMP_X, AMP_DEPTH, amp_holes_part()),):
+    for dx, dy in offs:
+        hx, hy = bx + dx, bd + dy
         board_holes.append((nm, hx, hy))
         adds.append(cyl(hx, hy, BP_T, BP_T + AMP_STAND + BOSS_CHAMF, BOSS_D))
 amp_holes = [(x, y) for n, x, y in board_holes if n == "amp"]
@@ -176,7 +181,9 @@ say(f"screws      {len(SCREWS)} x M3 clearance {chr(216)}{SCREW_CLR}, counterbor
     f"{chr(216)}{SCREW_CBORE} x {SCREW_CB_T} from BELOW")
 say(f"feet        4 x {chr(216)}{FOOT_D} in {FOOT_POCKET_T} deep pockets, "
     f"{FOOT_IN} in from the walls")
-say(f"amp         2 x M{BOSS_SCREW} at {AMP_HOLE_P} pitch, x={AMP_X} depth={AMP_DEPTH}")
+say(f"amp         {len(amp_holes)} x M{BOSS_SCREW} at "
+    + " and ".join(f"({x:.2f}, {y:.2f})" for x, y in amp_holes)
+    + f"; board centre x={AMP_X} depth={AMP_DEPTH}")
 say("RTC         not on this part -- it is on the dome's rear wall")
 say("")
 
@@ -280,23 +287,46 @@ chk(f"every feature pair that shares depth clears "
 say("")
 say("board outlines vs the dome's own intrusions")
 _bw = 1e9
-for _bn, _bx, _bd, _bw_, _bd_, _hp in plate_boards():
+for _bn, _bx, _bd, _bw_, _bd_, _offs in plate_boards():
     _x0, _x1 = _bx - _bw_ / 2, _bx + _bw_ / 2
     _d0, _d1 = _bd - _bd_ / 2, _bd + _bd_ / 2
     for _dn, _ox0, _ox1, _od0, _od1 in dome_floor_intrusions():
         _g = max(_ox0 - _x1, _x0 - _ox1, _od0 - _d1, _d0 - _od1)
         if _g < _bw:
             _bw, _bwho = _g, f"{_bn} <-> {_dn}"
-    # and the bosses it stands on, which reach further than the board on the pitch
-    for _sx in (-1, 1):
-        _hx = _bx + _sx * _hp / 2
+    # and the bosses it stands on, which can reach past the board outline
+    for _dx, _dy in _offs:
+        _hx, _hy = _bx + _dx, _bd + _dy
         for _dn, _ox0, _ox1, _od0, _od1 in dome_floor_intrusions():
             _g = max(_ox0 - (_hx + BOSS_D / 2), (_hx - BOSS_D / 2) - _ox1,
-                     _od0 - (_bd + BOSS_D / 2), (_bd - BOSS_D / 2) - _od1)
+                     _od0 - (_hy + BOSS_D / 2), (_hy - BOSS_D / 2) - _od1)
             if _g < _bw:
                 _bw, _bwho = _g, f"{_bn} boss <-> {_dn}"
 say(f"  ---- {_bw:8.2f}   tightest: {_bwho}")
 chk("every plate board clears every dome intrusion", _bw)
+
+# >>> AND CHECK THE LAY-DOWN TRANSFORM, not just the clearances around it. A wrong
+# >>> swap or a wrong sign still yields two bosses on a plausible-looking plate,
+# >>> and every clearance check above passes happily -- that is exactly how two
+# >>> bosses ended up 8.26 mm off the holes they were for. The transform is a
+# >>> RIGID MOTION, so it must preserve distances: the boss-to-boss span and each
+# >>> hole's set of distances to the four board edges have to come out the same in
+# >>> board coordinates and in part coordinates.
+say("")
+say("amp board->part transform is a rigid motion")
+_span_board = max(math.dist(a, b) for a in AMP_HOLES for b in AMP_HOLES)
+_span_part = max(math.dist(a, b) for a in amp_holes for b in amp_holes)
+chk(f"hole span preserved ({_span_board:.2f} mm on the board)",
+    0.01 - abs(_span_part - _span_board))
+for _i, ((_bx_, _by_), (_px_, _py_)) in enumerate(zip(AMP_HOLES, amp_holes)):
+    _in_board = sorted([_bx_, AMP_D - _bx_, _by_, AMP_W - _by_])
+    _in_part = sorted([_px_ - (AMP_X - AMP_W / 2), (AMP_X + AMP_W / 2) - _px_,
+                       _py_ - (AMP_DEPTH - AMP_D / 2),
+                       (AMP_DEPTH + AMP_D / 2) - _py_])
+    chk(f"hole {_i} edge distances preserved "
+        f"({', '.join(f'{v:.2f}' for v in _in_board)})",
+        0.01 - max(abs(a - b) for a, b in zip(_in_board, _in_part)))
+    chk(f"hole {_i} lands on the board, not off it", min(_in_part))
 
 chk("amp board clears the lifted Flex above it", FLEX_WALL_Y - AMP_H)
 chk("amp bosses clear the plate edge (depth)",

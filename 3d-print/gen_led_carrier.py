@@ -9,24 +9,30 @@ flat plate which screws onto the back of the front module.
 
     HOW IT ASSEMBLES (all from behind, module face down):
       1. opal acrylic drops into its pocket
-      2. strips are stuck to THIS plate, between the end stops
+      2. strips are stuck to THIS plate, each in its own shallow groove
       3. plate lands on the cavity wall's back face
       4. M2.5 self-tappers into the pads on the wall's inner face
 
-    PRINT FACE DOWN -- "face" being the side the strips stick to. The end stops
-    then grow upward off the bed and the strip-bearing surface is the bottom
-    layer, so it comes out flat. A warped carrier is a varying air gap, which is
-    visible through the diffuser.
+    PRINT WITH THE STRIP FACE UP. The grooves are shallow recesses in that face,
+    so they need no support, and the flat BACK is the bed layer -- which is what
+    keeps the plate from warping. A warped carrier is a varying air gap, and that
+    is visible through the diffuser.
 
->>> THE STOPS ARE STOPS, NOT CHANNELS. LED_ROW_PITCH is 11.0 and the ribbon is
->>> STRIP_W = 10.0, so a dividing wall between rows has 1.0 mm to live in -- half
->>> a millimetre a side, under one nozzle width on a 0.4 mm setup. Blocks at each
->>> row's two ends locate the segments; the adhesive backing holds them.
+>>> GROOVES, NOT RAISED STOPS. This part used to locate each row with two blocks
+>>> standing proud at its ENDS. That is exactly where a cut strip's solder pads
+>>> and joints are, so the blocks fought the wiring -- worst on the bottom row,
+>>> where a joint has nowhere to escape to.
 >>>
->>> AND THEY ARE ONLY STOP_W = 3.0 ACROSS, not the ribbon's full 10. The stops
->>> sit at the row ENDS -- the same perimeter the fixing pads need -- and at full
->>> ribbon width they blocked every usable pad angle below 20 deg. See the band
->>> table this run prints.
+>>> Recessing instead of raising fixes it: each row gets a positive start, end and
+>>> side track, the pads sit in free air, and there is nothing to snap off. The
+>>> groove is deliberately only GROOVE_D deep -- it is a locating feature, not a
+>>> channel. Burying the 2.13 mm ribbon would push the LEDs back and change the
+>>> DIFF_GAP the whole crescent is tuned around.
+>>>
+>>> NO RIDGE BETWEEN ROWS, BY DESIGN. LED_ROW_PITCH 10.4 against a 10.0 ribbon
+>>> leaves ~0.1 mm of web after clearance, which merges in the slice. The features
+>>> that do the locating are each groove's END walls and the outer edges of the
+>>> top and bottom rows, and those are all still there.
 
 Geometry comes from enclosure_geom.py. Nothing here re-derives a dimension that
 the front module also depends on -- the two parts bolt together, so every shared
@@ -47,6 +53,7 @@ from enclosure_geom import (
     CAV_WALL, CRES_PX, CRES_R, CRES_RY, CRES_Y, DIFF_GAP, DIFF_LIP, DIFF_R_G,
     DIFF_REBATE, DIFF_RY_G, LED_D, LED_PITCH, LED_ROW_PITCH, LED_STRIP_T,
     MIC_Y1, PAD_PILOT_D, PAD_W, STOP_H, STOP_T, STOP_W, STRIP_END_CLR, STRIP_W,
+    strip_rects,
     W, carrier_pads, crescent_row_ys, crescent_rows, pad_clearances,
     strip_stops, CARRIER_SCREW, pad_angle_bands, MODEL_DIR, HERE,
 )
@@ -138,18 +145,42 @@ body = slab(outline(), 0.0, CARRIER_T)
 rows = crescent_rows()
 ys = crescent_row_ys()
 
-# --- strip end stops --------------------------------------------------------
-# A cut segment of n pixels is n FULL pitches of ribbon, not (n-1): the cut lines
-# sit half a pitch outboard of the end LEDs. That is the length the stops have to
-# bracket, and it is what makes the bottom row the binding case -- see
-# enclosure_geom.ribbon_cap.
-# strip_stops() is the shared definition -- gen_front_plate.py picks its pad
-# angles by clearing these, so the two must not be derived twice.
+# --- strip grooves, NOT end stops -------------------------------------------
+# >>> THE STOPS SAT ON THE SOLDER PADS. They were blocks standing proud at each
+# >>> row END -- which is exactly where a cut strip's pads and its solder joints
+# >>> are. Anything standing there fights the wire you have just soldered on, and
+# >>> on the bottom row there is nowhere for the joint to escape to.
+# >>>
+# >>> A GROOVE DOES THE SAME JOB FROM BELOW. Recessed instead of raised, it gives
+# >>> each row a positive start and end to butt against and a side-to-side track,
+# >>> and it leaves the pads in free air. It also cannot be knocked off.
+# >>>
+# >>> SHALLOW ON PURPOSE. The ribbon is 2.13 thick; the groove only has to be deep
+# >>> enough to FEEL, not to contain it -- GROOVE_D is a locating feature, not a
+# >>> channel. Deep enough to bury the ribbon would put the LEDs further from the
+# >>> diffuser and change the air gap the whole crescent is tuned around.
+# >>>
+# >>> NO RIDGE BETWEEN ROWS, and that is fine: LED_ROW_PITCH is 10.4 against a
+# >>> 10.0 ribbon, so after clearance the nominal web is ~0.1 mm and will simply
+# >>> merge in the slice. What matters is the OUTER edge of the outermost rows and
+# >>> the END walls of each groove, and those are all still there.
+# >>> Cut from strip_rects(), the same definition the pad-angle search treats as
+# >>> an obstacle, so the two cannot drift.
+GROOVE_D    = 0.35    # depth -- a locating feature, not a channel
+GROOVE_SIDE = 0.15    # per side, ribbon to groove wall
+GROOVE_END  = 0.30    # per end, so a cut strip drops in without shaving
+grooves = []
+for half_len, y, half_w in strip_rects():
+    grooves.append(slab(
+        rect2(-half_len - GROOVE_END, y - half_w - GROOVE_SIDE,
+              2 * (half_len + GROOVE_END), 2 * (half_w + GROOVE_SIDE)),
+        CARRIER_T - GROOVE_D, CARRIER_T + 1.0))
+body = body - union(grooves)
+# >>> pad_clearances() still reports a gap to the old STOPS. That is now a
+# >>> conservative extra: the stops stood just OUTBOARD of the ribbon, so any pad
+# >>> angle that cleared them clears the grooves too. Left in rather than ripped
+# >>> out of shared code, but it is measuring something that no longer exists.
 stops = strip_stops()
-adds = [slab(rect2(x - STOP_T / 2, y - STOP_W / 2, STOP_T, STOP_W),
-             CARRIER_T, CARRIER_T + STOP_H)
-        for x, y in stops]
-body = body + union(adds)
 
 # --- screw clearance holes --------------------------------------------------
 # Straight through. No counterbore: the plate is only CARRIER_T = 2.5 thick and
@@ -194,8 +225,11 @@ say(f"bbox        {bb[3]-bb[0]:.2f} x {bb[4]-bb[1]:.2f} x {bb[5]-bb[2]:.2f} mm")
 say(f"plate       {CARRIER_T} thick, skirt {CARRIER_SKIRT} below the baseline")
 say(f"seats at    z={CARRIER_Z0} on the front module (back face of the cavity "
     f"wall); strip face is z={CARRIER_Z0} -> LEDs at {DIFF_GAP} behind the acrylic")
-say(f"stops       {len(stops)} blocks, {STOP_T} x {STOP_W} x {STOP_H} tall, "
-    f"{STRIP_END_CLR} clearance per end")
+say(f"grooves     {len(strip_rects())} recesses, {GROOVE_D} deep, "
+    f"{STRIP_W + 2*GROOVE_SIDE:.1f} wide, {GROOVE_END} clearance per end")
+say(f"            (no raised stops -- they sat on the strips' solder pads)")
+say(f"            web left between rows: "
+    f"{LED_ROW_PITCH - STRIP_W - 2*GROOVE_SIDE:.2f} mm -- merges in the slice")
 say(f"fixings     {len(carrier_pads())}x M{CARRIER_SCREW} clearance "
     f"{chr(216)}{CARRIER_CLR_D} into {chr(216)}{PAD_PILOT_D} pilots in the wall pads")
 say("")
@@ -246,7 +280,7 @@ chk("skirt supports row 0's ribbon",
 chk("skirt clear of the mic channel",
     (CRES_Y - CARRIER_SKIRT) - MIC_Y1)
 # Stops must not foul the cavity wall they sit inside, and must not shade a pixel.
-chk("stops inside the cavity wall",
+chk("(vestigial: the stops are gone) would-be stop inside the wall",
     min((DIFF_R_G) - (abs(x) + STOP_T / 2) for x, y in stops))
 chk("row pitch vs ribbon width (why there are no channels)",
     LED_ROW_PITCH - STRIP_W)
@@ -258,7 +292,40 @@ chk("fits the bed (y)", BED - (bb[4] - bb[1]))
 # stand the strip off the plate. Check every stop against every pad.
 # True rectangle-to-circle gap, not circumscribed radii: the stop is 1.6 x 3.0,
 # so a bounding circle overstates it by 1.7 mm and would reject good layouts.
-chk("stops clear of the fixing pads", min(ds for _, _, ds, _ in pad_clearances()))
+chk("pads clear of where the stops used to be (conservative)",
+    min(ds for _, _, ds, _ in pad_clearances()))
+# >>> AND THE GROOVES MUST ACTUALLY BE CUT. Subtracting a union always "succeeds";
+# >>> if strip_rects() ever returned an empty list this file would cheerfully
+# >>> export a blank plate. Measure the depth off the exported solid.
+try:
+    import trimesh as _tm
+    import numpy as _np
+    _m = _tm.load(os.path.join(MODEL_DIR, "led-carrier.stl"))
+    _bb = _m.bounds
+    _ymin = _bb[0][1]
+    def _top(y_cres):
+        _ym = y_cres + CARRIER_SKIRT + _ymin
+        _zs = _np.arange(CARRIER_T - GROOVE_D - 0.3, CARRIER_T + 0.05, 0.05)
+        _hit = [z for z in _zs
+                if _m.contains(_np.array([[0.0, _ym, z]]))[0]]
+        return max(_hit) if _hit else -1.0
+    _in_groove = _top(crescent_row_ys()[0])
+    _between = _top(crescent_row_ys()[0] + LED_ROW_PITCH / 2)
+    # >>> TWO ASSERTIONS, AND THE SECOND IS THE ONE THAT BITES. Comparing the
+    # >>> measured top against CARRIER_T - GROOVE_D only proves the solid matches
+    # >>> its own parameter -- set GROOVE_D to 0 and it still passes, on a plate
+    # >>> with no groove at all. Verified by doing exactly that. So also require
+    # >>> an ABSOLUTE minimum depth, which a zero groove cannot satisfy.
+    GROOVE_D_MIN = 0.20
+    chk(f"groove matches its parameter (top {_in_groove:.2f} vs "
+        f"{CARRIER_T-GROOVE_D:.2f})",
+        0.1 - abs(_in_groove - (CARRIER_T - GROOVE_D)))
+    chk(f"groove is actually deep enough to feel (>= {GROOVE_D_MIN})",
+        (CARRIER_T - _in_groove) - GROOVE_D_MIN)
+    chk(f"material survives between rows (top at {_between:.2f})",
+        _between - (CARRIER_T - 0.15))
+except ImportError:
+    say("groove depth check skipped: no trimesh")
 chk("pads clear of the pixels",       min(dl for _, dl, _, _ in pad_clearances()))
 chk("pads clear of the ribbons",      min(dr for _, _, _, dr in pad_clearances()))
 

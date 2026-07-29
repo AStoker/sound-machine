@@ -286,6 +286,14 @@
 <rect class="phan" x="66.03" y="136.895" width="27.94" height="21.59"/>
 <rect class="hid" x="34" y="63.69" width="52" height="70"/>
 <rect class="hid" x="120" y="58.69" width="60" height="93"/>
+<circle class="obj" cx="127" cy="62.19" r="1.05"/>
+<circle class="phan" cx="127" cy="62.19" r="3"/>
+<circle class="obj" cx="173" cy="62.19" r="1.05"/>
+<circle class="phan" cx="173" cy="62.19" r="3"/>
+<circle class="obj" cx="127" cy="148.19" r="1.05"/>
+<circle class="phan" cx="127" cy="148.19" r="3"/>
+<circle class="obj" cx="173" cy="148.19" r="1.05"/>
+<circle class="phan" cx="173" cy="148.19" r="3"/>
 <rect class="hid" x="91" y="26.69" width="20" height="18"/>
 <circle class="obj" cx="93.5" cy="43.19" r="1.05"/>
 <circle class="phan" cx="93.5" cy="43.19" r="3"/>
@@ -296,14 +304,10 @@
 <circle class="obj" cx="108.5" cy="28.19" r="1.05"/>
 <circle class="phan" cx="108.5" cy="28.19" r="3"/>
 <rect class="hid" x="30.3" y="32.79" width="25.4" height="17.8"/>
-<circle class="obj" cx="32.84" cy="51.85" r="1.05"/>
-<circle class="phan" cx="32.84" cy="51.85" r="3"/>
-<circle class="obj" cx="32.84" cy="31.53" r="1.05"/>
-<circle class="phan" cx="32.84" cy="31.53" r="3"/>
-<circle class="obj" cx="53.16" cy="51.85" r="1.05"/>
-<circle class="phan" cx="53.16" cy="51.85" r="3"/>
-<circle class="obj" cx="53.16" cy="31.53" r="1.05"/>
-<circle class="phan" cx="53.16" cy="31.53" r="3"/>
+<circle class="obj" cx="32.84" cy="47.52" r="1.05"/>
+<circle class="phan" cx="32.84" cy="47.52" r="3"/>
+<circle class="obj" cx="53.16" cy="47.52" r="1.05"/>
+<circle class="phan" cx="53.16" cy="47.52" r="3"/>
 <rect class="phan" x="5" y="63.69" width="110" height="70"/>
 <circle class="obj" cx="37.5" cy="130.19" r="1.5"/>
 <circle class="phan" cx="37.5" cy="130.19" r="3.5"/>

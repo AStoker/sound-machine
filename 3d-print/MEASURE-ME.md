@@ -19,7 +19,7 @@
 
 | Board | Holes | Source |
 |---|---|---|
-| **TPA2016** | 2 × **M2.5**, both on the right edge at **x = 18.03**, y = 2.54 and 25.40 (0.9" apart) | Fab print + `MOUNTINGHOLE_2.5_PLATED_THICK` in the .brd |
+| **TPA2016** | 2 × **M2.5** at **(19.05, 2.54)** and **(19.05, 25.40)** — same x, 0.9" apart, centres 2.54 from the right edge | `MOUNTINGHOLE_2.5_PLATED_THICK` elements + the .brd's own `<dimension>` objects |
 | **DS3231 QT** | 2 × **M2.5** at **(2.54, 14.73)** and **(22.86, 14.73)** — 0.80" apart, 0.12" down from the *top* edge | STEMMA QT fab print |
 | **UPS 3S** | 4 × Ø3.1, 46 × 86 pitch | Waveshare DXF |
 | **Flex core** | 4 × Ø3.0, 63 × 45 pitch | Measured |
@@ -36,9 +36,26 @@
 > honest report would have been "I can't see them in the section I can reach",
 > which is what I'd said about the driver and then failed to say here.
 
+### All three are now actually mounted
+
+The patterns were known for a while; the parts weren't holding anything. As of
+this pass:
+
+- **UPS** — four M3 bosses on the rear wall, on the real 46 × 86 pattern. It had
+  *no* fixing at all before, despite the holes being in the table above. M3, not
+  M2.5: its holes are Ø3.1, and boss pilots are now sized per board rather than
+  from one global constant.
+- **DS3231** — **two** bosses. The dome was building a four-boss square from a
+  single pitch, so two of them stood on bare PCB and would have held the board
+  off the two that mattered.
+- **TPA2016** — two floor bosses on the correct pattern. Two bugs here: a stale
+  `AMP_HOLE_P = 20.0` placeholder, 800 lines below the measured 22.86, was what
+  every generator actually imported; and both bosses sat on the board's depth
+  centreline when both holes are 8.26 mm off it. The board could not have gone on
+  at any pitch.
+
 ## Still open
 
-- **Amp retention** is no longer a question — it screws down like everything else.
 - **Speaker nubs** — you said they're perfect, so untouched.
 - Two secondary dimensions I could not reconcile off the rasters (TPA2016's 0.06"
   and 0.3", DS3231's 0.51"). They don't affect the holes, but if either is a hole
@@ -286,14 +303,12 @@ reason to use a compliant foam rather than relying on contact.
 
 ## 6. Nice to confirm, low risk
 
-- **Board outlines** — the overall width and height of the RTC (25.4 mm square
-  guessed), light sensor (20 × 18), ToF (17.8 × 25.4) and encoder (25.4 square)
-  breakouts. These only matter for the clearance checks, not for anything printed
-  — but the RTC's *posts* span 26 mm, wider than the board itself, so the posts
-  are what actually binds.
-- **Amplifier board size** — 26 × 20 × 8 mm guessed.
+- **Board outlines** — the light sensor (20 × 18), ToF (17.8 × 25.4) and encoder
+  (25.4 square) breakouts. These only matter for the clearance checks, not for
+  anything printed. The RTC (25.4 × 17.8) and the amp (21.59 × 27.94) are no
+  longer guesses — both came out of vendor files.
 - **UPS pack depth** — 24 mm guessed for board plus cells. Width and height (60 ×
-  93) are from the product page and are probably right.
+  93) are from the DXF.
 
 ---
 

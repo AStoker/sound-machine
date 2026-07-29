@@ -294,14 +294,11 @@ def rear_internals():
     # >>> because there was nowhere to look them up. Anything added to
     # >>> rear_wall_boards() from now on draws itself.
     o = [rect(AMP_X - AMP_W/2, fy(AMP_H + AMP_D/2), AMP_W, AMP_D, "phan")]
-    for nm, cx, cy, bw, bh, hp in rear_wall_boards():
+    for nm, cx, cy, bw, bh, offs in rear_wall_boards():
         o.append(rect(cx - bw/2, fy(cy + bh/2), bw, bh, "hid"))
-        if hp is None:
-            continue
-        for sx in (-1, 1):
-            for sy in (-1, 1):
-                o.append(circ(cx + sx*hp/2, fy(cy + sy*hp/2), BOSS_PILOT_D, "obj"))
-                o.append(circ(cx + sx*hp/2, fy(cy + sy*hp/2), BOSS_D, "phan"))
+        for dx, dy in (offs or []):
+            o.append(circ(cx + dx, fy(cy + dy), BOSS_PILOT_D, "obj"))
+            o.append(circ(cx + dx, fy(cy + dy), BOSS_D, "phan"))
     # the Flex additionally needs the 110 envelope its connectors want
     o.append(rect(FLEX_WALL_X - FLEX_W/2, fy(FLEX_WALL_Y + FLEX_H),
                   FLEX_W, FLEX_H, "phan"))
