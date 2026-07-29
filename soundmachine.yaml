@@ -64,6 +64,14 @@ substitutions:
                                      # packages/matrix.yaml "THE INTER-PANEL GAP")
   matrix_pwm_on: "40"                # lit-pixel PWM at full ambient (0..255)
   matrix_pwm_min: "3"                # lit-pixel PWM floor at darkest (bedside night)
+  # Matrix text behavior (custom message + long status strings).
+  matrix_message_duration_default: "20"   # seconds custom text stays active
+  matrix_message_duration_min: "3"
+  matrix_message_duration_max: "300"
+  matrix_scroll_ms_per_px_default: "250"  # lower = faster horizontal scroll
+  matrix_scroll_ms_per_px_min: "30"
+  matrix_scroll_ms_per_px_max: "1000"
+  matrix_scroll_ms_per_px_step: "10"
   touch_pin: GPIO4                   # capacitive preset pad (D3; D2 = GPIO3)
   touch_threshold: "700000"          # ESP32-S3 raw touch threshold - CALIBRATE
 

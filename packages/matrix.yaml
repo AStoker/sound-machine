@@ -75,12 +75,12 @@ globals:
   - id: matrix_custom_duration_s
     type: int
     restore_value: yes
-    initial_value: '20'
+    initial_value: '${matrix_message_duration_default}'
   # Scroll speed in milliseconds per pixel step; editable from HA.
   - id: matrix_scroll_ms_per_px
     type: int
     restore_value: yes
-    initial_value: '250'
+    initial_value: '${matrix_scroll_ms_per_px_default}'
 
 interval:
   # Faster refresh only while a custom message is active, so text scrolls
@@ -442,16 +442,16 @@ number:
     entity_category: config
     optimistic: true
     restore_value: true
-    min_value: 30
-    max_value: 1000
-    step: 10
+    min_value: ${matrix_scroll_ms_per_px_min}
+    max_value: ${matrix_scroll_ms_per_px_max}
+    step: ${matrix_scroll_ms_per_px_step}
     mode: box
-    initial_value: 250
+    initial_value: ${matrix_scroll_ms_per_px_default}
     set_action:
       - lambda: |-
           int ms = (int) x;
-          if (ms < 30) ms = 30;
-          if (ms > 1000) ms = 1000;
+          if (ms < ${matrix_scroll_ms_per_px_min}) ms = ${matrix_scroll_ms_per_px_min};
+          if (ms > ${matrix_scroll_ms_per_px_max}) ms = ${matrix_scroll_ms_per_px_max};
           id(matrix_scroll_ms_per_px) = ms;
 
   - platform: template
@@ -461,16 +461,16 @@ number:
     entity_category: config
     optimistic: true
     restore_value: true
-    min_value: 3
-    max_value: 300
+    min_value: ${matrix_message_duration_min}
+    max_value: ${matrix_message_duration_max}
     step: 1
     mode: box
-    initial_value: 20
+    initial_value: ${matrix_message_duration_default}
     set_action:
       - lambda: |-
           int seconds = (int) x;
-          if (seconds < 3) seconds = 3;
-          if (seconds > 300) seconds = 300;
+          if (seconds < ${matrix_message_duration_min}) seconds = ${matrix_message_duration_min};
+          if (seconds > ${matrix_message_duration_max}) seconds = ${matrix_message_duration_max};
           id(matrix_custom_duration_s) = seconds;
 
 text:
@@ -498,7 +498,7 @@ text:
           id(matrix_custom_text) = filtered;
           if (!filtered.empty()) {
             int seconds = id(matrix_custom_duration_s);
-            if (seconds < 3) seconds = 3;
+            if (seconds < ${matrix_message_duration_min}) seconds = ${matrix_message_duration_min};
             id(matrix_custom_until_ms) = millis() + (uint32_t) seconds * 1000u;
           } else {
             id(matrix_custom_until_ms) = 0;
