@@ -50,7 +50,7 @@
 # Defines ids: matrix_inited, render_display (script), and a manual
 #   "Matrix: redraw" button (forces a re-init after a power glitch).
 # Consumes: internal_i2c + ds3231_time (main), display_brightness + preset_code
-#   + showing_preset (ambient), battery_low + battery_charging (battery).
+#   + showing_preset (ambient), battery_low + external_power (battery).
 #   Panel count / addresses / gap / brightness are the ${matrix_*} substitutions.
 # =====================================================================
 globals:
@@ -116,8 +116,8 @@ script:
           // 0 = low-battery warning, 1 = preset code, 2 = clock.
           int mode;
           std::string text;
-          if (id(battery_low).state && !id(battery_charging).state) {
-            mode = 0; text = "LO";               // suppressed while charging (see battery.yaml)
+          if (id(battery_low).state && !id(external_power).state) {
+            mode = 0; text = "LO";               // suppressed while on mains (see battery.yaml)
           } else if (id(showing_preset)) {
             mode = 1; text = id(preset_code);    // e.g. "S3", "L1", "OFF"
           } else {

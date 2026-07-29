@@ -17,7 +17,7 @@
 #
 # Defines ids: render_display. Also brings up the HT16K33 on boot.
 # Consumes: internal_i2c + ds3231_time (main), display_brightness + preset_code
-#   + showing_preset (ambient), battery_low + battery_charging (battery).
+#   + showing_preset (ambient), battery_low + external_power (battery).
 # =====================================================================
 esphome:
   on_boot:
@@ -55,11 +55,16 @@ script:
           uint8_t display_bytes[11] = {0x00,0,0,0,0,0,0,0,0,0,0};
 
           // Priority order: a low-battery warning outranks both the transient
-          // preset code and the clock. Suppressed while charging - plugging in
+          // preset code and the clock. Suppressed while on mains - plugging in
           // at night shouldn't leave "LO" staring back for the hour it takes
-          // the pack to recover (battery_low itself has hysteresis; charging
-          // just clears the on-screen nag immediately).
-          if (id(battery_low).state && !id(battery_charging).state) {
+          // the pack to recover (battery_low itself has hysteresis; mains
+          // presence just clears the on-screen nag immediately).
+          //
+          // Gates on external_power, NOT battery_charging: a pack that has
+          // finished charging tapers to near-zero current and battery_charging
+          // correctly goes false, which would bring the nag back while still
+          // plugged in. See battery.yaml.
+          if (id(battery_low).state && !id(external_power).state) {
             // "LO", right-aligned in the last two digits so it doesn't sit
             // where the hour normally is. There is no 'W' on a 7-segment
             // display; "LO" reads cleaner than "LOb" would. Colon held OFF so

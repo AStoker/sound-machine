@@ -2,10 +2,10 @@
 # BATTERY / UPS MONITORING - Waveshare UPS Module 3S (3x 18650 series)
 #
 # Self-contained package. Defines the ids: battery_voltage, battery_current,
-# battery_power, battery_shunt_voltage, battery_level, battery_cell_voltage,
-# battery_charging, battery_low. Other packages (display) read battery_low /
-# battery_charging by id. All tunables live in the substitutions block of the
-# main config.
+# battery_power, battery_shunt_voltage, battery_oc_voltage, battery_level,
+# battery_cell_voltage, battery_charging, external_power, battery_low. Other
+# packages (display, matrix) read battery_low / external_power by id. All
+# tunables live in the substitutions block of the main config.
 #
 # !! THE ADDRESS AND SHUNT VALUE ARE PLACEHOLDERS !! See the substitutions
 # block. Boot with the UPS connected, read the I2C scan in the logs, and set
@@ -13,11 +13,18 @@
 # off the substitutions, so that's the only thing you should need to change
 # once the scan comes back.
 #
-# SIGN CONVENTION: current is positive when the shunt sees flow in the board's
-# designed direction. Which direction that is depends on how Waveshare wired
-# it, so verify on the bench: run on battery, note the sign; if discharge reads
-# positive, flip the comparison in `battery_charging` and drop the
-# `- multiply: -1` filter from Battery Current.
+# SIGN CONVENTION: the INA219 on this board reports CHARGE CURRENT POSITIVE
+# and DISCHARGE CURRENT NEGATIVE natively - do NOT add a `multiply: -1`
+# filter. An earlier revision of this file did, which flipped discharge to
+# positive and made "Battery Charging" read true while the pack was actually
+# powering the device. Confirmed against mgjbroadbent/waveshare_ups_monitor,
+# which reads this same board (INA219 @ 0x41, 0.01 ohm shunt) and documents
+# UPS_CURRENT_A as "-0.650 (negative = discharging)".
+#
+# "CHARGING" IS NOT "ON MAINS". A full pack on the charger tapers to near-zero
+# current, so testing for charging reports mains-lost on a perfectly healthy
+# UPS. Anything that wants to know "is the barrel jack live?" must read
+# `external_power`, which is defined as NOT DISCHARGING rather than charging.
 # =====================================================================
 sensor:
   - platform: ina219
@@ -26,7 +33,7 @@ sensor:
     shunt_resistance: ${ups_shunt_ohms}
     max_voltage: 16.0V         # 3S tops out at 12.6V; 16V bus range covers it
     max_current: 5.0A          # matches the board's 5V/5A output rating
-    update_interval: 30s
+    update_interval: ${ups_poll_interval}
     bus_voltage:
       name: "Battery Voltage"
       id: battery_voltage
@@ -41,8 +48,8 @@ sensor:
       accuracy_decimals: 3
       device_class: current
       state_class: measurement
-      filters:
-        - multiply: -1.0       # see SIGN CONVENTION above: make discharge negative
+      # NO SIGN FILTER. See SIGN CONVENTION above. Positive = charging,
+      # negative = discharging, straight off the chip.
     power:
       name: "Battery Power"
       id: battery_power
@@ -55,11 +62,49 @@ sensor:
       id: battery_shunt_voltage
       internal: true           # diagnostic only; not worth an HA entity
 
-  # State of charge, derived from pack voltage against a lithium-ion OCV curve.
-  # This is an ESTIMATE and it is worst exactly when you're drawing hardest:
-  # under a bright sunrise plus loud audio the pack sags and this will read low,
-  # then recover when the load drops. The UPS board has no coulomb counter, so
-  # voltage is all we get. Treat <20% as "plug it in", not as a fuel gauge.
+  # Open-circuit (unloaded) pack voltage, recovered from the loaded bus
+  # voltage using the pack's internal resistance:
+  #
+  #     V_oc = V_bus - (I * R)
+  #
+  # Charge current is positive so it SUBTRACTS (a charging pack reads high);
+  # discharge current is negative so it ADDS BACK (a loaded pack sags). One
+  # expression handles both directions. This is what stops Battery Level
+  # lurching every time the sunrise ramps or the amp starts drawing - the old
+  # behaviour where SOC dived under load and "recovered" when it stopped.
+  #
+  # An EMA on top keeps the number from twitching on single noisy samples.
+  # ups_internal_resistance is THE value worth tuning - see the substitutions
+  # block for the procedure.
+  - platform: template
+    name: "Battery Compensated Voltage"
+    id: battery_oc_voltage
+    unit_of_measurement: "V"
+    accuracy_decimals: 3
+    device_class: voltage
+    state_class: measurement
+    entity_category: diagnostic
+    update_interval: ${ups_poll_interval}
+    lambda: |-
+      if (!id(battery_voltage).has_state()) return {};
+      if (!id(battery_current).has_state()) return {};
+      float bus = id(battery_voltage).state;
+      if (!(bus > 0.0f)) return {};
+
+      float oc = bus - (id(battery_current).state * ${ups_internal_resistance}f);
+
+      static bool seeded = false;
+      static float ema = 0.0f;
+      if (!seeded) { ema = oc; seeded = true; }
+      else         { ema += ${ups_ema_alpha}f * (oc - ema); }
+      return ema;
+
+  # State of charge, derived from the COMPENSATED pack voltage against a
+  # lithium-ion OCV curve. Still an estimate - the UPS board has no coulomb
+  # counter, so voltage is all we get, and the curve is flat through the
+  # middle by nature. But feeding it V_oc rather than the loaded bus voltage
+  # removes the load-sag error, which was the biggest source of drift.
+  # Treat <20% as "plug it in", not as a fuel gauge.
   - platform: template
     name: "Battery Level"
     id: battery_level
@@ -68,10 +113,10 @@ sensor:
     device_class: battery
     state_class: measurement
     icon: "mdi:battery"
-    update_interval: 30s
+    update_interval: ${ups_poll_interval}
     lambda: |-
-      if (!id(battery_voltage).has_state()) return {};
-      float pack = id(battery_voltage).state;
+      if (!id(battery_oc_voltage).has_state()) return {};
+      float pack = id(battery_oc_voltage).state;
       if (!(pack > 0.0f)) return {};
       float cell = pack / 3.0f;          // 3 cells in SERIES
 
@@ -94,8 +139,9 @@ sensor:
       }
       return 100.0f;
 
-  # Per-cell average - the number that actually matters for pack health, and
-  # much easier to sanity-check against a multimeter than the pack total.
+  # Per-cell average of the RAW bus voltage - deliberately not the compensated
+  # figure, because the point of this entity is to be checkable against a
+  # multimeter on the pack terminals.
   - platform: template
     name: "Battery Cell Voltage"
     id: battery_cell_voltage
@@ -104,23 +150,48 @@ sensor:
     device_class: voltage
     state_class: measurement
     entity_category: diagnostic
-    update_interval: 30s
+    update_interval: ${ups_poll_interval}
     lambda: |-
       if (!id(battery_voltage).has_state()) return {};
       return id(battery_voltage).state / 3.0f;
 
 binary_sensor:
-  # "Charging" here means the barrel jack is supplying the board. The UPS runs
-  # charge and discharge simultaneously, so this is really "mains present"
-  # rather than "cells are absorbing" - close enough to gate behaviour on.
-  # Threshold is above zero so shunt noise at idle doesn't flap the state.
+  # TRUE only while the cells are actually absorbing charge. Goes FALSE once a
+  # full pack tapers off on mains - that is correct and expected, and is
+  # exactly why nothing else in this config gates on it. It is a battery-health
+  # readout, not a mains detector.
   - platform: template
     name: "Battery Charging"
     id: battery_charging
     device_class: battery_charging
     lambda: |-
       if (!id(battery_current).has_state()) return {};
-      return id(battery_current).state > 0.05f;   // see SIGN CONVENTION above
+      return id(battery_current).state > ${ups_charge_threshold_a}f;
+    filters:
+      - delayed_on: ${ups_confirm_time}
+      - delayed_off: ${ups_confirm_time}
+
+  # THE MAINS DETECTOR. Defined as NOT DISCHARGING, not as charging: idle-on-
+  # mains and full-on-mains both sit near zero current and must still read as
+  # powered. Only a sustained NEGATIVE current - the device pulling its whole
+  # draw out of the pack - counts as mains lost.
+  #
+  # The threshold is deliberately asymmetric with the charge threshold. A full
+  # pack on the charger periodically hands the load back to the cells for a few
+  # seconds, a small discharge of tens of mA with occasional ~180mA spikes; at
+  # 50mA that reads as mains loss and flaps. A genuine loss puts several hundred
+  # mA on the pack from the very first sample. ups_discharge_threshold_a sits in
+  # the empty gap between the two.
+  - platform: template
+    name: "External Power"
+    id: external_power
+    device_class: plug
+    lambda: |-
+      if (!id(battery_current).has_state()) return {};
+      return id(battery_current).state > -${ups_discharge_threshold_a}f;
+    filters:
+      - delayed_on: ${ups_confirm_time}
+      - delayed_off: ${ups_confirm_time}
 
   # Latching low-battery flag with hysteresis: trips at battery_low_pct, and
   # will not clear until SOC climbs 10 points past it. Without the gap this

@@ -110,6 +110,37 @@ substitutions:
   # value for a 5A-class board. If reported current is 10x off, this is why.
   ups_shunt_ohms: "0.01 ohm"
 
+  # How often the INA219 is read. Everything downstream (SOC, the EMA, the
+  # charge/mains debounce) is derived from this cadence, so keep it well under
+  # ups_confirm_time.
+  ups_poll_interval: "10s"
+
+  # Pack internal resistance in OHMS, used to recover open-circuit voltage from
+  # the loaded bus voltage: V_oc = V_bus - (I x R). 0.20 suits 3x 18650 in
+  # series plus wiring. THIS IS THE ONE VALUE WORTH TUNING - watch Battery
+  # Compensated Voltage (a diagnostic entity) while a big load starts or stops:
+  #   Level DROPS when load applied -> resistance too LOW, raise it
+  #   Level RISES when load applied -> too HIGH, lower it
+  #   Level barely moves           -> about right
+  ups_internal_resistance: "0.20"
+
+  # EMA smoothing on the compensated voltage. 1.0 = no smoothing, lower =
+  # steadier but slower to react.
+  ups_ema_alpha: "0.2"
+
+  # Current deadband in AMPS. Deliberately ASYMMETRIC - see battery.yaml.
+  # Above +50mA the cells are genuinely absorbing charge.
+  ups_charge_threshold_a: "0.05"
+  # Below -200mA the pack is genuinely carrying the load. Sits in the gap
+  # between a full pack's idle excursions on mains (tens of mA, spiking to
+  # ~180mA) and a real mains loss (several hundred mA from the first sample).
+  # Lower it only if this device draws far less than expected on battery.
+  ups_discharge_threshold_a: "0.20"
+
+  # How long a charge/mains state change must hold before it is believed.
+  # Rejects one-off sensor noise; at a 10s poll this is ~3 readings.
+  ups_confirm_time: "30s"
+
   # 3S pack thresholds, PACK volts (per-cell x3).
   battery_full_v: "12.6"      # 4.20 V/cell
   battery_low_v: "10.2"       # 3.40 V/cell - start warning
