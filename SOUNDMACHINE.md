@@ -136,6 +136,20 @@ software (AIC3104). The amp is written once at boot by the custom `tpa2016`
 component, with register **write order enforced** (compression before gain, or
 the gain gets clamped to a silent amp).
 
+**HA's "Wake word" selects showed up `unavailable`.** Detection worked fine, but
+Home Assistant's two wake-word select entities were permanently unavailable. Cause:
+`voice_assistant:` never linked the mww instance. `VoiceAssistant::get_configuration()`
+answers HA's config request from its `micro_wake_word_` pointer — null means it
+advertises zero available wake words and `max_active_wake_words = 0`, and HA's
+selects (which it creates **two** of, always, regardless of model count) are
+available only when they hold more than the "no wake word" option. Local detection
+never needed the link, since `on_wake_word_detected` → `voice_assistant.start:`
+never leaves the device. Fix: **`micro_wake_word: mww` under `voice_assistant:`**.
+Consequence to remember: HA now **owns** which models are enabled — on connect it
+disables every model and re-enables only what the selects name, and that bit is
+**persisted in flash**. After a fresh flash, set the select to "Okay Nabu", or the
+wake word stays off across reboots.
+
 **Transient brownouts crashed the ESP invisibly.** They don't show on a
 multimeter but are enough to reset the ESP32. Fix: bulk capacitance at the load
 — **470–1000 µF low-ESR electrolytic + 1–10 µF X7R ceramic** at the Flex board's

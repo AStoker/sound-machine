@@ -480,6 +480,18 @@ voice_assistant:
   microphone:
     microphone: i2s_mics
     channels: 0
+  # Linking the mww instance here is what makes Home Assistant's "Wake word" /
+  # "Wake word 2" selects work. HA fetches the satellite config over the API and
+  # voice_assistant answers from micro_wake_word's model list; with this key
+  # absent that pointer is null, so it reports zero available wake words and
+  # max_active_wake_words = 0 - HA still creates both selects (it always makes
+  # two) but they hold only "no wake word" and render as UNAVAILABLE.
+  # Detection itself never needed this: the wiring below (on_wake_word_detected
+  # -> voice_assistant.start) is local, which is why it worked anyway.
+  # Side effect: HA now OWNS which models are enabled - on connect it disables
+  # every model and re-enables only what the selects name, and that enable bit
+  # is persisted in flash. Set the select to "Okay Nabu" after flashing.
+  micro_wake_word: mww
   media_player: external_media_player
   noise_suppression_level: 0
   # --- wake-word lifecycle (manual pattern) ---
