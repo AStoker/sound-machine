@@ -57,7 +57,7 @@ substitutions:
   ht16k33_address: "0x70"            # 7-seg clock display (I2C)
   # IS31FL3731 charlieplex matrix(es). Bring up ONE panel first, then set
   # matrix_panels to 2 for the full 32x9 clock display (see packages/matrix.yaml).
-  matrix_panels: "1"                 # 1 = single (bring-up); 2 = dual side-by-side
+  matrix_panels: "2"                 # 1 = single (bring-up); 2 = dual side-by-side
   matrix_address: "0x74"             # panel 0 (left)
   matrix_address_2: "0x75"           # panel 1 (right); set 2nd board's ADDR jumper
   matrix_panel_gap: "1"              # physical dead columns between panels (see
