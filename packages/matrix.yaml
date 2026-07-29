@@ -47,26 +47,58 @@
 #   Function-bank registers: 0x00 config (0x00 = picture mode),
 #       0x01 picture-display-frame, 0x0A shutdown (0 = off, 1 = normal).
 #
-# Defines ids: matrix_inited, render_display (script), and a manual
-#   "Matrix: redraw" button (forces a re-init after a power glitch).
+# Defines ids: matrix_inited + custom-message globals, render_display (script),
+#   and Home Assistant entities for a timed scrolling text message.
 # Consumes: internal_i2c + ds3231_time (main), display_brightness + preset_code
 #   + showing_preset (ambient), battery_low + external_power (battery).
 #   Panel count / addresses / gap / brightness are the ${matrix_*} substitutions.
 # =====================================================================
 globals:
   # Panels are configured once (below), not every frame - the 1s tick only
-  # pushes PWM. The "Matrix: redraw" button clears this to force a re-init,
-  # which is how you recover if a 5V glitch resets the chip (it has no NVM).
+  # pushes PWM. Clearing this flag forces a re-init, which is how render logic
+  # recovers if a 5V glitch resets the chip (it has no NVM).
   - id: matrix_inited
     type: bool
     restore_value: no
     initial_value: 'false'
+  # Active custom message text (A-Z/0-9 plus a few punctuation chars).
+  - id: matrix_custom_text
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+  # Absolute expiry (millis) for the custom message display window.
+  - id: matrix_custom_until_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+  # Duration for the custom message in seconds; editable from HA.
+  - id: matrix_custom_duration_s
+    type: int
+    restore_value: yes
+    initial_value: '20'
+  # Scroll speed in milliseconds per pixel step; editable from HA.
+  - id: matrix_scroll_ms_per_px
+    type: int
+    restore_value: yes
+    initial_value: '250'
+
+interval:
+  # Faster refresh only while a custom message is active, so text scrolls
+  # smoothly without increasing baseline I2C traffic.
+  - interval: 250ms
+    then:
+      - if:
+          condition:
+            lambda: |-
+              return !id(matrix_custom_text).empty() &&
+                     (int32_t) (id(matrix_custom_until_ms) - millis()) > 0;
+          then:
+            - script.execute: render_display
 
 script:
   # Single owner of the matrix. Ensures the driver is configured, then paints,
-  # in priority order: a low-battery "LO", a transient preset code, or the
-  # clock. Called by ambient.yaml's 1s interval, show_preset_code, and the
-  # redraw button.
+  # in priority order: custom message, low-battery warning, preset code, or
+  # the clock. Called by ambient.yaml's 1s interval and show_preset_code.
   - id: render_display
     then:
       - lambda: |-
@@ -84,7 +116,7 @@ script:
             id(internal_i2c).write(addr, b, 2);
           };
 
-          // ---- one-time per-panel init (self-heals via the redraw button) ----
+          // ---- one-time per-panel init (auto-recovers after chip reset) ----
           bool force = false;
           if (!id(matrix_inited)) {
             for (int p = 0; p < PANELS; p++) {
@@ -112,12 +144,17 @@ script:
           const uint8_t PMAX = ${matrix_pwm_on};
           const uint8_t ON = PMIN + (uint8_t)((PMAX - PMIN) * b / 15);
 
-          // ---- decide what to show (priority: LO > preset code > clock) ----
-          // 0 = low-battery warning, 1 = preset code, 2 = clock.
+          // ---- decide what to show (priority: custom > low batt > preset > clock) ----
+          // 0 = low-battery warning, 1 = preset code, 2 = clock, 3 = custom.
           int mode;
           std::string text;
-          if (id(battery_low).state && !id(external_power).state) {
-            mode = 0; text = "LO";               // suppressed while on mains (see battery.yaml)
+          const uint32_t now_ms = millis();
+          bool custom_active = !id(matrix_custom_text).empty() &&
+                               (int32_t) (id(matrix_custom_until_ms) - now_ms) > 0;
+          if (custom_active) {
+            mode = 3; text = id(matrix_custom_text);
+          } else if (id(battery_low).state && !id(external_power).state) {
+            mode = 0; text = "LOW BATT";         // suppressed while on mains (see battery.yaml)
           } else if (id(showing_preset)) {
             mode = 1; text = id(preset_code);    // e.g. "S3", "L1", "OFF"
           } else {
@@ -138,12 +175,28 @@ script:
           }
 
           // Skip the redraw when nothing visible changed. The signature folds in
-          // the mode, the shown content (code text OR the four clock digits) and
-          // the brightness, so a preset/LO flash repaints even though the minute
-          // didn't tick. Keeps the shared, timing-sensitive I2C bus quiet.
+          // mode, content and brightness; frame tokens are only added when a
+          // message is actively scrolling.
           std::string sigkey;
-          if (mode == 0)      sigkey = "LO";
-          else if (mode == 1) sigkey = "P:" + text;
+          const int font_w = (PANELS >= 2) ? 5 : 3;
+          const int text_w = (!text.empty()) ? ((int) text.size() * font_w + ((int) text.size() - 1)) : 0;
+          const bool should_scroll_text = (mode == 0 || mode == 3) && (text_w > WP);
+          int scroll_ms = id(matrix_scroll_ms_per_px);
+          if (scroll_ms < 30) scroll_ms = 30;
+          if (mode == 0) {
+            sigkey = "LOWBATT";
+            if (should_scroll_text) {
+              int frame_token = (int) (now_ms / (uint32_t) scroll_ms);
+              sigkey += ":" + std::to_string(frame_token);
+            }
+          } else if (mode == 1) sigkey = "P:" + text;
+          else if (mode == 3) {
+            sigkey = "MSG:" + text;
+            if (should_scroll_text) {
+              int frame_token = (int) (now_ms / (uint32_t) scroll_ms);
+              sigkey += ":" + std::to_string(frame_token);
+            }
+          }
           else {
             sigkey = "T:";
             for (int i = 0; i < 4; i++) sigkey += (digs[i] < 0 ? '_' : char('0' + digs[i]));
@@ -192,22 +245,103 @@ script:
             {0b01110,0b10001,0b10001,0b01110,0b10001,0b10001,0b01110},  // 8
             {0b01110,0b10001,0b10001,0b01111,0b00001,0b10001,0b01110},  // 9
           };
-          // Letters needed by preset codes ("OFF","S1..3","L1..3") + the "LO"
-          // warning: O == digit 0, S == digit 5, plus L and F below.
-          static const uint8_t L5[7] = {0b10000,0b10000,0b10000,0b10000,0b10000,0b10000,0b11111};
-          static const uint8_t F5[7] = {0b11111,0b10000,0b10000,0b11110,0b10000,0b10000,0b10000};
-          static const uint8_t L3[5] = {0b100,0b100,0b100,0b100,0b111};
-          static const uint8_t F3[5] = {0b111,0b100,0b110,0b100,0b100};
+          // Full uppercase alphabet for custom messages.
+          static const uint8_t ALPHA5[26][7] = {
+            {0b01110,0b10001,0b10001,0b11111,0b10001,0b10001,0b10001},  // A
+            {0b11110,0b10001,0b10001,0b11110,0b10001,0b10001,0b11110},  // B
+            {0b01110,0b10001,0b10000,0b10000,0b10000,0b10001,0b01110},  // C
+            {0b11100,0b10010,0b10001,0b10001,0b10001,0b10010,0b11100},  // D
+            {0b11111,0b10000,0b10000,0b11110,0b10000,0b10000,0b11111},  // E
+            {0b11111,0b10000,0b10000,0b11110,0b10000,0b10000,0b10000},  // F
+            {0b01110,0b10001,0b10000,0b10111,0b10001,0b10001,0b01110},  // G
+            {0b10001,0b10001,0b10001,0b11111,0b10001,0b10001,0b10001},  // H
+            {0b01110,0b00100,0b00100,0b00100,0b00100,0b00100,0b01110},  // I
+            {0b00001,0b00001,0b00001,0b00001,0b10001,0b10001,0b01110},  // J
+            {0b10001,0b10010,0b10100,0b11000,0b10100,0b10010,0b10001},  // K
+            {0b10000,0b10000,0b10000,0b10000,0b10000,0b10000,0b11111},  // L
+            {0b10001,0b11011,0b10101,0b10101,0b10001,0b10001,0b10001},  // M
+            {0b10001,0b11001,0b10101,0b10011,0b10001,0b10001,0b10001},  // N
+            {0b01110,0b10001,0b10001,0b10001,0b10001,0b10001,0b01110},  // O
+            {0b11110,0b10001,0b10001,0b11110,0b10000,0b10000,0b10000},  // P
+            {0b01110,0b10001,0b10001,0b10001,0b10101,0b10010,0b01101},  // Q
+            {0b11110,0b10001,0b10001,0b11110,0b10100,0b10010,0b10001},  // R
+            {0b01110,0b10001,0b10000,0b01110,0b00001,0b10001,0b01110},  // S
+            {0b11111,0b00100,0b00100,0b00100,0b00100,0b00100,0b00100},  // T
+            {0b10001,0b10001,0b10001,0b10001,0b10001,0b10001,0b01110},  // U
+            {0b10001,0b10001,0b10001,0b10001,0b10001,0b01010,0b00100},  // V
+            {0b10001,0b10001,0b10001,0b10101,0b10101,0b11011,0b10001},  // W
+            {0b10001,0b10001,0b01010,0b00100,0b01010,0b10001,0b10001},  // X
+            {0b10001,0b10001,0b01010,0b00100,0b00100,0b00100,0b00100},  // Y
+            {0b11111,0b00001,0b00010,0b00100,0b01000,0b10000,0b11111},  // Z
+          };
+          static const uint8_t ALPHA3[26][5] = {
+            {0b010,0b101,0b111,0b101,0b101},  // A
+            {0b110,0b101,0b110,0b101,0b110},  // B
+            {0b011,0b100,0b100,0b100,0b011},  // C
+            {0b110,0b101,0b101,0b101,0b110},  // D
+            {0b111,0b100,0b110,0b100,0b111},  // E
+            {0b111,0b100,0b110,0b100,0b100},  // F
+            {0b011,0b100,0b101,0b101,0b011},  // G
+            {0b101,0b101,0b111,0b101,0b101},  // H
+            {0b111,0b010,0b010,0b010,0b111},  // I
+            {0b001,0b001,0b001,0b101,0b010},  // J
+            {0b101,0b101,0b110,0b101,0b101},  // K
+            {0b100,0b100,0b100,0b100,0b111},  // L
+            {0b101,0b111,0b111,0b101,0b101},  // M
+            {0b101,0b111,0b111,0b111,0b101},  // N
+            {0b111,0b101,0b101,0b101,0b111},  // O
+            {0b110,0b101,0b110,0b100,0b100},  // P
+            {0b111,0b101,0b101,0b111,0b001},  // Q
+            {0b110,0b101,0b110,0b101,0b101},  // R
+            {0b011,0b100,0b010,0b001,0b110},  // S
+            {0b111,0b010,0b010,0b010,0b010},  // T
+            {0b101,0b101,0b101,0b101,0b111},  // U
+            {0b101,0b101,0b101,0b101,0b010},  // V
+            {0b101,0b101,0b111,0b111,0b101},  // W
+            {0b101,0b101,0b010,0b101,0b101},  // X
+            {0b101,0b101,0b010,0b010,0b010},  // Y
+            {0b111,0b001,0b010,0b100,0b111},  // Z
+          };
+          static const uint8_t DASH5[7] = {0b00000,0b00000,0b00000,0b11111,0b00000,0b00000,0b00000};
+          static const uint8_t UNDERSCORE5[7] = {0b00000,0b00000,0b00000,0b00000,0b00000,0b00000,0b11111};
+          static const uint8_t DOT5[7] = {0b00000,0b00000,0b00000,0b00000,0b00000,0b00110,0b00110};
+          static const uint8_t EXCL5[7] = {0b00100,0b00100,0b00100,0b00100,0b00100,0b00000,0b00100};
+          static const uint8_t QMARK5[7] = {0b01110,0b10001,0b00001,0b00010,0b00100,0b00000,0b00100};
+          static const uint8_t COLON5[7] = {0b00000,0b00110,0b00110,0b00000,0b00110,0b00110,0b00000};
+          static const uint8_t DASH3[5] = {0b000,0b000,0b111,0b000,0b000};
+          static const uint8_t UNDERSCORE3[5] = {0b000,0b000,0b000,0b000,0b111};
+          static const uint8_t DOT3[5] = {0b000,0b000,0b000,0b000,0b010};
+          static const uint8_t EXCL3[5] = {0b010,0b010,0b010,0b000,0b010};
+          static const uint8_t QMARK3[5] = {0b110,0b001,0b010,0b000,0b010};
+          static const uint8_t COLON3[5] = {0b000,0b010,0b000,0b010,0b000};
           auto glyph5 = [&](char c) -> const uint8_t* {
+            if (c >= 'a' && c <= 'z') c = (char) (c - 'a' + 'A');
             if (c >= '0' && c <= '9') return FONT5x7[c - '0'];
-            switch (c) { case 'O': return FONT5x7[0]; case 'S': return FONT5x7[5];
-                         case 'L': return L5; case 'F': return F5; }
+            if (c >= 'A' && c <= 'Z') return ALPHA5[c - 'A'];
+            switch (c) {
+              case ' ': return nullptr;
+              case '-': return DASH5;
+              case '_': return UNDERSCORE5;
+              case '.': return DOT5;
+              case '!': return EXCL5;
+              case '?': return QMARK5;
+              case ':': return COLON5;
+            }
             return nullptr;                      // space / unknown -> blank
           };
           auto glyph3 = [&](char c) -> const uint8_t* {
+            if (c >= 'a' && c <= 'z') c = (char) (c - 'a' + 'A');
             if (c >= '0' && c <= '9') return FONT3x5[c - '0'];
-            switch (c) { case 'O': return FONT3x5[0]; case 'S': return FONT3x5[5];
-                         case 'L': return L3; case 'F': return F3; }
+            if (c >= 'A' && c <= 'Z') return ALPHA3[c - 'A'];
+            switch (c) {
+              case ' ': return nullptr;
+              case '-': return DASH3;
+              case '_': return UNDERSCORE3;
+              case '.': return DOT3;
+              case '!': return EXCL3;
+              case '?': return QMARK3;
+              case ':': return COLON3;
+            }
             return nullptr;
           };
           auto draw_glyph = [&](const uint8_t *rows, int gw, int gh, int dx, int dy) {
@@ -216,24 +350,52 @@ script:
               for (int c = 0; c < gw; c++)
                 if (rows[r] & (1 << (gw - 1 - c))) set_px(dx + c, dy + r);
           };
-          // Draw a short string centred across the PHYSICAL width (used for the
-          // LO warning and preset codes). 1px inter-glyph spacing.
-          auto draw_text = [&](const std::string &s, int gw, int gh) {
+          // Draw text using physical coordinates; off-screen columns are clipped
+          // by set_px(), which lets the low-battery warning scroll cleanly.
+          auto draw_text_at = [&](const std::string &s, int gw, int gh, int x0, int y0, int spacing) {
+            int n = (int) s.size();
+            if (n == 0) return;
+            for (int i = 0; i < n; i++) {
+              const uint8_t *g = (gw == 5) ? glyph5(s[i]) : glyph3(s[i]);
+              draw_glyph(g, gw, gh, x0 + i * (gw + spacing), y0);
+            }
+          };
+          auto draw_text_centered = [&](const std::string &s, int gw, int gh) {
             int n = (int) s.size();
             if (n == 0) return;
             int width = n * gw + (n - 1);
             int x0 = (WP - width) / 2;
             int y0 = (H - gh) / 2;
-            for (int i = 0; i < n; i++) {
-              const uint8_t *g = (gw == 5) ? glyph5(s[i]) : glyph3(s[i]);
-              draw_glyph(g, gw, gh, x0 + i * (gw + 1), y0);
-            }
+            draw_text_at(s, gw, gh, x0, y0, 1);
+          };
+          auto draw_text_scrolling = [&](const std::string &s, int gw, int gh, int phase) {
+            int n = (int) s.size();
+            if (n == 0) return;
+            int width = n * gw + (n - 1);
+            int travel = width + WP;
+            int safe_travel = (travel > 0) ? travel : 1;
+            int x0 = WP - (phase % safe_travel);
+            int y0 = (H - gh) / 2;
+            draw_text_at(s, gw, gh, x0, y0, 1);
           };
 
           if (mode != 2) {
-            // LO / preset code: centred text, roomy font on dual, compact on single.
-            if (PANELS >= 2) draw_text(text, 5, 7);
-            else             draw_text(text, 3, 5);
+            // Status / preset text: roomy font on dual, compact on single.
+            if (PANELS >= 2) {
+              if ((mode == 0 || mode == 3) && text_w > WP) {
+                int phase = (int) (now_ms / (uint32_t) scroll_ms);
+                draw_text_scrolling(text, 5, 7, phase);
+              } else {
+                draw_text_centered(text, 5, 7);
+              }
+            } else {
+              if ((mode == 0 || mode == 3) && text_w > WP) {
+                int phase = (int) (now_ms / (uint32_t) scroll_ms);
+                draw_text_scrolling(text, 3, 5, phase);
+              } else {
+                draw_text_centered(text, 3, 5);
+              }
+            }
           } else if (PANELS >= 2) {
             // Clock: HH on the left panel, MM on the right, colon at the seam.
             // MM is pulled toward the seam by GAP so the colon sits symmetric
@@ -272,12 +434,73 @@ script:
             }
           }
 
-button:
+number:
   - platform: template
-    name: "Matrix: redraw"
-    icon: "mdi:clock-digital"
+    name: "Matrix Scroll ms/px"
+    id: matrix_scroll_speed
+    icon: "mdi:arrow-left-right"
     entity_category: config
-    on_press:
-      # Force a full re-init + repaint (recovers from a chip power glitch).
-      - lambda: 'id(matrix_inited) = false;'
-      - script.execute: render_display
+    optimistic: true
+    restore_value: true
+    min_value: 30
+    max_value: 1000
+    step: 10
+    mode: box
+    initial_value: 250
+    set_action:
+      - lambda: |-
+          int ms = (int) x;
+          if (ms < 30) ms = 30;
+          if (ms > 1000) ms = 1000;
+          id(matrix_scroll_ms_per_px) = ms;
+
+  - platform: template
+    name: "Matrix Message Duration"
+    id: matrix_message_duration
+    icon: "mdi:timer-outline"
+    entity_category: config
+    optimistic: true
+    restore_value: true
+    min_value: 3
+    max_value: 300
+    step: 1
+    mode: box
+    initial_value: 20
+    set_action:
+      - lambda: |-
+          int seconds = (int) x;
+          if (seconds < 3) seconds = 3;
+          if (seconds > 300) seconds = 300;
+          id(matrix_custom_duration_s) = seconds;
+
+text:
+  - platform: template
+    name: "Matrix Message"
+    id: matrix_message_input
+    icon: "mdi:message-text-outline"
+    optimistic: true
+    mode: text
+    max_length: 64
+    set_action:
+      - lambda: |-
+          std::string filtered;
+          filtered.reserve(x.size());
+          for (char ch : x) {
+            if (ch >= 'a' && ch <= 'z') ch = (char) (ch - 'a' + 'A');
+            bool allowed =
+              (ch >= 'A' && ch <= 'Z') ||
+              (ch >= '0' && ch <= '9') ||
+              ch == ' ' || ch == '-' || ch == '_' || ch == '.' ||
+              ch == '!' || ch == '?' || ch == ':';
+            filtered.push_back(allowed ? ch : ' ');
+          }
+          while (!filtered.empty() && filtered.back() == ' ') filtered.pop_back();
+          id(matrix_custom_text) = filtered;
+          if (!filtered.empty()) {
+            int seconds = id(matrix_custom_duration_s);
+            if (seconds < 3) seconds = 3;
+            id(matrix_custom_until_ms) = millis() + (uint32_t) seconds * 1000u;
+          } else {
+            id(matrix_custom_until_ms) = 0;
+          }
+          id(render_display).execute();
