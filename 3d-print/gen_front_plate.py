@@ -190,7 +190,17 @@ MIC_FIT     = 0.4     # per side, board to channel
 # >>> XVF3800's beamforming and echo canceller assume is not happening. Each land
 # >>> needs a thin adhesive foam ring (~1 mm uncompressed, Ø2.5 hole) -- that is
 # >>> what MIC_LAND_H is clearance FOR, and why it is 0.6 and not 0.
-MIC_LAND_H  = 0.6     # gasket land: standoff for a ~1 mm foam ring, compressed
+# >>> WHAT ACTUALLY SETS THE ARRAY'S HEIGHT IS THIS LAND, NOT THE SCREW BOSS.
+# >>> The bosses are just posts the M3s thread into; the board SEATS on the four
+# >>> gasket lands, so the land height is the whole of the port length above the
+# >>> channel floor. Shortening the bosses would do nothing.
+# >>> Dropped 0.6 -> 0.3 for thin foam tape (0.3 is roughly a 0.5 mm tape
+# >>> compressed), and MIC_CHAN_D deepened 2.0 -> 2.4 to bring the floor forward
+# >>> as well. Together the port goes 2.60 -> 1.90 mm, a 27% shorter path from
+# >>> pinhole to microphone, which is what the seal wants.
+# >>> SET THIS TO YOUR TAPE'S COMPRESSED THICKNESS. Too tall and the tape does not
+# >>> touch the board; too short and it is crushed solid and stops sealing.
+MIC_LAND_H  = 0.3     # gasket land = compressed thickness of your foam tape
 MIC_BOSS_D  = 5.0     # M3 pilot boss beside the channel
 # >>> MEASURED, NOT GUESSED, AND DERIVED FROM THE MEASUREMENT RATHER THAN TYPED.
 # >>> Seeed does not publish the array's hole positions; 40 mm from centre was a

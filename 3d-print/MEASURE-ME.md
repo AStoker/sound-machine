@@ -1,5 +1,98 @@
 # Measure these before you print
 
+---
+
+# ⛔ BLOCKING THE BASE — read this first
+
+## Settled since this list was written
+
+| Part | Now confirmed | Source |
+|---|---|---|
+| **UPS 3S** | 60 × 93, four **Ø3.1 holes on a 46 × 86 pitch** (7.0 in from long edges, 3.5 from short). A lone Ø2.5 near top-centre is **not** a fixing. | Your DXF |
+| **Flex core** | 52 × 70 × **20** (incl. seated XIAO); holes **Ø3.0 inset 3.5**, 63 × 45 pitch — which is what the model already had. 110 mm corridor for array + ribbon. | Your measurement, corroborated by the STEP |
+| **Panel holes** | charge jack **7**, encoder **7**, button **12** | Your measurement |
+| **DS3231** | Adafruit #5188, **25.4 × 17.8 × 7.8**, **two** mounting holes | Adafruit product page |
+| **TPA2016** | **21.59 × 27.94**, R2.54 corners — was modelled 26 × 20, wrong on both axes | `Adafruit TPA2016D2.brd` |
+| **STEP files** | The "linear" file **is** the linear array. Both it and the circular one are internally named `44mm_circular` — Seeed's export naming, not a mix-up. Geometry differs: circular ≈ 67 × 66 round-ish, linear is a long thin strip. | Compared directly |
+
+## Every board now has a confirmed hole pattern
+
+| Board | Holes | Source |
+|---|---|---|
+| **TPA2016** | 2 × **M2.5**, both on the right edge at **x = 18.03**, y = 2.54 and 25.40 (0.9" apart) | Fab print + `MOUNTINGHOLE_2.5_PLATED_THICK` in the .brd |
+| **DS3231 QT** | 2 × **M2.5** at **(2.54, 14.73)** and **(22.86, 14.73)** — 0.80" apart, 0.12" down from the *top* edge | STEMMA QT fab print |
+| **UPS 3S** | 4 × Ø3.1, 46 × 86 pitch | Waveshare DXF |
+| **Flex core** | 4 × Ø3.0, 63 × 45 pitch | Measured |
+| **Matrix / driver** | Ø2.0 diagonal pair / 4 × Ø2.5 at 2.54 inset | Adafruit .brd + fab print |
+
+> ### ⚠️ I reported the TPA2016 as having no mounting holes. It was wrong.
+> The claim came from grepping the board file's `<plain>` section, finding no
+> `<hole>`, and reporting that as fact. The holes are placed as **elements**
+> further down the same file, using `MOUNTINGHOLE_2.5_PLATED_THICK` — which is
+> precisely where the CharliePlex driver's holes were, after that identical
+> mistake had already been made once on that board.
+>
+> **Absence in the part of a file you happened to read is not absence.** The
+> honest report would have been "I can't see them in the section I can reach",
+> which is what I'd said about the driver and then failed to say here.
+
+## Still open
+
+- **Amp retention** is no longer a question — it screws down like everything else.
+- **Speaker nubs** — you said they're perfect, so untouched.
+- Two secondary dimensions I could not reconcile off the rasters (TPA2016's 0.06"
+  and 0.3", DS3231's 0.51"). They don't affect the holes, but if either is a hole
+  reference rather than a component callout, tell me.
+
+---
+
+# Original blockers
+
+Four things stop the base being designed correctly. Everything else on it I can
+either look up from Adafruit/Seeed/Waveshare or derive. These four I cannot.
+
+### 1. The ReSpeaker Flex CORE board — outline, thickness, 4 hole positions
+**The single biggest blocker.** Seeed does not publish the core board's
+dimensions (HARDWARE.md has said so all along). Every other board on the rear
+wall is placed *around* it, so if it's wrong, the whole wall is wrong.
+
+Currently guessed: a 52 × 70 mm PCB inside a 110 × 70 envelope, holes on a
+45 × 63 pitch. Measure: overall W × H, board thickness, the **four mounting hole
+centres** (from one corner), and how far the tallest connector stands proud.
+
+### 2. The Waveshare UPS 3S — hole positions, and depth with cells in
+Waveshare publishes **60 × 93 mm** and **Ø3.0 mounting holes** — but not where
+they are, and not the depth with cells fitted (assumed 24 mm).
+
+> **And right now nothing mounts it at all.** It's the heaviest single item —
+> ~250 g with three 18650s — standing vertically against the rear wall with no
+> bosses, brackets or captures anywhere in the model. That's a genuine gap in the
+> base, not a tolerance issue, and I need the hole positions to close it.
+
+Measure: the hole centres from one corner, and the depth over the cells.
+
+### 3. The panel-mount barrel jack and power switch
+Both are **holes in the visible shell** — no fixing them after printing.
+Currently Ø11 jack / Ø16 nut, Ø12 switch / Ø16 nut, all guesses.
+
+Measure, on the actual parts: the **threaded barrel diameter** and the **nut
+across the corners** for each. (Not the bezel you see from outside.)
+
+### 4. The speaker nubs — projection, width, height
+Currently 4 × 8 × 6 mm. These set the front module's posts *and* the floor seats,
+and they drive the machine's overall height. The Seeed body is confirmed
+50 × 45 × 22; it's the nubs that aren't.
+
+---
+
+## What I'll look up rather than ask you for
+
+TPA2016 breakout, DS3231, BH1750, VL53L0X, seesaw encoder, XIAO ESP32-S3, the
+linear-4 mic array, and the speaker body — all published. **Tell me which DS3231
+you have** (Adafruit sell several) and I'll pull the right one.
+
+---
+
 Every number below is a **guess I made from datasheets or eyeballing**, and each
 one is baked into printed geometry. They're sorted by what happens if the guess
 is wrong, not by how hard they are to measure.

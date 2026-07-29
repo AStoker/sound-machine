@@ -82,7 +82,7 @@
 <line class="dim" x1="79.41" y1="133.31" x2="53.41" y2="175.31" marker-start="url(#arw)"/><line class="dim" x1="53.41" y1="175.31" x2="47.41" y2="175.31"/><text class="dtx" x="46.21" y="176.41" text-anchor="end">2x matrix - 4 posts + 6 clips, see note h</text>
 <line class="dim" x1="186.875" y1="103.365" x2="216.875" y2="73.365" marker-start="url(#arw)"/><line class="dim" x1="216.875" y1="73.365" x2="222.875" y2="73.365"/><text class="dtx" x="224.075" y="74.465" text-anchor="start">2x Seeed 45x50x22 - ROTATED 90, nubs top+bottom</text>
 <line class="dim" x1="170.9" y1="90.99" x2="202.9" y2="70.99" marker-start="url(#arw)"/><line class="dim" x1="202.9" y1="70.99" x2="208.9" y2="70.99"/><text class="dtx" x="210.1" y="72.09" text-anchor="start">nub post 10x6 on the centreline - see note g</text>
-<line class="dim" x1="46" y1="85.34" x2="24" y2="115.34" marker-start="url(#arw)"/><line class="dim" x1="24" y1="115.34" x2="18" y2="115.34"/><text class="dtx" x="16.8" y="116.44" text-anchor="end">mic flex channel 2 deep, 1 gasket land per port</text>
+<line class="dim" x1="46" y1="85.34" x2="24" y2="115.34" marker-start="url(#arw)"/><line class="dim" x1="24" y1="115.34" x2="18" y2="115.34"/><text class="dtx" x="16.8" y="116.44" text-anchor="end">mic flex channel 2.4 deep, 1 gasket land per port</text>
 <line class="dim" x1="3.6" y1="111.167" x2="-16.4" y2="77.167" marker-start="url(#arw)"/><line class="dim" x1="-16.4" y1="77.167" x2="-22.4" y2="77.167"/><text class="dtx" x="-23.6" y="78.267" text-anchor="end">4.5 of edge runs in the dome groove</text>
 <line class="dim" x1="131" y1="151.69" x2="171" y2="173.69" marker-start="url(#arw)"/><line class="dim" x1="171" y1="173.69" x2="177" y2="173.69"/><text class="dtx" x="178.2" y="174.79" text-anchor="start">bottom edge lands on the bottom plate = the datum</text>
 </g>
@@ -102,12 +102,12 @@
 <rect class="hid" x="21.2" y="12" width="2.13" height="62.74"/>
 <line class="obj" x1="23.33" y1="12" x2="23.33" y2="74.74"/>
 <rect class="hid" x="6" y="105.37" width="9.5" height="27.94"/>
-<rect class="obj" x="6" y="79.34" width="2" height="12"/>
+<rect class="obj" x="6" y="79.34" width="2.4" height="12"/>
 </g>
 <g id="sec-internals">
 <rect class="obj" x="2.8" y="151.69" width="58.4" height="4"/>
 <rect class="hid" x="37.5" y="58.69" width="24" height="93"/>
-<rect class="hid" x="53.5" y="141.69" width="8" height="20"/>
+<rect class="hid" x="53.5" y="140.895" width="8" height="21.59"/>
 <rect class="hid" x="38.5" y="63.69" width="20" height="70"/>
 <rect class="obj" x="58.5" y="126.69" width="3" height="7"/>
 <rect class="obj" x="58.5" y="63.69" width="3" height="7"/>
@@ -137,7 +137,7 @@
 <rect class="hid" x="145.6" y="1.2" width="45" height="22"/>
 <rect class="hid" x="55.02" y="1.2" width="86.36" height="9.5"/>
 <rect class="hid" x="117.2" y="34.7" width="60" height="24"/>
-<rect class="hid" x="64.2" y="21.2" width="26" height="20"/>
+<rect class="hid" x="63.23" y="20.405" width="27.94" height="21.59"/>
 <circle class="obj" cx="5.7" cy="33.2" r="1.7"/>
 <circle class="obj" cx="5.7" cy="33.2" r="3"/>
 <circle class="obj" cx="190.7" cy="33.2" r="1.7"/>
@@ -219,10 +219,10 @@
 <text class="note" x="17" y="42.96" text-anchor="start">x 193.5, depth 54   -   7.5 clear of UPS 3S (upright)</text>
 <circle class="bal" cx="9.6" cy="49.46" r="3.6"/>
 <text class="dtx" x="9.6" y="50.96" text-anchor="middle">5</text>
-<text class="note" x="17" y="50.96" text-anchor="start">x 45, depth 55.5   -   15 clear of TPA2016 (floor)</text>
+<text class="note" x="17" y="50.96" text-anchor="start">x 45, depth 55.5   -   14 clear of TPA2016 (floor)</text>
 <circle class="bal" cx="9.6" cy="57.46" r="3.6"/>
 <text class="dtx" x="9.6" y="58.96" text-anchor="middle">6</text>
-<text class="note" x="17" y="58.96" text-anchor="start">x 82, depth 55.5   -   5.5 clear of TPA2016 (floor)</text>
+<text class="note" x="17" y="58.96" text-anchor="start">x 82, depth 55.5   -   4.7 clear of TPA2016 (floor)</text>
 </g>
 <g id="DETAIL-B" transform="translate(600,432)">
 <text class="blk" x="0" y="-20" text-anchor="start">DETAIL B   slot joint   5:1</text>

@@ -629,7 +629,10 @@ TOF_Y       = ENC_Y  # same front-offset as the knob, so it sits alongside
 # ends up, which has now moved twice.
 LP_D, LP_Y      = 4.0, 120.0        # BH1750 light pipe ("lux"), centred, above
                                     #   both boards now that the middle is free
-BARREL_D        = 11.0              # (?) clearance for a panel-mount DC-005
+# >>> MEASURED: the charging port and the encoder both take a 7 mm hole, the
+# >>> push button 12 mm. BARREL_D was 11.0 -- a guess at a panel-mount DC-005 --
+# >>> which would have left a 4 mm gap round the jack in the visible rear wall.
+BARREL_D        = 7.0               # MEASURED panel hole for the charge jack
 # >>> THE JACK IS LOW, NOT MID-WALL. A barrel lead entering half way up the back
 # >>> of a bedside object drapes across it; entering just above the desk it runs
 # >>> straight down behind. It was at y=95 only because the Flex started at y=16
@@ -684,7 +687,8 @@ TRAY_FIT    = 0.20                   # (superseded: the tray is a clearance fit
                                      #  with clips now -- see gen_front_plate)
 SPK_BOLT    = 4                      # driver screws per side
 SPK_BC      = 46.0   # (?) driver bolt circle -- MEASURE
-MIC_CHAN_D  = 2.0                    # flex channel depth on the back
+MIC_CHAN_D  = 2.4                    # channel depth on the back -- deepened to
+                                     #   bring the array closer to the facade
 MIC_GASKET  = 1.0                    # foam gasket land around each port
 # Depth of the front module at its deepest (the crescent zone):
 FM_DEPTH    = FP_T + DIFF_REBATE + DIFF_GAP + LED_STRIP_T
@@ -867,6 +871,15 @@ SCREWS = [(_LX,     36.0), (W - _LX,     36.0),   # side walls, behind the speak
 # no longer stands in the MIDDLE of it. See the rear-wall note: it shares the
 # wall with the Flex, side by side, and the jack became a panel-mount part.
 UPS_W, UPS_D, UPS_H = 60.0, 24.0, 93.0   # 60x93 board; 24 deep = board + cells (?)
+# >>> MOUNTING HOLES, READ OUT OF WAVESHARE'S OWN DXF. Four Ø3.1 holes, 7.0 mm in
+# >>> from each long edge and 3.5 mm from each short edge, so a 46.0 x 86.0 pitch
+# >>> inside the 60 x 93 board. There is also a lone Ø2.5 near the top centre
+# >>> (30.0, 89.2) which is NOT a fixing -- do not build to it.
+# >>> Waveshare's page gives "60 x 93, mounting hole 3.0" and nothing else; the
+# >>> positions only exist in the DXF.
+UPS_HOLES     = [(7.0, 3.5), (53.0, 3.5), (7.0, 89.5), (53.0, 89.5)]
+UPS_HOLE_D    = 3.1
+UPS_HOLE_PITCH = (46.0, 86.0)
 UPS_BACK            = 0.0                # stands hard against the rear wall
 
 # ReSpeaker Flex core -- MEASURED, no longer a guess.
@@ -878,6 +891,32 @@ UPS_BACK            = 0.0                # stands hard against the rear wall
 # It mounts VERTICALLY on the inside of the REAR WALL, BESIDE the UPS (they no
 # longer stack -- see the rear-wall note): that face is reachable the moment the
 # front module is out, and it keeps the floor clear.
+# >>> MEASURED OFF SEEED'S OWN STEP MODEL (reSpeaker_xvf3800_flex_Separate.step).
+# >>> The core board is 70.50 x 52.20, with FOUR mounting holes 4.0 mm in from
+# >>> every corner -- a 62.5 x 44.2 pitch -- Ø3.3 drilled on a Ø6.1 pad, and a
+# >>> 1.0 mm corner radius. Components stand up to 4.8 mm proud of the board.
+# >>> Seeed publishes none of this; it was extracted from the CAD. The old
+# >>> FLEX_PCB_W/H guess (52 x 70) was the right SIZE with the axes swapped --
+# >>> the board is landscape, 70.5 across and 52.2 up.
+# >>> RECONCILED WITH THE MEASURED BOARD, WHICH WINS. The STEP gave 70.50 x 52.20
+# >>> with holes 4.0 in from each corner; the measured board is 52 x 70 x 20 with
+# >>> holes whose OUTER edges sit 2.0 from each corner and whose INNER edges are
+# >>> 60 and 42 apart. Those two numbers solve, on BOTH axes independently, to a
+# >>> Ø3.0 hole inset 3.5 -- a 63 x 45 pitch, which is exactly what FLEX_HOLE_PX/PY
+# >>> already held. The STEP's 4.0/62.5x44.2 sits inside the ~0.8 mm uncertainty in
+# >>> where I judged the board's origin, so the agreement is real, not luck.
+# >>> The 20 mm depth is the one thing neither the STEP nor the guess had: that is
+# >>> the board PLUS the XIAO in its sockets, and it is what the rear wall has to
+# >>> give up out of a 59 mm interior.
+FLEX_CORE_W, FLEX_CORE_H = 52.0, 70.0   # MEASURED
+FLEX_CORE_D = 20.0                      # MEASURED, incl. the seated XIAO
+FLEX_CORE_HOLE_D = 3.0                  # solved from the edge measurements
+FLEX_CORE_HOLE_INSET = 3.5              # centre, from each edge
+FLEX_CORE_HOLES = [(3.5, 3.5), (48.5, 3.5), (3.5, 66.5), (48.5, 66.5)]
+FLEX_CORE_TALL = 4.8                    # tallest component, from the STEP
+# >>> AND THE ARRAY + RIBBON NEED ~110 mm OF CLEAR RUN. That is what FLEX_W has
+# >>> always reserved; it is not the board, it is the corridor the 110 mm linear
+# >>> array and its FPC need in order not to be pinched.
 FLEX_PCB_W = 52.0    # bare board, short edge (horizontal as mounted)
 FLEX_PCB_H = 70.0    # bare board, long edge  (vertical as mounted)
 FLEX_W     = 110.0   # envelope incl. the jack + ribbon overhangs
@@ -915,7 +954,27 @@ FLEX_WALL_Y            = 22.0     # bottom edge, above the jack and the lugs
 # the lugs left a 12 mm slot underneath it, and the amp is only 8 tall -- it
 # tucks in there, which is also the shortest run to both speakers. The rear wall
 # has no room left: Flex and UPS fill it wall-to-wall below y=97.
-AMP_W, AMP_D, AMP_H = 26.0, 20.0, 8.0        # (?) TPA2016 breakout
+# >>> ADAFRUIT TPA2016 (#1712), FROM ITS OWN BOARD FILE. The outline wires in
+# >>> "Adafruit TPA2016D2.brd" <plain> give 21.59 x 27.94 (0.85" x 1.1") with
+# >>> 2.54 corner radii. It was modelled 26.0 x 20.0 -- wrong on both axes, and
+# >>> the wrong shape: the real board is TALLER than it is wide, not shorter.
+# >>> Laid with its long axis across the machine to keep the floor depth down.
+AMP_W, AMP_D, AMP_H = 27.94, 21.59, 8.0      # Adafruit #1712, from the .brd
+# >>> IT HAS TWO M2.5 MOUNTING HOLES, AND I CLAIMED IT HAD NONE. That claim came
+# >>> from grepping the board file's <plain> section, finding no <hole>, and
+# >>> reporting absence as fact. The holes are placed as ELEMENTS using the
+# >>> package MOUNTINGHOLE_2.5_PLATED_THICK, which is in the same file, further
+# >>> down -- exactly where the CharliePlex driver's holes were too, after that
+# >>> same mistake had already been made once on that board.
+# >>> Absence in the part of a file you happened to read is not absence.
+# >>>
+# >>> Positions from Adafruit's fab print: both holes on the RIGHT edge, centres
+# >>> 0.71" from the left edge, 0.9" apart vertically (so 0.1" from top and
+# >>> bottom). Cross-check: a Ø2.5 hole at 0.71" leaves 0.091" from its edge to
+# >>> the board edge, and the print dimensions that as 0.1" -- consistent.
+AMP_HOLES     = [(18.03, 2.54), (18.03, 25.40)]   # board-local, from the fab print
+AMP_HOLE_D    = 2.5
+AMP_HOLE_PITCH = 22.86                            # 0.9", vertical; both same x
 # >>> MOVED FORWARD, OFF THE REAR TAB. At depth 50 the amp spanned 40..60 and the
 # >>> rear fixing tab at x=82 reaches forward to depth 49.5 -- a 10.5 mm overlap.
 # >>> Depth 34 puts it in the open floor band between the matrix (ends 14.7) and
@@ -1660,8 +1719,25 @@ ENC_HOLE_AXIS = "x"       # the encoder board is square; its pair runs across
 # ---- rear-wall boards ------------------------------------------------------
 # The RTC and the lux sensor had no defined mount at all until now; both are
 # STEMMA QT breakouts that need somewhere flat and square on the rear wall.
-RTC_PCB_W, RTC_PCB_H = 25.4, 25.4     # (?) DS3231 breakout -- MEASURE
-RTC_HOLE_P           = 20.0           # (?)
+# >>> ADAFRUIT DS3231 PRECISION RTC - STEMMA QT (#5188): 25.4 x 17.8 x 7.8 mm,
+# >>> published on the product page. It was modelled as 25.4 SQUARE, so the board
+# >>> was 7.6 mm too tall -- which only ever made the rear wall look tighter than
+# >>> it is, but it was still wrong.
+# >>> (?) IT HAS **TWO** MOUNTING HOLES, NOT FOUR. Adafruit's own photo caption
+# >>> says "two mounting holes", one at each end beside the STEMMA QT connectors.
+# >>> The dome still builds a 4-boss square from RTC_HOLE_P, which is wrong, and
+# >>> the positions are not published -- so this is now the open item, not the
+# >>> outline. Do not print the rear wall until it is settled.
+RTC_PCB_W, RTC_PCB_H = 25.4, 17.8     # Adafruit #5188, published
+RTC_PCB_T            = 7.8            # including the coin cell holder
+# >>> POSITIONS FROM THE STEMMA QT FAB PRINT: two holes, 0.80" apart, 0.12" down
+# >>> from the TOP edge -- so 0.10" (2.54) in from each side, 14.73 up from the
+# >>> bottom. They are NOT a diagonal pair and NOT on the centreline; they sit
+# >>> high on the board, beside the STEMMA QT connectors.
+RTC_HOLE_N           = 2
+RTC_HOLES            = [(2.54, 14.73), (22.86, 14.73)]
+RTC_HOLE_D           = 2.5
+RTC_HOLE_P           = 20.32          # 0.8", horizontal
 # >>> THE RTC IS ON THE REAR WALL. IT WENT TO THE FLOOR AND BACK, AND THE ROUND
 # >>> TRIP IS WORTH RECORDING, BECAUSE THE FLOOR TRIP WAS BASED ON A SEARCH THAT
 # >>> HAD GONE STALE.
