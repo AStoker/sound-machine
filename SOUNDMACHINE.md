@@ -192,11 +192,14 @@ than a bare repo path. See `CLAUDE.md` → "Remote-hosting constraints."
 scan, and confirm the part is an INA219 (vs INA226, which needs a platform
 swap). Also verify the **current sign convention** on the bench.
 
-**Implement the ToF sensor.** The **VL53L0X** (touchless wake) is part of the
-build and is in the hardware/address map, and a leftover `logger:` line
-references it, but it **has no ESPHome entity yet.** The wake gesture (output in
-inches, ×39.3701 multiply) was designed historically but is not in the current
-firmware.
+**Calibrate the ToF thresholds on the bench.** The **VL53L0X** is now live
+(`packages/knob.yaml`) but only in its *modest* role: pre-illuminating the knob
+NeoPixel when a hand comes near. `tof_near_m` / `tof_far_m` (0.20 / 0.30 m) are
+reasonable guesses, not measurements — watch the **Knob Proximity** binary sensor
+while reaching for the knob and adjust. The broader **touchless wake** gesture
+(the historical design output distance in inches, ×39.3701) is still not
+implemented; nothing but the knob pixel reads the sensor today, and the whole
+knob-pixel feature degrades gracefully to volume-only if the sensor is absent.
 
 **AEC / channel-assignment bench test.** Wake-word-over-playing-noise still needs
 a proper bench validation with the final channel assignment.
@@ -228,7 +231,7 @@ match the code in this repo. Current code wins. The notable drifts:
 | **Enclosure size** | **258 × 64 × 190**, front module split in two for the bed | **202 × 64 × 155.7**, both printed parts fit a 220 bed **whole**. Speakers rotated 90° (nubs top/bottom), mic array moved above them, crown flattened |
 | **Printed parts** | dome, front module, bottom plate, knob | …plus an **LED carrier** (part 6) and a generated **notched acrylic diffuser** (part 7) — a plate holding the six strip segments at the 12 mm standoff, screwed to pads inside the diffusion cavity wall |
 | **MCU** | XIAO ESP32-S3 **Plus** | Either works; **standard XIAO ESP32-S3 is a confirmed drop-in** (`board: esp32-s3-devkitc-1`, 8MB flash) |
-| **ToF sensor** | VL53L0X treated as part of the sensor stack | **Kept**, but **not yet implemented** in firmware — on the bus map only |
+| **ToF sensor** | VL53L0X treated as part of the sensor stack, for a touchless *wake* gesture | **Kept and now live** (`packages/knob.yaml`), but in a smaller role: it only **pre-illuminates the knob NeoPixel** when a hand comes near. Touchless wake is still unimplemented |
 | **SHT40 temp/hum** | Part of the planned sensor stack | **Removed** from the design entirely |
 | **Front ends** | HA + embedded web server (a standalone PWA was tried) | **HA + embedded web server**; the standalone PWA was **removed** |
 

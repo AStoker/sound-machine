@@ -125,13 +125,49 @@ as-built wiring matches this.
 | Sensor | Part | Address | Status |
 |--------|------|---------|--------|
 | Ambient light | **BH1750** | `0x23` | **Implemented** — feeds display auto-dim (`packages/display.yaml`). Mounted rear, behind a light pipe **centred in the back wall** (see the enclosure drawing). |
-| Rotary encoder | **Adafruit seesaw rotary encoder** | `0x36` | **Implemented** — volume knob + push (tap/hold) via the vendored `seesaw` component. |
+| Rotary encoder | **Adafruit seesaw rotary encoder** | `0x36` | **Implemented** — volume knob + push (tap/hold) via the vendored `seesaw` component. Its built-in **NeoPixel** (seesaw GPIO **6**, `knob_led_pin`) is also live: colour = volume, blue → green → red (`packages/knob.yaml`). |
 | Real-time clock | **DS3231** (driven as `ds1307`) | `0x68` | **Implemented** — battery-backed time source; HA syncs it when connected. |
-| Time-of-flight | **VL53L0X** | `0x29` | **Planned, NOT yet in firmware.** Part of the build — intended for touchless wake (distance in inches). Only a logger line references it today; no `vl53l0x:` sensor exists yet. Mounts on the **crown, just right of the volume knob**, board turned longwise front-to-back to clear the encoder breakout — see the enclosure drawing. |
+| Time-of-flight | **VL53L0X** | `0x29` | **Implemented, in a limited role** (`packages/knob.yaml`) — a hand within `tof_near_m` pre-lights the knob NeoPixel, and that is *all* it does. The historical **touchless wake** gesture is still not built. Thresholds are guesses, not measurements: watch the **Knob Proximity** binary sensor and tune. Mounts on the **crown, just right of the volume knob**, board turned longwise front-to-back to clear the encoder breakout — see the enclosure drawing. |
 
-> The BH1750, seesaw and DS3231 are live in the config. The **VL53L0X is on the
-> bus plan and in the address map but has no ESPHome entity yet** — adding it is
-> open work (see [`SOUNDMACHINE.md`](SOUNDMACHINE.md)).
+> The BH1750, seesaw, DS3231 and VL53L0X are all live in the config. The ToF is
+> deliberately **non-essential**: if it is unwired or fails its probe, the knob
+> pixel still works off volume changes alone.
+
+### Board outlines and mounting holes — READ FROM THE VENDOR PCB FILES
+
+Every one of these breakouts is mounted on a printed boss, so the enclosure needs
+their **outline and hole pattern**, not just their address. Adafruit publishes the
+Eagle board for each; the numbers below are read out of the `<element
+MOUNTINGHOLE_*>` entries and the layer-20 outline wires, so they are **confirmed,
+not measured off a photo or a fab print**. Keep these links — they are the source
+of truth, and `3d-print/check_docs.py` asserts the geometry against them.
+
+| Board | Adafruit PCB repo | Outline | Mounting holes |
+|-------|-------------------|---------|----------------|
+| I2C QT Rotary Encoder (#4991) | [Adafruit-I2C-QT-Rotary-Encoder-PCB](https://github.com/adafruit/Adafruit-I2C-QT-Rotary-Encoder-PCB) | 25.4 × 25.4 | **4** × Ø2.5 plated, pitch **20.32 × 20.32** |
+| VL53L0X ToF (#3317) | [Adafruit-VL53L0X-ToF-Distance-Sensor-PCB](https://github.com/adafruit/Adafruit-VL53L0X-ToF-Distance-Sensor-PCB) | 25.4 × 17.78 | **4** × Ø2.5 plated, pitch **20.32 × 12.70** |
+| BH1750 (#4681) | [Adafruit-BH1750-PCB](https://github.com/adafruit/Adafruit-BH1750-PCB) | 25.4 × 17.78 | **4** × Ø2.5 plated, pitch **20.32 × 12.70** |
+| DS3231 RTC (#5188) | [Adafruit-DS3231-Precision-RTC-Breakout-PCB](https://github.com/adafruit/Adafruit-DS3231-Precision-RTC-Breakout-PCB) | 25.4 × 17.78 | **2** × Ø3.0 plated, pitch **20.32**, TOP pair only |
+
+**One footprint family, one exception.** All four sit on the same grid: holes
+**2.54 mm (0.100″) in from every edge** of a 25.4 mm-wide board. The DS3231 is the
+only one that does not populate all four — Adafruit fits just the **top** pair
+(and drills those Ø3.0 rather than Ø2.5). The Ø3.0 does not change the fastener:
+these are clearance holes and the enclosure drives **M2.5** self-tappers into its
+bosses throughout.
+
+> **Note the ToF and BH1750 share an outline and a hole pattern** — they are the
+> same STEMMA QT blank. Do not infer from that that they mount the same way: the
+> ToF goes on the crown turned **longwise front-to-back**, so its 20.32 pitch runs
+> along the machine's depth and its 12.70 pitch across the width. The BH1750 sits
+> on the rear wall the natural way up, so its 20.32 runs across the width.
+
+**These were guesses until 2026-07-30, and all three were wrong.** The encoder,
+ToF and BH1750 were each modelled with an invented **two**-hole pitch (20.0, 20.0
+and 15.0, every one marked `(?) MEASURE`) when all three carry four holes. The
+enclosure now takes the real patterns from `qt_hole_offsets()` in
+`3d-print/enclosure_geom.py`; see [`3d-print/README.md`](3d-print/README.md) for
+what that changed about the dome.
 
 ---
 

@@ -75,6 +75,41 @@ substitutions:
   touch_pin: GPIO4                   # capacitive preset pad (D3; D2 = GPIO3)
   touch_threshold: "700000"          # ESP32-S3 raw touch threshold - CALIBRATE
 
+  # ---- Knob NeoPixel (inside the rotary encoder) ----
+  # Colour = volume (blue quiet -> green mid -> red loud), lit by turning the
+  # knob and pre-lit by the ToF sensor. See packages/knob.yaml.
+  # PIN is a seesaw GPIO, not an ESP one: 6 on the Adafruit I2C QT Rotary
+  # Encoder (#4991 - the same board whose switch is on seesaw pin 24, see the
+  # Knob Press binary_sensor). Other seesaw boards differ; check the pinout.
+  knob_led_pin: "6"
+  knob_led_fade_ms: "50"             # fade tick = 20 Hz. This is also the HARD
+                                     # ceiling on how often the pixel is written
+                                     # over I2C - do not raise it much (see the
+                                     # rationale at the top of knob.yaml).
+  knob_led_hold_ms: "1500"           # stay at full this long after the LAST
+                                     # volume change, then start fading
+  knob_led_rise_active_ms: "120"     # knob turn -> essentially instant
+  knob_led_rise_near_ms: "700"       # hand approaches -> ease it on gently
+  knob_led_fade_out_ms: "1400"       # gradual fade to black once done
+  knob_led_near_level: "0.45"        # ToF pre-illumination level (0..1) - a
+                                     # findable glow, clearly below "in use"
+  # Brightness ceiling, as a fraction of full pixel output, at the two ends of
+  # the shared ambient auto-dim (display_brightness). Deliberately low at the
+  # dark end: this pixel is at arm's length in a bedroom.
+  knob_led_min: "0.10"               # darkest room
+  knob_led_max: "0.60"               # daylight
+  knob_led_gamma: "1.8"              # >1 = perceptually even fade (see led_gamma)
+
+  # ---- VL53L0X time-of-flight (knob pre-illumination) ----
+  # Thresholds in METRES - that is what the sensor publishes. near/far differ on
+  # purpose: hysteresis, so a hovering hand doesn't chatter the pixel.
+  tof_update_interval: "250ms"       # every read is I2C traffic on a bus this
+                                     # build keeps deliberately quiet - 4/s is
+                                     # plenty responsive for "a hand is coming"
+  tof_near_m: "0.20"                 # <= this asserts "hand near" (~8 in)
+  tof_far_m: "0.30"                  # must go beyond this to release (~12 in)
+  tof_max_valid_m: "1.2"             # above this, treat as no target at all
+
   # Preset system
   light_preset_count: "3"            # number of ON light presets (1..N); Off is separate
   preset_code_seconds: "2s"          # how long the display shows e.g. "L1"
@@ -203,6 +238,10 @@ packages:
   audio: !include packages/audio.yaml
   lighting: !include packages/lighting.yaml
   battery: !include packages/battery.yaml
+  # Knob feedback: the encoder's NeoPixel (coloured by volume) + the VL53L0X
+  # that pre-lights it when a hand comes near. Needs `audio` (seesaw + media
+  # player) and `ambient` (auto-dim + the display's preset-code path).
+  knob: !include packages/knob.yaml
   # Display substrate (auto-dim + preset-code state + the 1s render tick). Always
   # loaded; it drives whichever DISPLAY package is active below via render_display.
   ambient: !include packages/ambient.yaml

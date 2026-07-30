@@ -1,0 +1,268 @@
+# =====================================================================
+# KNOB FEEDBACK - the encoder's NeoPixel + the VL53L0X proximity sensor
+#
+# Owns everything about "the knob tells you what it is doing":
+#   * the single NeoPixel inside the rotary encoder, coloured by VOLUME
+#     (blue = quiet -> green = middle -> red = loud) and faded in/out,
+#   * the VL53L0X time-of-flight sensor that pre-illuminates it when a hand
+#     comes near in the dark,
+#   * the volume readout on whatever display is active (via preset_code).
+#
+# WHAT LIGHTS THE PIXEL, in order of who wins:
+#   1. VOLUME CHANGING - any knob turn snaps the pixel to full and holds it for
+#      knob_led_hold_ms after the LAST change, then it fades gently to
+#      whatever level 2/3 asks for. This is the primary path and it works with
+#      no ToF sensor present at all.
+#   2. HAND NEAR (ToF) - a gentle, much dimmer glow so the knob can be found in
+#      the dark. Purely additive convenience: if the VL53L0X is absent, fails
+#      its I2C probe, or just never sees anything, everything above still works.
+#   3. NOTHING - fades to black over knob_led_fade_out_ms.
+#
+# WHY THIS DRIVES THE PIXEL FROM A LAMBDA INSTEAD OF THE `light:` PLATFORM
+# The vendored seesaw component does provide a light platform (see
+# components/seesaw/light/), and using it would be the obvious choice. It is
+# deliberately NOT used here:
+#   * ESPHome's light transitions call write_state() once per main-loop
+#     iteration, and every one of those is 2 I2C transactions to the seesaw.
+#     That is hundreds of writes/second, on a bus this build has already had to
+#     slow to 100kHz because the XVF3800 was being starved (see the i2c: block
+#     in soundmachine.yaml). The interval below is a hard 20 Hz ceiling instead,
+#     and it writes NOTHING while the pixel is idle or already at its target.
+#   * It would also publish a light entity's state to HA at that same rate.
+# So the fade/gamma/colour maths lives here and calls the component's public
+# color_neopixel() directly. Trade-off: no "Knob LED" light entity in HA. The
+# pixel is a status indicator, not a lamp.
+#
+# Defines ids: knob_led_inited, knob_led_level, knob_led_hold_until_ms,
+#   knob_near, knob_tof_near_count, knob_tof_far_count, volume_feedback
+#   (script), knob_distance (sensor), knob_proximity (binary_sensor), plus the
+#   knob_led_fade_ms tick.
+# Consumes: seesaw_hub + external_media_player (audio), display_brightness
+#   (ambient), preset_code + show_preset_code (ambient). The audio package's
+#   encoder on_value calls volume_feedback.
+# =====================================================================
+globals:
+  # The NeoPixel's pin/length/speed are configured on the seesaw once, then only
+  # colour bytes are sent. Cleared on the way to black so a seesaw brownout
+  # reset is repaired on the next wake (the chip has no NVM) - same self-healing
+  # idea as matrix_inited in packages/matrix.yaml.
+  - id: knob_led_inited
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  # Current fade position, 0.0 (off) .. 1.0 (full). LINEAR - the perceptual
+  # curve and the ambient scaling are applied on top when the bytes are built.
+  - id: knob_led_level
+    type: float
+    restore_value: no
+    initial_value: '0.0f'
+  # Absolute millis() deadline: hold the pixel at full until this passes.
+  # Pushed forward by every volume change, so a slow scroll through the range
+  # keeps it lit the whole way.
+  - id: knob_led_hold_until_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+  # Debounced "a hand is over the knob" verdict from the ToF sensor.
+  - id: knob_near
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  # Consecutive-sample counters behind knob_near (see the sensor's on_value).
+  - id: knob_tof_near_count
+    type: int
+    restore_value: no
+    initial_value: '0'
+  - id: knob_tof_far_count
+    type: int
+    restore_value: no
+    initial_value: '0'
+
+script:
+  # Called by the volume knob on every real change (see packages/audio.yaml).
+  # Does the two bits of user feedback: light the pixel, and put the volume
+  # PERCENTAGE on the display. The display write goes through the shared
+  # preset_code / show_preset_code path in ambient.yaml rather than touching the
+  # matrix, because the active display package is the only writer of the display
+  # (see the single-owner invariant in CLAUDE.md) - which also means this works
+  # unchanged if the 7-seg package is swapped back in.
+  - id: volume_feedback
+    then:
+      - lambda: |-
+          float volume = id(external_media_player)->volume;
+          if (!(volume >= 0.0f)) volume = 0.0f;       // nan guard
+          if (volume > 1.0f) volume = 1.0f;
+          // Keep the pixel at full for a moment past the last click, so a
+          // series of clicks reads as one continuous adjustment. 0 is the
+          // "no hold pending" sentinel, so nudge a deadline that lands exactly
+          // there (a 1.5s window once every 49.7 days of uptime).
+          uint32_t deadline = millis() + ${knob_led_hold_ms}u;
+          id(knob_led_hold_until_ms) = deadline ? deadline : 1u;
+          id(preset_code) = std::to_string((int) lroundf(volume * 100.0f));
+      - script.execute: show_preset_code
+
+interval:
+  # The pixel's only heartbeat. Slews knob_led_level toward its target, rebuilds
+  # the colour from the CURRENT volume, and writes only when the resulting bytes
+  # actually differ - so a steady pixel (lit or dark) costs zero I2C traffic.
+  - interval: ${knob_led_fade_ms}ms
+    then:
+      - lambda: |-
+          const float TICK_MS     = ${knob_led_fade_ms};
+          const float RISE_ACTIVE = ${knob_led_rise_active_ms};   // knob-turn: snap on
+          const float RISE_NEAR   = ${knob_led_rise_near_ms};     // hand near: ease on
+          const float FALL_MS     = ${knob_led_fade_out_ms};      // always gentle
+          const float LEVEL_NEAR  = ${knob_led_near_level}f;      // ToF glow, 0..1
+          const float SCALE_MIN   = ${knob_led_min}f;             // ceiling when dark
+          const float SCALE_MAX   = ${knob_led_max}f;             // ceiling in daylight
+          const float GAMMA       = ${knob_led_gamma}f;
+
+          // ---- where should the pixel be? ----
+          // The deadline is CLEARED the moment it expires, not just compared
+          // against. A signed-difference compare against a stale deadline is
+          // only rollover-safe for 2^31 ms: leave a long-past deadline sitting
+          // there and after ~24.8 days of uptime the difference flips positive
+          // and the pixel latches on. Clearing keeps it live for ~1.5s only.
+          uint32_t hold_until = id(knob_led_hold_until_ms);
+          bool holding = (hold_until != 0) && ((int32_t) (hold_until - millis()) > 0);
+          if (!holding && hold_until != 0) id(knob_led_hold_until_ms) = 0;
+          float target = holding ? 1.0f : (id(knob_near) ? LEVEL_NEAR : 0.0f);
+
+          // ---- slew toward it (fast up on a turn, easy up on approach, always
+          //      slow down, so the pixel never blinks off) ----
+          float level = id(knob_led_level);
+          if (level < target) {
+            level += TICK_MS / (holding ? RISE_ACTIVE : RISE_NEAR);
+            if (level > target) level = target;
+          } else if (level > target) {
+            level -= TICK_MS / FALL_MS;
+            if (level < target) level = target;
+          }
+          id(knob_led_level) = level;
+
+          // ---- colour = volume: blue (quiet) -> green (middle) -> red (loud) ----
+          // A straight hue sweep 240deg..0deg, so it passes through cyan and
+          // yellow on the way and every intermediate volume gets its own shade
+          // instead of snapping between three colours.
+          float volume = id(external_media_player)->volume;
+          if (!(volume >= 0.0f)) volume = 0.0f;       // nan guard
+          if (volume > 1.0f) volume = 1.0f;
+          float hue = 240.0f * (1.0f - volume);
+          float sector = hue / 60.0f;
+          int   sector_index = ((int) sector) % 6;
+          if (sector_index < 0) sector_index += 6;
+          float ramp = sector - floorf(sector);       // 0..1 within the sector
+          float ramp_down = 1.0f - ramp;
+          float red = 0.0f, green = 0.0f, blue = 0.0f;
+          switch (sector_index) {
+            case 0: red = 1.0f;      green = ramp;      blue = 0.0f;      break;
+            case 1: red = ramp_down; green = 1.0f;      blue = 0.0f;      break;
+            case 2: red = 0.0f;      green = 1.0f;      blue = ramp;      break;
+            case 3: red = 0.0f;      green = ramp_down; blue = 1.0f;      break;
+            case 4: red = ramp;      green = 0.0f;      blue = 1.0f;      break;
+            default: red = 1.0f;     green = 0.0f;      blue = ramp_down; break;
+          }
+
+          // ---- how bright may it get? Follows the same ambient auto-dim the
+          //      clock uses (display_brightness, 0..15), because this pixel sits
+          //      60cm from a face at 3am too. ----
+          int ambient_level = id(display_brightness);
+          if (ambient_level < 0) ambient_level = 0;
+          if (ambient_level > 15) ambient_level = 15;
+          float ceiling = SCALE_MIN + (SCALE_MAX - SCALE_MIN) * (ambient_level / 15.0f);
+          // NB: named 'intensity', not 'output' - esphome::output is a namespace
+          // and main.cpp has `using namespace esphome`, so a local of that name
+          // would hide it for the rest of the scope.
+          float intensity = ceiling * powf(level, GAMMA);   // gamma = perceptual fade
+
+          float red_f   = red   * 255.0f * intensity;
+          float green_f = green * 255.0f * intensity;
+          float blue_f  = blue  * 255.0f * intensity;
+          uint8_t red_b   = (uint8_t) lroundf(red_f);
+          uint8_t green_b = (uint8_t) lroundf(green_f);
+          uint8_t blue_b  = (uint8_t) lroundf(blue_f);
+          // At the dim end (dark room + the faint ToF glow) the whole colour can
+          // round to zero and the pixel would just never appear. Keep the
+          // dominant channel at 1 rather than losing the bottom of the range.
+          if (intensity > 0.0f && red_b == 0 && green_b == 0 && blue_b == 0) {
+            if (red_f >= green_f && red_f >= blue_f) red_b = 1;
+            else if (green_f >= blue_f) green_b = 1;
+            else blue_b = 1;
+          }
+
+          // ---- write only on a real change ----
+          static uint8_t last_red = 0, last_green = 0, last_blue = 0;
+          static bool have_written = false;
+          if (have_written && red_b == last_red && green_b == last_green && blue_b == last_blue)
+            return;
+          last_red = red_b; last_green = green_b; last_blue = blue_b;
+          have_written = true;
+
+          // Configure the pixel BEFORE any write, including the black one the
+          // first tick does - on a warm reboot the seesaw keeps running and
+          // would otherwise sit there holding whatever colour it had before,
+          // since a bare colour write does nothing until pin/length are set.
+          if (!id(knob_led_inited)) {
+            id(seesaw_hub)->setup_neopixel(${knob_led_pin});
+            id(knob_led_inited) = true;
+          }
+          id(seesaw_hub)->color_neopixel(red_b, green_b, blue_b);
+          // Settled at black: forget the config, so the NEXT wake re-sends it.
+          // That is the recovery path if the seesaw ever browns out and loses
+          // its pin assignment (it has no NVM). Costs 3 tiny writes per wake.
+          if (red_b == 0 && green_b == 0 && blue_b == 0) id(knob_led_inited) = false;
+
+sensor:
+  # VL53L0X time-of-flight, mounted on the crown just right of the knob looking
+  # up (see HARDWARE.md). Reports METRES. Its only job here is pre-illuminating
+  # the knob NeoPixel, so nothing depends on it: if it is absent or unwired the
+  # component marks itself failed at setup, publishes nothing, knob_near stays
+  # false, and the volume path below carries on alone.
+  - platform: vl53l0x
+    id: knob_distance
+    name: "Knob Distance"
+    address: 0x29
+    update_interval: ${tof_update_interval}
+    long_range: false          # short range = tighter timing budget, far less
+                               # ambient-IR trouble; a hand at <30cm needs no reach
+    on_value:
+      - lambda: |-
+          // Debounce in BOTH axes before believing "a hand is here":
+          //   * distance hysteresis - it takes tof_near_m to assert but
+          //     tof_far_m to release, so a hand hovering at the boundary does
+          //     not chatter;
+          //   * consecutive samples - assert on 2, release on 3 (releasing
+          //     slower keeps a single dropped reading from blinking the pixel).
+          // Out-of-range readings come back NaN, and every comparison against
+          // NaN is false, so they fall through to the "far" branch by design.
+          float distance_m = x;
+          float threshold = id(knob_near) ? ${tof_far_m}f : ${tof_near_m}f;
+          bool near_now = (distance_m > 0.0f) &&
+                          (distance_m < ${tof_max_valid_m}f) &&
+                          (distance_m <= threshold);
+          // Counters are clamped at their thresholds rather than left to climb -
+          // nothing reads them past that, and an unbounded counter on a sensor
+          // that ticks 4x a second forever is just an overflow waiting to
+          // happen.
+          if (near_now) {
+            id(knob_tof_far_count) = 0;
+            if (++id(knob_tof_near_count) >= 2) {
+              id(knob_tof_near_count) = 2;
+              id(knob_near) = true;
+            }
+          } else {
+            id(knob_tof_near_count) = 0;
+            if (++id(knob_tof_far_count) >= 3) {
+              id(knob_tof_far_count) = 3;
+              id(knob_near) = false;
+            }
+          }
+
+binary_sensor:
+  # Exposed mainly so the ToF thresholds can be sanity-checked from HA: wave a
+  # hand and watch this flip. Reads the debounced global, so no extra I2C.
+  - platform: template
+    name: "Knob Proximity"
+    id: knob_proximity
+    device_class: presence
+    lambda: 'return id(knob_near);'

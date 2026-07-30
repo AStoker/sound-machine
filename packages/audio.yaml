@@ -11,6 +11,8 @@
 #   media_select, media_loop, i2s_output/i2s_input, aic3104_dac, i2s_mics,
 #   the speakers/mixer inputs, noise, external_media_player, respeaker, mww, va.
 # Consumes (display): preset_code + show_preset_code (via the Sound select).
+# Consumes (knob): volume_feedback - the volume knob calls it on every real
+#   change to light the encoder's NeoPixel + show the level (packages/knob.yaml).
 # booted is flipped true by the main config's esphome:on_boot.
 # =====================================================================
 globals:
@@ -180,6 +182,12 @@ sensor:
           volume_call.set_volume(new_volume);
           volume_call.perform();
           id(volume_pct).publish_state(new_volume * 100.0f);
+          // User feedback for the new volume: light the knob's NeoPixel in the
+          // volume colour and flash the level on the display. Called from INSIDE
+          // this lambda, past the two early returns above, so it fires only on a
+          // genuine change - the encoder sensor also publishes 0 once at setup,
+          // and an action on the trigger itself would light up at every boot.
+          id(volume_feedback)->execute();
   - platform: template
     name: "Volume"
     id: volume_pct

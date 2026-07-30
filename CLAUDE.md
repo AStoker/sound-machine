@@ -84,13 +84,22 @@ ssieb git source is left commented in `external_components`.
 
 **Sensors & controls live across packages, on one shared I2C bus.** Implemented
 today: BH1750 ambient light (display auto-dim), seesaw rotary encoder (volume +
-tap/hold sound control), DS3231 RTC (time source), plus an ESP32 native
-capacitive touch pad (light-preset cycle). See `HARDWARE.md` for the full map.
+tap/hold sound control, plus its built-in NeoPixel), DS3231 RTC (time source),
+VL53L0X ToF (knob proximity), plus an ESP32 native capacitive touch pad
+(light-preset cycle). See `HARDWARE.md` for the full map.
 
-> **Gotcha:** the hardware map and the `logger:` block reference a **VL53L0X
-> ToF** (`0x29`, planned touchless wake), but it has no ESPHome entity yet — it
-> is wired-in intent, not live config. Don't assume a `vl53l0x:` sensor exists;
-> adding it is open work.
+> **Gotcha:** the **VL53L0X** (`0x29`) is now live, but only in
+> `packages/knob.yaml` and only to pre-light the knob NeoPixel. The
+> **touchless-wake** gesture the hardware notes describe is still *not*
+> implemented — don't assume any behavior beyond the knob pixel reads it.
+
+**The knob NeoPixel is driven from a lambda, not the seesaw `light:` platform,
+on purpose.** `packages/knob.yaml` calls the component's `color_neopixel()`
+directly from a 20 Hz interval that writes only on a change. Going through the
+`light:` platform would instead write the pixel over I2C once per *main-loop
+iteration* for the whole of every transition — hundreds of writes/second onto
+the bus this build already had to slow to 100 kHz to stop starving the XVF3800.
+If you switch it to the stock platform, that regression is what you are buying.
 
 Cross-file invariants worth knowing before changing behavior:
 - **Display is single-owner.** The active display package's `render_display`
