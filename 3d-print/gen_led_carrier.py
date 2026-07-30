@@ -50,6 +50,7 @@ from manifold3d import CrossSection, Manifold
 from enclosure_geom import (
     CARRIER_FIX_DEG,
     CARRIER_CLR_D, CARRIER_SKIRT, CARRIER_T, CARRIER_Z0, CAV_R_G, CAV_RY_G,
+    CARRIER_LIP, BAFFLE_DROP,
     CAV_WALL, CRES_PX, CRES_R, CRES_RY, CRES_Y, DIFF_GAP, DIFF_LIP, DIFF_R_G,
     DIFF_REBATE, DIFF_RY_G, LED_D, LED_PITCH, LED_ROW_PITCH, LED_STRIP_T,
     MIC_Y1, PAD_PILOT_D, PAD_W, STOP_H, STOP_T, STOP_W, STRIP_END_CLR, STRIP_W,
@@ -277,6 +278,16 @@ chk("screw head land: hole to plate edge",
         for px, py, _ in carrier_pads()]) - CARRIER_CLR_D / 2)
 chk("skirt supports row 0's ribbon",
     CARRIER_SKIRT - (STRIP_W / 2 - LED_D / 2))
+# >>> AND IT MUST OVERLAP THE BAFFLE, not merely reach the ribbon. Backing the
+# >>> strip stops it peeling; SEALING it means the skirt continues PAST the front
+# >>> module's baffle floor, so there is no straight line from the strip's glowing
+# >>> edge to the outside. Two parts meet here, so the check names both numbers --
+# >>> the carrier's skirt and the module's BAFFLE_DROP move together or not at all.
+chk(f"skirt overlaps the front module's baffle floor "
+    f"(skirt {CARRIER_SKIRT:.2f} vs drop {BAFFLE_DROP:.2f})",
+    CARRIER_SKIRT - BAFFLE_DROP)
+chk(f"lip beyond the ribbon is at least 1 mm ({CARRIER_LIP})",
+    CARRIER_LIP - 1.0)
 chk("skirt clear of the mic channel",
     (CRES_Y - CARRIER_SKIRT) - MIC_Y1)
 # Stops must not foul the cavity wall they sit inside, and must not shade a pixel.

@@ -423,6 +423,14 @@ SPK_CLR   = 1.0      # clearance around a driver
 GAP_MIC   = 4.0      # matrix -> mic array, room for a top clip (see TRAY_GAP)
 SPK_MIC_GAP = 3.0    # gap between a speaker seat and the mic array
 GAP_CRES  = 2.0      # crescent baseline clears the mic strip
+# >>> THE BAFFLE FLOOR IS DRAFTED, NOT DROPPED. Row 0's ribbon hangs 2.4 mm below
+# >>> the crescent baseline and ran straight into the bar that closes the bottom of
+# >>> the cavity -- 703 mm^3 of interference. Lowering that bar bodily would push it
+# >>> into the mic array, which sits directly beneath. So the floor stays at the
+# >>> baseline where the mic is (at the FACADE) and slopes outward as it goes back
+# >>> toward the LED carrier, where there is nothing below to hit. The mic channel
+# >>> ends at z=5.0 and the ramp starts at 4.7, so it sees 0.06 mm of the drop.
+BAFFLE_DROP = 3.0    # how far the floor falls by the time it reaches the carrier
 
 FLOOR_Y  = BP_T                              # top face of the bottom plate
 # THE SPEAKERS come first now: with the nubs rotated to top and bottom, their
@@ -774,7 +782,12 @@ CARRIER_Z1     = CARRIER_Z0 + CARRIER_T
 # above the crescent baseline, so the ribbon hangs (STRIP_W - LED_D)/2 = 2.4 mm
 # BELOW it. The plate needs a skirt or row 0 is unsupported along its bottom
 # edge. Checked against the mic channel in the carrier's own run.
-CARRIER_SKIRT  = STRIP_W / 2 - LED_D / 2 + 0.6
+# >>> THE SKIRT IS A LIGHT SEAL, NOT JUST A BACKING. It was ribbon-overhang + 0.6,
+# >>> i.e. just enough to stop row 0 peeling. 0.6 mm of overlap seals nothing: the
+# >>> strip's own edge glows sideways and there was no lip in front of it. The lip
+# >>> is the term that matters, so it is named.
+CARRIER_LIP    = 1.5      # skirt BEYOND the ribbon -- the light seal
+CARRIER_SKIRT  = STRIP_W / 2 - LED_D / 2 + CARRIER_LIP
 
 # End stops: a block at each end of each row. NOT full-length channels -- the
 # row pitch is LED_ROW_PITCH (11.0) against a STRIP_W (10.0) ribbon, so a

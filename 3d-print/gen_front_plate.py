@@ -47,7 +47,7 @@ from enclosure_geom import (
     SPK_NUB_SCREW, SPK_NUB_Y, SPK_NUB_Z, SPK_POST_WALL, SPK_RING_W, SPK_SEAT_W,
     SPK_NUB_H, SPK_NUB_W, SPK_POST_W, SPK_POST_H_Y, CLR_POST_MIC,
     DIFF_LIP, CAV_Z, CARRIER_Z0, CARRIER_T, LED_STRIP_T, DIFF_R_G, CAV_RY_G,
-    strip_rects,
+    strip_rects, BAFFLE_DROP, CARRIER_SKIRT, CARRIER_LIP,
     PAD_PROJ, PAD_W, PAD_DRAFT, PAD_Z0, PAD_RAMP, PAD_OFFSET_IN, PAD_PILOT_D,
     PAD_PILOT_Z, carrier_pads, DIFF_RY_G,
     pad_led_clearances,
@@ -400,9 +400,54 @@ body = slab(outline2(), 0.0, FP_T)
 # >>> standing proud in a 3 mm gap all the way round and give the carrier
 # >>> nothing to land on. Running it the extra LED_STRIP_T shrouds the strip and
 # >>> makes the wall's back face the carrier's seating plane.
-cav_wall = (half_disc(W / 2, CRES_Y, CAV_R, skirt=CAV_WALL, ry=CAV_RY)
-            - half_disc(W / 2, CRES_Y, DIFF_R, ry=DIFF_RY))
-body = body + slab(cav_wall, 0.0, CARRIER_Z0)
+# >>> AND ITS FLOOR IS DRAFTED. See BAFFLE_DROP in enclosure_geom: row 0's ribbon
+# >>> hangs 2.4 mm below the baseline and used to sit 703 mm^3 inside this bar.
+# >>> The floor keeps the baseline at the facade -- where the mic array is, 1.6 mm
+# >>> behind it -- and slopes outward to BAFFLE_DROP by the time it reaches the
+# >>> carrier, where nothing is underneath. The mic channel ends at z=5.0 and the
+# >>> ramp starts at 4.7, so it sees 0.06 mm.
+# >>>
+# >>> BUILT AS TWO LOFTS AND A SUBTRACTION, NOT ONE HULL. The wall is a RING, and a
+# >>> ring is not convex -- hulling it would fill the cavity solid. Outer and inner
+# >>> are each convex (half-ellipse plus a rectangular skirt, tangent-continuous at
+# >>> the springing line), so each lofts exactly, and the ring is their difference.
+BAFFLE_RAMP_Z0 = DIFF_LIP + DIFF_REBATE      # start behind the acrylic
+
+
+def _cav_outline(skirt):
+    return half_disc(W / 2, CRES_Y, CAV_R, skirt=CAV_WALL + skirt, ry=CAV_RY)
+
+
+def _bore_outline(skirt):
+    return half_disc(W / 2, CRES_Y, DIFF_R, skirt=skirt, ry=DIFF_RY)
+
+
+def _loft2(cs_a, za, cs_b, zb):
+    P = [(float(x), float(y), float(za)) for x, y in cs_a.to_polygons()[0]]
+    P += [(float(x), float(y), float(zb)) for x, y in cs_b.to_polygons()[0]]
+    return Manifold.hull_points(P)
+
+
+# >>> THE RAMP FINISHES AT CAV_Z, NOT AT THE CARRIER -- and getting that wrong
+# >>> cost 0.6 mm of drop. The first version lofted to CARRIER_Z0 + 1.0, using the
+# >>> "+1" purely as a cutting overrun; but the overrun is INSIDE the loft, so it
+# >>> stretched the ramp over 15.13 mm instead of 12.0 and the floor was still
+# >>> 0.02 mm above the ribbon where the strip begins. 703 mm^3 became 0.18 -- small
+# >>> enough to look like a rounding artefact and not be.
+# >>> CAV_Z is where the LED emitting face sits, so it is the SHALLOWEST z the
+# >>> ribbon occupies and therefore the binding one. Ramp to full drop by then, and
+# >>> hold it flat the rest of the way; the overrun is a separate straight piece.
+BAFFLE_RAMP_Z1 = CAV_Z
+_cav_outer = (slab(_cav_outline(0.0), 0.0, BAFFLE_RAMP_Z0)
+              + _loft2(_cav_outline(0.0), BAFFLE_RAMP_Z0,
+                       _cav_outline(BAFFLE_DROP), BAFFLE_RAMP_Z1)
+              + slab(_cav_outline(BAFFLE_DROP), BAFFLE_RAMP_Z1, CARRIER_Z0))
+_cav_inner = (slab(_bore_outline(0.0), -1.0, BAFFLE_RAMP_Z0)
+              + _loft2(_bore_outline(0.0), BAFFLE_RAMP_Z0,
+                       _bore_outline(BAFFLE_DROP), BAFFLE_RAMP_Z1)
+              + slab(_bore_outline(BAFFLE_DROP), BAFFLE_RAMP_Z1,
+                     CARRIER_Z0 + 1.0))
+body = body + (_cav_outer - _cav_inner)
 
 # (The LED carrier fixing pads used to be built HERE, and it was wrong -- see
 #  the note where they are actually built, below the cuts.)
@@ -420,8 +465,20 @@ body = body + slab(cav_wall, 0.0, CARRIER_Z0)
 # >>> re-reading for convenience -- it is forced independently by the lowest LED
 # >>> carrier fixing pad, whose underside is only 4.43 mm above the cavity floor.
 # >>> A 10 mm span in y would have destroyed that pad; 5 mm clears it.
-LED_WIRE_W = 10.0                       # along the DEPTH of the flank
-LED_WIRE_H = 5.0                        # up the flank, from the bar's underside
+# >>> THE BIG DIMENSION IS THE WIDTH UP THE FLANK, NOT THE DEPTH. It was built
+# >>> 10 deep x 5 tall; the wire wants the opposite -- a wide, shallow slot. Depth
+# >>> is now 6 and the width runs up the flank.
+# >>>
+# >>> AND ITS FLOOR FOLLOWS THE BAFFLE DRAFT. A flat-bottomed slot would have to
+# >>> start at the floor's HIGHEST point across its depth, throwing away the 0.97 mm
+# >>> the draft just bought at the back. Lofting the bottom between the floor
+# >>> heights at the two ends gives the full opening AND makes "no floor removed"
+# >>> true by construction rather than by a check -- the cut's underside IS the
+# >>> floor, ruled between the same two points.
+LED_WIRE_PAD_TRIM_MAX = 1.5   # how much of a fixing pad the exit may eat
+PAD_PILOT_WALL_MIN = 1.2      # wall that must survive beside the pad's screw pilot
+LED_WIRE_D = 6.0                        # DEPTH into the part (z)
+LED_WIRE_H_WANT = 9.0                   # requested width, up the flank
 # >>> IT STARTS AT THE CAVITY FLOOR, NOT BELOW IT. This was CRES_Y - CAV_WALL,
 # >>> which reached down THROUGH the bar that closes the bottom of the cavity --
 # >>> taking 5 mm off its left end. None of the bottom may go: the exit is purely a
@@ -431,19 +488,40 @@ LED_WIRE_H = 5.0                        # up the flank, from the bar's underside
 # >>> whose underside is 4.43 mm up. That is accepted, not an oversight: the pad
 # >>> gets trimmed 0.57 mm and keeps 1.63 mm of wall beside its pilot hole. The
 # >>> check below bounds the trim rather than forbidding it.
-LED_WIRE_Y0 = CRES_Y                    # the cavity floor -- bar below stays whole
-LED_WIRE_Z0 = CARRIER_Z0 - LED_WIRE_W   # open at the carrier face, so wire drops in
+LED_WIRE_Z0 = CARRIER_Z0 - LED_WIRE_D   # open at the carrier face
+
+
+def baffle_floor(z):
+    """y of the cavity floor at depth z -- the drafted baffle, one definition."""
+    f = min(1.0, max(0.0, (z - BAFFLE_RAMP_Z0) / (BAFFLE_RAMP_Z1 - BAFFLE_RAMP_Z0)))
+    return CRES_Y - BAFFLE_DROP * f
+
+
+# >>> THE TOP IS SET BY THE PAD'S SCREW PILOT, so it is DERIVED, not requested. 9 mm
+# >>> up the flank would put the cut 0.34 mm PAST the lowest fixing pad's pilot bore
+# >>> -- through the hole, not near it. The pilot needs wall all round or the screw
+# >>> splits it, so the requested width is capped by that and the real figure is
+# >>> reported rather than the asked-for one.
+_pad_lo0 = min(carrier_pads(),
+               key=lambda p: ((W / 2 + p[0]) - (W / 2 - CAV_R)) ** 2
+               + ((CRES_Y + p[1]) - CRES_Y) ** 2)
+LED_WIRE_TOP = min(CRES_Y + LED_WIRE_H_WANT - BAFFLE_DROP,
+                   (CRES_Y + _pad_lo0[1]) - PAD_PILOT_D / 2 - PAD_PILOT_WALL_MIN)
+LED_WIRE_Y0 = baffle_floor(LED_WIRE_Z0)          # shallow end, the higher floor
+LED_WIRE_Y0_DEEP = baffle_floor(CARRIER_Z0)      # deep end, the lower floor
+LED_WIRE_H = LED_WIRE_TOP - LED_WIRE_Y0          # width at the shallow end
+LED_WIRE_H_DEEP = LED_WIRE_TOP - LED_WIRE_Y0_DEEP
 # The flank is ~2.0 mm thick and leans slightly with the ellipse, so cross it with
 # margin rather than trying to hit a moving surface exactly.
-LED_WIRE_PAD_TRIM_MAX = 1.5   # how much of a fixing pad the exit may eat
-PAD_PILOT_WALL_MIN = 1.2      # wall that must survive beside the pad's screw pilot
 LED_WIRE_X0 = W / 2 - CAV_R - 1.0
 LED_WIRE_X1 = W / 2 - DIFF_R + 3.0
 
 cuts = []
-cuts.append(slab(rect2(LED_WIRE_X0, LED_WIRE_Y0,
-                       LED_WIRE_X1 - LED_WIRE_X0, LED_WIRE_H),
-                 LED_WIRE_Z0, CARRIER_Z0 + 1.0))
+_wxw = LED_WIRE_X1 - LED_WIRE_X0
+cuts.append(_loft2(rect2(LED_WIRE_X0, LED_WIRE_Y0, _wxw, LED_WIRE_H),
+                   LED_WIRE_Z0,
+                   rect2(LED_WIRE_X0, LED_WIRE_Y0_DEEP, _wxw, LED_WIRE_H_DEEP),
+                   CARRIER_Z0 + 1.0))
 cuts.append(slab(half_disc(W / 2, CRES_Y, DIFF_R, ry=DIFF_RY), DIFF_LIP, CAV_Z + 1))
 cuts.append(slab(half_disc(W / 2, CRES_Y, CRES_R, ry=CRES_RY), -1.0, DIFF_LIP))
 
@@ -1309,17 +1387,23 @@ for _i, (_hl, _ry, _hw) in enumerate(strip_rects()):
 
 say("")
 _wx = (W / 2 - CAV_R + W / 2 - DIFF_R) / 2          # mid-thickness of the flank
-_wz = CARRIER_Z0 - LED_WIRE_W / 2
+_wz = CARRIER_Z0 - LED_WIRE_D / 2
 probe("crescent wire exit is open through the LEFT flank",
-      _wx, LED_WIRE_Y0 + LED_WIRE_H / 2, _wz, want=False, size=0.6)
+      _wx, (LED_WIRE_Y0 + LED_WIRE_TOP) / 2, _wz, want=False, size=0.6)
 probe("...the flank is solid ABOVE the exit (wall not severed)",
-      _wx + 0.2, LED_WIRE_Y0 + LED_WIRE_H + 2.0, _wz, size=0.6)
+      _wx + 0.2, LED_WIRE_TOP + 2.0, _wz, size=0.6)
 probe("...and solid deeper down, so this is a notch not a through-slot",
-      _wx, LED_WIRE_Y0 + LED_WIRE_H / 2, LED_WIRE_Z0 - 1.5, size=0.6)
+      _wx, (LED_WIRE_Y0 + LED_WIRE_TOP) / 2, LED_WIRE_Z0 - 1.5, size=0.6)
 probe("...and the FACADE is untouched -- nothing shows from the front",
-      _wx, LED_WIRE_Y0 + LED_WIRE_H / 2, FP_T / 2, size=0.6)
+      _wx, (LED_WIRE_Y0 + LED_WIRE_TOP) / 2, FP_T / 2, size=0.6)
+# >>> ANCHORED TO baffle_floor(), NOT TO CRES_Y. This probed a fixed
+# >>> y = CRES_Y - CAV_WALL/2, which was the middle of the bar back when the floor
+# >>> was flat. The floor is drafted now and has dropped 2.78 mm by this depth, so
+# >>> the old point sits in open cavity and the probe failed -- correctly reporting
+# >>> "air", about a place that is supposed to be air. The floor moved; the probe
+# >>> has to move with it.
 probe("...and the cavity FLOOR is whole -- no bottom material removed",
-      _wx, CRES_Y - CAV_WALL / 2, _wz, size=0.6)
+      _wx, baffle_floor(_wz) - CAV_WALL / 2, _wz, size=0.6)
 # >>> PICKED BY DISTANCE IN BOTH AXES. Choosing on |y - exit_y| alone selected the
 # >>> pad at dx = +89.19 -- the one on the RIGHT flank -- because the left and right
 # >>> pads share the same y and min() simply took the first. Identical mistake to
@@ -1330,8 +1414,8 @@ _pad_lo = min(carrier_pads(),
               key=lambda p: ((W / 2 + p[0]) - _ex) ** 2
               + ((CRES_Y + p[1]) - _ey) ** 2)
 _pad_lo_y = CRES_Y + _pad_lo[1]
-_pad_trim = max(0.0, (LED_WIRE_Y0 + LED_WIRE_H) - (_pad_lo_y - PAD_W / 2))
-_pilot_wall = (_pad_lo_y - PAD_PILOT_D / 2) - (LED_WIRE_Y0 + LED_WIRE_H)
+_pad_trim = max(0.0, LED_WIRE_TOP - (_pad_lo_y - PAD_W / 2))
+_pilot_wall = (_pad_lo_y - PAD_PILOT_D / 2) - LED_WIRE_TOP
 # >>> PROBED BESIDE THE PILOT, NOT AT IT. The pilot is a HOLE: probing its centre
 # >>> for solid material asserts the screw hole was never drilled, and duly failed.
 # >>> What matters is the wall between the trim edge and the pilot bore.
@@ -1340,9 +1424,13 @@ probe("...wall survives between the trim edge and the pad's pilot",
       size=0.4)
 say(f"pad trim    {_pad_trim:.2f} mm off the {_pad_lo[2]:.0f} deg pad, "
     f"{_pilot_wall:.2f} mm of wall left beside its pilot")
-say(f"wire exit   {LED_WIRE_W:.0f} deep x {LED_WIRE_H:.0f} tall in the LEFT flank "
-    f"at the bottom-left corner (x~{_wx:.1f}, y {LED_WIRE_Y0:.1f}-"
-    f"{LED_WIRE_Y0+LED_WIRE_H:.1f}, z {LED_WIRE_Z0:.1f}-{CARRIER_Z0:.1f})")
+say(f"wire exit   {LED_WIRE_D:.0f} deep, {LED_WIRE_H:.2f} wide at the front of the "
+    f"slot and {LED_WIRE_H_DEEP:.2f} at the back (its floor follows the baffle "
+    f"draft); LEFT flank, x~{_wx:.1f}, top y {LED_WIRE_TOP:.2f}, "
+    f"z {LED_WIRE_Z0:.1f}-{CARRIER_Z0:.1f}")
+if LED_WIRE_TOP < CRES_Y + LED_WIRE_H_WANT - BAFFLE_DROP - 1e-6:
+    say(f"            (asked for {LED_WIRE_H_WANT:.0f} wide; capped by the "
+        f"{_pad_lo0[2]:.0f} deg pad's screw pilot)")
 
 # --- the grid's boundary walls, and what the gutters have left ---------------
 _ymin_led = min(y for _, y in led_xy)
@@ -1600,6 +1688,9 @@ checks = [
     # --- the crescent wire exit ---------------------------------------------
     ("wire exit leaves flank below it (bridges over the notch on print)",
      (LED_WIRE_Z0 - FP_T) - 1.0),
+    ("wire exit floor never dips below the baffle floor",
+     min(LED_WIRE_Y0 - baffle_floor(LED_WIRE_Z0),
+         LED_WIRE_Y0_DEEP - baffle_floor(CARRIER_Z0)) + 1e-9),
     # >>> A REAL BOX-TO-BOX CLEARANCE. The first version only compared x, and only
     # >>> when the pad was within PAD_W in y -- so for every real pad it fell
     # >>> through to a 99.0 sentinel and printed "ok 99.00" without comparing

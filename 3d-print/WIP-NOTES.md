@@ -34,6 +34,39 @@ and it is checked as a **rigid motion**: the hole-to-hole span and each hole's
 four edge distances have to survive it. Both broken forms were re-introduced to
 confirm the check fails (−6.34 for a swap, −8.25 for the original centreline bug).
 
+## The baffle floor is drafted, and the ribbon clash is gone
+
+Row 0's ribbon hangs 2.4 mm below the crescent baseline and sat **703 mm³** inside
+the bar closing the bottom of the cavity. Lowering that bar bodily would push it
+into the mic array directly beneath, so instead the floor **keeps the baseline at
+the facade and slopes outward as it goes back** toward the carrier, where there is
+nothing underneath. Measured off the STL:
+
+| z | 2.0 | 5.0 | 8.0 | 12.0 | 16.7 |
+|---|---|---|---|---|---|
+| drop | 0.02 | 0.08 | 0.84 | 1.84 | **3.02** |
+
+The mic channel ends at z = 5.0, where the drop is 0.08 mm. Interference: **0.00**.
+
+The carrier's skirt grew too: `CARRIER_LIP` is now a named term (1.5 mm past the
+ribbon, was 0.6), so the skirt is 3.9 and **overlaps the baffle floor by 0.9 mm**.
+That overlap is the light seal — backing the strip stops it peeling, but sealing
+it means the skirt must continue past the module's floor so there is no straight
+line from the strip's glowing edge to the outside. `gen_led_carrier.py` checks
+both numbers together, since the two parts have to move together or not at all.
+
+### The ramp's end point cost 0.6 mm of drop
+
+Built as two lofts and a subtraction — a ring is not convex, so hulling it would
+fill the cavity solid; outer and inner are each convex and loft exactly.
+
+First version lofted the inner bore to `CARRIER_Z0 + 1.0`, using the `+1` purely
+as a cutting overrun. **But the overrun is inside the loft**, so it stretched the
+ramp over 15.13 mm instead of 12.0, and the floor was still 0.02 mm above the
+ribbon where the strip begins. 703 mm³ became **0.18** — small enough to look like
+a rounding artefact and not be. The ramp now finishes at `CAV_Z`, the shallowest z
+the ribbon occupies and therefore the binding one, and holds flat beyond.
+
 ## Vents — obround, and following the arch
 
 Three equal 72 mm slots stacked read as a rectangle pasted onto a curved shell.
