@@ -436,7 +436,7 @@ script:
 
 number:
   - platform: template
-    name: "Matrix Scroll ms/px"
+    name: "Matrix Scroll ms per px"
     id: matrix_scroll_speed
     icon: "mdi:arrow-left-right"
     entity_category: config
