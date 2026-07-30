@@ -125,6 +125,22 @@ want("an LED window is open through the lip",
 want("the web between two windows is solid",
      solid_at((_leds[0][0] + _leds[_fp.MTX_LED_ROWS][0]) / 2, _leds[0][1],
               _fp.MTX_INSET / 2, 0.3))
+# >>> THE PIN GUTTERS ARE THE WHOLE POINT OF THIS REPRINT, so the coupon has to
+# >>> prove it carries them. Three probes again: open behind the facade, NOT open
+# >>> through it, and each post still standing on its pedestal -- a gutter that ate
+# >>> a post base gives you a loose pin in the pocket on assembly, not at print.
+_gz_mid = _fp.MTX_INSET - _fp.MTX_GUTTER_D / 2
+for _i, (_gy0, _gy1) in enumerate(_fp.MTX_GUTTERS):
+    _nm = "bottom" if _i == 0 else "top"
+    _gy = (_gy0 + _gy1) / 2
+    want(f"{_nm} pin gutter is open", not solid_at(
+        _fp.MTX_X0 + _fp.TRAY_W / 2, _gy, _gz_mid, 0.3))
+    want(f"{_nm} pin gutter has not broken through the facade", solid_at(
+        _fp.MTX_X0 + _fp.TRAY_W / 2, _gy,
+        (_fp.MTX_INSET - _fp.MTX_GUTTER_D) / 2, 0.2))
+for _i, (_px, _py) in enumerate(_fp.mtx_posts):
+    want(f"post {_i} pedestal is solid under it", solid_at(_px, _py, _gz_mid, 0.3))
+
 want("facade lip is present outside the LED field",
      solid_at(_fp.MTX_X0 + 0.8, _fp.TRAY_Y0 + 0.8, _fp.MTX_INSET / 2))
 want("pocket floor is at the inset, not the back face",
@@ -173,6 +189,10 @@ say(f"  recess      matrix front face {_fp.MTX_INSET} mm behind the facade")
 say(f"  windows     {len(_fp.led_xy)} squares {_fp.MTX_WINDOW} x {_fp.MTX_WINDOW}, "
     f"web {_fp.MTX_LED_PITCH - _fp.MTX_WINDOW:.2f} mm")
 say(f"  lip         board seats on the back of the {_fp.MTX_INSET} mm aperture lip")
+say(f"  gutters     {len(_fp.MTX_GUTTERS)} x {_fp.MTX_GUTTER_D:.2f} deep along the "
+    f"long edges, for the trimmed header pins")
+say(f"              (assumes the pins stand {_fp.MTX_PIN_H} mm above the LED-side")
+say(f"               PCB face -- MEASURE THIS, it sets the inset)")
 say(f"  posts       {len(_fp.mtx_posts)} x {chr(216)}{_fp.MTX_POST_D} into the "
     f"boards' own {chr(216)}{_fp.MTX_HOLE_D} diagonal holes")
 say(f"  clips       {len(_fp.CLIP_TOP_X)+len(_fp.CLIP_BOT_X)} x {_fp.CLIP_T} thk, "
@@ -190,7 +210,12 @@ say("  3. do the clips snap over the backpack, and hold it when inverted?")
 say(f"     -> they should move about {_fp.CLIP_ENGAGE} mm and no more")
 say("  4. any clip that whitens, creaks or snaps = too much strain; tell me")
 say(f"  5. gap behind the backpack: {_fp.CLIP_STACK_CLR} mm is designed in")
-say("  6. do the STEMMA QT cables clear the ENDS? There are deliberately no")
+say(f"  6. does the board now sit FLUSH on the lip, with the pins in the gutters?")
+say(f"     -> that was the light-bleed cause: pins holding it "
+    f"{_fp.MTX_PIN_H} mm off")
+say("     -> if it still rocks or stands proud, the pins are longer than "
+    f"{_fp.MTX_GUTTER_D:.2f}; tell me the real number")
+say("  7. do the STEMMA QT cables clear the ENDS? There are deliberately no")
 say("     end clips -- Adafruit puts the ports on the two short edges, and")
 say("     gen_tray.py has notched around them since it was written.")
 say("")

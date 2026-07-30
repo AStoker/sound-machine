@@ -102,7 +102,42 @@ _UNUSED_STANDOFF = 0.6  # was: posts stand the boards off the facade a touch, so
 # >>> thinner, not thicker. 1.5 gives a 31 deg half-angle through a 1.8 window,
 # >>> against 34 deg for the open aperture at 2.0: near-identical, with far better
 # >>> per-pixel isolation and no light bleeding sideways between digits.
-MTX_INSET    = 1.5    # matrix FRONT face, behind the facade's front face
+# >>> 1.5 -> 1.3, AND PIN GUTTERS -- WHICH COMPETE FOR THE SAME 1.5 mm. Worth
+# >>> being explicit about, because the two requests pull against each other: the
+# >>> trimmed header pins stick out of the board's LED-SIDE face, and the only
+# >>> material in front of that face is the lip itself. Behind the board is already
+# >>> pocket, so a gutter cannot go backward -- it has to be cut FORWARD into the
+# >>> lip, out of the same budget the inset is being reduced from.
+# >>>
+# >>> THE REAL WIN IS BIGGER THAN 1.5 -> 1.3, THOUGH. Today the pins are what the
+# >>> board rests on, so the LED plane sits at MTX_INSET + MTX_PIN_H behind the
+# >>> facade -- about 2.3 mm, not 1.5. Gutter the pins and the PCB face reaches the
+# >>> lip, so the LED plane lands at 1.3. That is 2.3 -> 1.3: the light bleed goes
+# >>> away and the viewing angle improves by more than the inset change alone.
+# >>> SO THE INSET IS NO LONGER A FREE CHOICE -- IT IS DERIVED. Setting it to 1.3
+# >>> by hand and then cutting a 0.95 gutter into it left 0.35 mm of facade, under
+# >>> the 0.4 minimum, and the check caught it. Rather than pick a number that
+# >>> happens to work, stack the constraint: the facade in front of a gutter must be
+# >>> at least MTX_FACADE_MIN, the gutter must swallow the pin, so the inset is the
+# >>> sum. Measure the pins shorter and the inset drops on its own.
+MTX_PIN_H    = 0.8    # (?) trimmed header pin, above the LED-side PCB face -- MEASURE
+MTX_GUTTER_CLR = 0.15 # air over the pin tip, so it never sets the seating height
+MTX_GUTTER_D = MTX_PIN_H + MTX_GUTTER_CLR
+MTX_GUTTER_WEB = 0.3  # keep-out between the gutter and the nearest LED window
+# >>> 0.45, NOT 0.4. Two layers at 0.2 is the structural floor, but this is the
+# >>> VISIBLE face and PLA at 0.4 glows: a lit display could show two faint bands
+# >>> along the top and bottom of the clock. 0.45 is three layers at 0.15 or a
+# >>> comfortable two at 0.2, and the strip is only ~2.5 mm wide in the margin
+# >>> where there are no LEDs, so what light reaches it is scatter.
+MTX_FACADE_MIN = 0.45
+MTX_INSET    = round(MTX_GUTTER_D + MTX_FACADE_MIN, 3)   # 1.40 at PIN_H 0.8
+# >>> A SOLID PEDESTAL UNDER EACH LOCATING POST, or the post falls off. The posts
+# >>> are 1.905 mm from a horizontal board edge -- i.e. INSIDE the gutter band --
+# >>> and a post is attached to the part ONLY at its base on the lip. Cut the lip
+# >>> out from under it and it becomes a loose cylinder floating in the pocket.
+# >>> The existing "connected bodies == 1" check catches exactly that, which is why
+# >>> it is worth keeping honest.
+MTX_POST_COLLAR = 0.7 # solid lip kept round each post base, per side
 # >>> AND THE CLIPS ROOT IN THE POCKET, NOT ON THE BACK FACE. Recessing the board
 # >>> moves the hook forward, and a clip still rooted at z=FP_T would lose that
 # >>> length from its beam -- 3.05 % strain at a 1.5 mm inset. Rooted at the
@@ -381,9 +416,42 @@ for _lx, _ly in mtx_led_xy(MTX_X0, TRAY_Y0):
 # Sized to clear the clip beams AND leave a flex slot behind each, or the clips
 # would be fused to the pocket wall along their whole length and could not move.
 MTX_POCKET = CLIP_GAP + CLIP_T + MTX_CLIP_FLEX
-cuts.append(slab(rect2(MTX_X0 - MTX_POCKET, TRAY_Y0 - MTX_POCKET,
-                       TRAY_W + 2 * MTX_POCKET, TRAY_H + 2 * MTX_POCKET),
-                 MTX_INSET, FP_T + 1.0))
+_pocket = slab(rect2(MTX_X0 - MTX_POCKET, TRAY_Y0 - MTX_POCKET,
+                     TRAY_W + 2 * MTX_POCKET, TRAY_H + 2 * MTX_POCKET),
+               MTX_INSET, FP_T + 1.0)
+
+# --- pin gutters along the two long edges -----------------------------------
+# >>> DERIVED FROM THE LED FIELD, NOT FROM A VENDOR HEADER COORDINATE I DO NOT
+# >>> HAVE. The matrix's fab print is not in hand, so rather than guess where the
+# >>> header row sits, the gutter takes the WHOLE margin between the board edge and
+# >>> the first LED window. Any 0.1"-pitch row in that margin is covered wherever
+# >>> it actually is, and the number that matters (how much lip is left in front)
+# >>> does not depend on the guess.
+_led = mtx_led_xy(MTX_X0, TRAY_Y0)
+_ly_min, _ly_max = min(y for _, y in _led), max(y for _, y in _led)
+_gut_lo = _ly_min - MTX_WINDOW / 2 - MTX_GUTTER_WEB      # inner edge, bottom
+_gut_hi = _ly_max + MTX_WINDOW / 2 + MTX_GUTTER_WEB      # inner edge, top
+MTX_GUTTERS = [(TRAY_Y0, _gut_lo), (_gut_hi, TRAY_Y0 + TRAY_H)]
+_gz0 = MTX_INSET - MTX_GUTTER_D
+# >>> UNIONED WITH THE POCKET BEFORE SUBTRACTING, not cut separately. Cut on its
+# >>> own the gutter's back face would land exactly on the pocket floor at
+# >>> z = MTX_INSET -- a coplanar pair, which is how this part has produced
+# >>> zero-area facets and phantom extra bodies twice before. Unioned first, that
+# >>> internal plane never exists.
+_gut = _pocket
+for _y0, _y1 in MTX_GUTTERS:
+    _gut = _gut + slab(rect2(MTX_X0, _y0, TRAY_W, _y1 - _y0), _gz0, FP_T + 1.0)
+# ...then give each post its pedestal back, in the lip band only. Above
+# MTX_INSET the collar must not exist or it would stand proud in the pocket and
+# hold the board off by exactly what the gutter was meant to recover.
+_collars = []
+for _b in range(MTX_N):
+    for _hx, _hy in MTX_HOLES:
+        _collars.append(cyl(MTX_X0 + _b * MTX_BOARD_W + _hx, TRAY_Y0 + _hy,
+                            _gz0 - 0.6, MTX_INSET,
+                            MTX_POST_D + 2 * MTX_POST_COLLAR))
+_gut = _gut - union(_collars)
+cuts.append(_gut)
 MTX_Z0 = MTX_INSET                         # matrix front face, ON the lip
 MTX_ZB = MTX_Z0 + MTX_PCB_T                # matrix back face
 BP_Z0  = MTX_ZB + MTX_STACK_GAP            # backpack front
@@ -1152,6 +1220,66 @@ probe("facade web between two LED windows (the board seats on it)",
 probe("an LED window is open through the lip", led_xy[0][0], led_xy[0][1],
       MTX_INSET / 2, want=False, size=0.3)
 
+# --- the pin gutters -------------------------------------------------------
+# >>> PROBED IN THREE PLACES, because any one of them alone is satisfiable by the
+# >>> wrong solid: an open gutter that has eaten through the facade, an intact
+# >>> facade with no gutter behind it, and a gutter that has undercut a post all
+# >>> look fine from one probe.
+say("")
+_gz_mid = MTX_INSET - MTX_GUTTER_D / 2
+for _i, (_gy0, _gy1) in enumerate(MTX_GUTTERS):
+    _nm = "bottom" if _i == 0 else "top"
+    _gy = (_gy0 + _gy1) / 2
+    # somewhere along the run that is clear of every post pedestal
+    _gx = MTX_X0 + TRAY_W / 2
+    probe(f"{_nm} pin gutter is open behind the facade", _gx, _gy, _gz_mid,
+          want=False, size=0.3)
+    probe(f"{_nm} pin gutter has NOT broken through the facade", _gx, _gy,
+          (MTX_INSET - MTX_GUTTER_D) / 2, size=0.3)
+for _i, (_px, _py) in enumerate(mtx_posts):
+    probe(f"post {_i} still stands on solid lip (pedestal)", _px, _py, _gz_mid,
+          size=0.3)
+
+# --- how thick is the facade in front of a gutter, really? -------------------
+# >>> WALK THE SOLID. Sampling z from the facade backwards at the gutter centre and
+# >>> finding where material stops is the only version of this that can disagree
+# >>> with the constants -- which is the entire point of measuring it.
+_fx, _fy = MTX_X0 + TRAY_W / 2, (MTX_GUTTERS[0][0] + MTX_GUTTERS[0][1]) / 2
+_facade_measured = 0.0
+_step = 0.025
+_z = _step / 2
+while _z < MTX_INSET + 0.5:
+    _c = Manifold.cube((0.2, 0.2, _step)).translate(
+        (_fx - 0.1, _fy - 0.1, _z - _step / 2))
+    # >>> part_body, NOT body. They differ by the STL export shift (-REVEAL, -BP_T),
+    # >>> and reading the wrong one put this probe 2.5 mm sideways into solid lip,
+    # >>> where it cheerfully measured the full 1.40 and passed -- while the probe
+    # >>> three lines above, which does use part_body, said the gutter was open.
+    # >>> Two measurements of the same point disagreeing is the only reason it got
+    # >>> noticed.
+    if (part_body ^ _c).volume() > 1e-9:
+        _facade_measured = _z + _step / 2
+        _z += _step
+    else:
+        break
+say("")
+say(f"gutter      facade measures {_facade_measured:.3f} mm in front of the "
+    f"bottom gutter (design {MTX_INSET - MTX_GUTTER_D:.2f})")
+
+# >>> THE WEB BETWEEN THE GUTTER AND THE LAST WINDOW IS READ OFF THE SOLID, not
+# >>> recomputed from the constants that built it. The obvious version --
+# >>> "gutter_edge is MTX_GUTTER_WEB from the window edge" -- is the construction
+# >>> restated, and it passes even if the gutter overran and merged with the bottom
+# >>> row of windows. Probe the web instead: if the two ran together, it is air.
+_lowest = min(y for _, y in led_xy)
+probe("web survives between the bottom gutter and the first LED window",
+      led_xy[0][0], (MTX_GUTTERS[0][1] + (_lowest - MTX_WINDOW / 2)) / 2,
+      _gz_mid, size=0.2)
+_highest = max(y for _, y in led_xy)
+probe("web survives between the top gutter and the last LED window",
+      led_xy[0][0], (MTX_GUTTERS[1][0] + (_highest + MTX_WINDOW / 2)) / 2,
+      _gz_mid, size=0.2)
+
 # ---------------------------------------------------------------------------
 # THE SPLIT
 # ---------------------------------------------------------------------------
@@ -1297,6 +1425,26 @@ checks = [
      else 0.0),
     ("spine clear of the speaker tops", SPK_Y1 - SPINE_Y1),
     ("spine clear of the speakers (x)", SPINE_X0 - (SPK_X + SPK_BODY_W/2 + SPK_FIT)),
+    # --- the pin gutters, and what they cost --------------------------------
+    # >>> MEASURED OFF THE SOLID, NOT RESTATED. The version of this check that read
+    # >>> (MTX_INSET - MTX_GUTTER_D) - MTX_FACADE_MIN reported "ok 0.00" the moment
+    # >>> MTX_INSET became the sum of those two terms -- it was subtracting a number
+    # >>> from itself and could never fail again. _facade_measured walks the actual
+    # >>> body from the facade backwards and finds where material stops.
+    (f"facade in front of a gutter, MEASURED {_facade_measured:.2f} "
+     f"(>= {MTX_FACADE_MIN})", _facade_measured - MTX_FACADE_MIN),
+    ("gutter is deeper than the trimmed pin it has to swallow",
+     MTX_GUTTER_D - MTX_PIN_H),
+    # >>> THE PEDESTAL MUST REACH THE LIP THAT REMAINS. A post 1.905 mm from the
+    # >>> board edge, with a collar smaller than the gutter is wide, would stand on
+    # >>> an ISLAND inside the gutter -- touching at a tangent, so still "one body"
+    # >>> in the boolean, but held on by nothing you could print.
+    (f"post pedestal reaches past the gutter into solid lip "
+     f"(r={MTX_POST_D/2 + MTX_POST_COLLAR:.2f})",
+     (MTX_HOLES[0][1] + MTX_POST_D / 2 + MTX_POST_COLLAR)
+     - (MTX_GUTTERS[0][1] - TRAY_Y0)),
+    ("LED plane is closer to the facade than the pins used to hold it",
+     (MTX_INSET + MTX_PIN_H) - MTX_INSET - 0.001),
 ]
 bad += [c for c in checks if c[1] < 0]
 for nm, v in checks:

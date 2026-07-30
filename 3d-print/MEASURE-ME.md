@@ -15,6 +15,26 @@
 | **TPA2016** | **21.59 × 27.94**, R2.54 corners — was modelled 26 × 20, wrong on both axes | `Adafruit TPA2016D2.brd` |
 | **STEP files** | The "linear" file **is** the linear array. Both it and the circular one are internally named `44mm_circular` — Seeed's export naming, not a mix-up. Geometry differs: circular ≈ 67 × 66 round-ish, linear is a long thin strip. | Compared directly |
 
+## ⚠️ One number I need: how far the trimmed pins stand off the matrix
+
+**`MTX_PIN_H`, assumed 0.8 mm.** The header pins on the LED side of the matrix,
+after your trim — measured from the PCB's LED-side face to the highest pin tip.
+Easiest way: sit a steel rule or a flat edge across the pins and see how far it
+stands off the board, or caliper from the board face to a pin tip.
+
+It matters more than it looks, because **it sets the recess depth**. The gutter
+has to swallow the pin, the facade in front of the gutter has to stay at least
+0.45 mm thick, so the inset is the sum of the two:
+
+| If the pins measure | gutter | facade left | matrix inset |
+|---|---|---|---|
+| 0.5 mm | 0.65 | 0.45 | **1.10** |
+| 0.8 mm *(assumed)* | 0.95 | 0.45 | **1.40** |
+| 1.1 mm | 1.25 | 0.45 | **1.70** |
+
+So a shorter trim buys viewing angle directly. Tell me the number and the inset
+follows automatically — it is derived in the code, not typed.
+
 ## Every board now has a confirmed hole pattern
 
 | Board | Holes | Source |

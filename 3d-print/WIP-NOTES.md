@@ -34,6 +34,55 @@ and it is checked as a **rigid motion**: the hole-to-hole span and each hole's
 four edge distances have to survive it. Both broken forms were re-introduced to
 confirm the check fails (−6.34 for a swap, −8.25 for the original centreline bug).
 
+## Matrix — pin gutters, and why the inset stopped being a free choice
+
+Two requests that pull against each other: shallower window grid, **and** gutters
+for the trimmed header pins. The pins protrude from the board's **LED-side** face,
+and the only material in front of that face is the lip — behind the board is
+already pocket. So a gutter can only be cut **forward, into the lip**, out of the
+same budget the inset is being reduced from. Picking 1.3 by hand and cutting a
+0.95 gutter left 0.35 mm of facade and failed the check.
+
+So `MTX_INSET` is now **derived**: `MTX_GUTTER_D + MTX_FACADE_MIN` = **1.40**.
+Measure the pins shorter and it drops on its own.
+
+**The real gain is bigger than 1.5 → 1.4.** Today the pins are what the board
+rests on, so the LED plane sits at inset + pin height ≈ **2.3 mm** behind the
+facade. Gutter them and the PCB face reaches the lip: **1.40**. That is what kills
+the light bleed — each LED goes back inside its own window instead of leaking
+sideways behind the lip.
+
+Details worth remembering:
+
+- **The gutters are derived from the LED field, not from a vendor header
+  coordinate.** I don't have the matrix's fab print, so rather than guess where
+  the 0.1" row sits, each gutter takes the whole margin between the board edge and
+  the first LED window. Any row in that margin is covered wherever it is.
+- **Each locating post needed a pedestal.** The posts are 1.905 mm from a
+  horizontal board edge — inside the gutter band — and a post is attached to the
+  part *only* at its base on the lip. Guttering under one turns it into a loose
+  cylinder floating in the pocket. `MTX_POST_COLLAR = 0.7` keeps a Ø3.25 island
+  that reaches 0.79 mm past the gutter into solid lip. The "connected bodies == 1"
+  check is what would have caught it.
+- **0.45 mm of facade is the visible-surface floor, not the structural one.** Two
+  layers at 0.2 would hold, but PLA at 0.4 glows and this is the front face. Worth
+  a look on the test print: if you see two faint bands along the top and bottom of
+  the clock, that is what they are.
+
+### Two checks that were wrong before they were right
+
+- **A tautological one.** `(MTX_INSET - MTX_GUTTER_D) - MTX_FACADE_MIN` reported
+  `ok 0.00` the moment `MTX_INSET` became the sum of those two terms — it was
+  subtracting a number from itself. Replaced with `_facade_measured`, which walks
+  the actual solid backwards from the facade and finds where material stops.
+- **And it immediately caught a frame bug in itself.** The first version read
+  `body` instead of `part_body`. Those differ by the STL export shift
+  `(-REVEAL, -BP_T)`, so it was measuring 2.5 mm sideways into solid lip, happily
+  reporting the full 1.40 and passing — while the probe three lines above, which
+  does use `part_body`, said the gutter was open. **Two measurements of the same
+  point disagreeing is the only reason it got noticed.** Verified after the fix by
+  forcing `MTX_INSET = 1.0`: measured 0.050, `FAIL -0.40`.
+
 ## Stability — `check_stability.py`, and the load case it made up
 
 Answering "does the UPS on the rear wall put too much weight back there?"
