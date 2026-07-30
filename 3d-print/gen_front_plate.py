@@ -47,6 +47,7 @@ from enclosure_geom import (
     SPK_NUB_SCREW, SPK_NUB_Y, SPK_NUB_Z, SPK_POST_WALL, SPK_RING_W, SPK_SEAT_W,
     SPK_NUB_H, SPK_NUB_W, SPK_POST_W, SPK_POST_H_Y, CLR_POST_MIC,
     DIFF_LIP, CAV_Z, CARRIER_Z0, CARRIER_T, LED_STRIP_T, DIFF_R_G, CAV_RY_G,
+    strip_rects,
     PAD_PROJ, PAD_W, PAD_DRAFT, PAD_Z0, PAD_RAMP, PAD_OFFSET_IN, PAD_PILOT_D,
     PAD_PILOT_Z, carrier_pads, DIFF_RY_G,
     pad_led_clearances,
@@ -406,7 +407,43 @@ body = body + slab(cav_wall, 0.0, CARRIER_Z0)
 # (The LED carrier fixing pads used to be built HERE, and it was wrong -- see
 #  the note where they are actually built, below the cuts.)
 
+# --- wire exit for the LED crescent -----------------------------------------
+# >>> THE LEFT FLANK, NOT THE BOTTOM BAR. The first version notched the bar that
+# >>> closes the bottom of the cavity, which was the right MATERIAL and the wrong
+# >>> face: the wires are meant to leave sideways out of the bottom-left corner,
+# >>> not downward through the floor.
+# >>>
+# >>> AND THE TWO DIMENSIONS SWAP WHEN THE FACE DOES. On the bottom bar, "5 tall"
+# >>> could only mean z, because the bar is 2 mm thick in y. On the LEFT FLANK the
+# >>> face you are looking at is the y-z plane: height is y, and the horizontal
+# >>> direction is DEPTH. So 10 wide is 10 in z and 5 tall is 5 in y. That is not a
+# >>> re-reading for convenience -- it is forced independently by the lowest LED
+# >>> carrier fixing pad, whose underside is only 4.43 mm above the cavity floor.
+# >>> A 10 mm span in y would have destroyed that pad; 5 mm clears it.
+LED_WIRE_W = 10.0                       # along the DEPTH of the flank
+LED_WIRE_H = 5.0                        # up the flank, from the bar's underside
+# >>> IT STARTS AT THE CAVITY FLOOR, NOT BELOW IT. This was CRES_Y - CAV_WALL,
+# >>> which reached down THROUGH the bar that closes the bottom of the cavity --
+# >>> taking 5 mm off its left end. None of the bottom may go: the exit is purely a
+# >>> side feature, and the floor stays continuous so the wire has something to lie
+# >>> on as it runs out.
+# >>> Starting at CRES_Y means the exit runs INTO the lowest carrier fixing pad,
+# >>> whose underside is 4.43 mm up. That is accepted, not an oversight: the pad
+# >>> gets trimmed 0.57 mm and keeps 1.63 mm of wall beside its pilot hole. The
+# >>> check below bounds the trim rather than forbidding it.
+LED_WIRE_Y0 = CRES_Y                    # the cavity floor -- bar below stays whole
+LED_WIRE_Z0 = CARRIER_Z0 - LED_WIRE_W   # open at the carrier face, so wire drops in
+# The flank is ~2.0 mm thick and leans slightly with the ellipse, so cross it with
+# margin rather than trying to hit a moving surface exactly.
+LED_WIRE_PAD_TRIM_MAX = 1.5   # how much of a fixing pad the exit may eat
+PAD_PILOT_WALL_MIN = 1.2      # wall that must survive beside the pad's screw pilot
+LED_WIRE_X0 = W / 2 - CAV_R - 1.0
+LED_WIRE_X1 = W / 2 - DIFF_R + 3.0
+
 cuts = []
+cuts.append(slab(rect2(LED_WIRE_X0, LED_WIRE_Y0,
+                       LED_WIRE_X1 - LED_WIRE_X0, LED_WIRE_H),
+                 LED_WIRE_Z0, CARRIER_Z0 + 1.0))
 cuts.append(slab(half_disc(W / 2, CRES_Y, DIFF_R, ry=DIFF_RY), DIFF_LIP, CAV_Z + 1))
 cuts.append(slab(half_disc(W / 2, CRES_Y, CRES_R, ry=CRES_RY), -1.0, DIFF_LIP))
 
@@ -1250,6 +1287,63 @@ for _i, (_px, _py) in enumerate(mtx_posts):
     probe(f"post {_i} still stands on solid lip (pedestal)", _px, _py, _gz_mid,
           size=0.3)
 
+# --- the LED crescent's wire exit -------------------------------------------
+# >>> FOUR PROBES, because "there is a hole there" is not the requirement. The hole
+# >>> must be open, the bar must SURVIVE below it (or the wall is gone and the
+# >>> carrier has nothing to seat on), and the FACADE must be untouched -- a cut
+# >>> that reached z=0 would put a 10 x 5 window in the front of the machine.
+# >>> AND WHILE CUTTING THAT BAR, A CLASH THAT WAS ALREADY THERE. strip_rects()
+# >>> says it in its own docstring -- the RIBBON is STRIP_W (10) tall against the
+# >>> LED's 5.2, so it reaches 2.4 mm further up and down than any pixel. That note
+# >>> was written about pads at the APEX. The same 2.4 mm at the BOTTOM row runs
+# >>> straight into this bar: the rows are placed so the lowest pixel's edge grazes
+# >>> the aperture's flat bottom at CRES_Y, which leaves the ribbon hanging 2.4 mm
+# >>> BELOW the cavity floor, where the bar is solid.
+say("")
+say("LED ribbons vs the cavity bar")
+for _i, (_hl, _ry, _hw) in enumerate(strip_rects()):
+    _env = Manifold.cube((2 * _hl, 2 * _hw, CARRIER_Z0 - CAV_Z)).translate(
+        (W / 2 - _hl, CRES_Y + _ry - _hw, CAV_Z))
+    clash(f"row {_i} ribbon (y {CRES_Y+_ry-_hw:.1f}-{CRES_Y+_ry+_hw:.1f}) "
+          f"is clear of the shell", _env)
+
+say("")
+_wx = (W / 2 - CAV_R + W / 2 - DIFF_R) / 2          # mid-thickness of the flank
+_wz = CARRIER_Z0 - LED_WIRE_W / 2
+probe("crescent wire exit is open through the LEFT flank",
+      _wx, LED_WIRE_Y0 + LED_WIRE_H / 2, _wz, want=False, size=0.6)
+probe("...the flank is solid ABOVE the exit (wall not severed)",
+      _wx + 0.2, LED_WIRE_Y0 + LED_WIRE_H + 2.0, _wz, size=0.6)
+probe("...and solid deeper down, so this is a notch not a through-slot",
+      _wx, LED_WIRE_Y0 + LED_WIRE_H / 2, LED_WIRE_Z0 - 1.5, size=0.6)
+probe("...and the FACADE is untouched -- nothing shows from the front",
+      _wx, LED_WIRE_Y0 + LED_WIRE_H / 2, FP_T / 2, size=0.6)
+probe("...and the cavity FLOOR is whole -- no bottom material removed",
+      _wx, CRES_Y - CAV_WALL / 2, _wz, size=0.6)
+# >>> PICKED BY DISTANCE IN BOTH AXES. Choosing on |y - exit_y| alone selected the
+# >>> pad at dx = +89.19 -- the one on the RIGHT flank -- because the left and right
+# >>> pads share the same y and min() simply took the first. Identical mistake to
+# >>> the coupon's `_cx in CLIP_TOP_X`: a key that cannot tell the two candidates
+# >>> apart. The exit is on the LEFT, so x has to be in the key.
+_ex, _ey = (LED_WIRE_X0 + LED_WIRE_X1) / 2, LED_WIRE_Y0 + LED_WIRE_H / 2
+_pad_lo = min(carrier_pads(),
+              key=lambda p: ((W / 2 + p[0]) - _ex) ** 2
+              + ((CRES_Y + p[1]) - _ey) ** 2)
+_pad_lo_y = CRES_Y + _pad_lo[1]
+_pad_trim = max(0.0, (LED_WIRE_Y0 + LED_WIRE_H) - (_pad_lo_y - PAD_W / 2))
+_pilot_wall = (_pad_lo_y - PAD_PILOT_D / 2) - (LED_WIRE_Y0 + LED_WIRE_H)
+# >>> PROBED BESIDE THE PILOT, NOT AT IT. The pilot is a HOLE: probing its centre
+# >>> for solid material asserts the screw hole was never drilled, and duly failed.
+# >>> What matters is the wall between the trim edge and the pilot bore.
+probe("...wall survives between the trim edge and the pad's pilot",
+      W / 2 + _pad_lo[0], _pad_lo_y - PAD_PILOT_D / 2 - 0.4, CARRIER_Z0 - 0.5,
+      size=0.4)
+say(f"pad trim    {_pad_trim:.2f} mm off the {_pad_lo[2]:.0f} deg pad, "
+    f"{_pilot_wall:.2f} mm of wall left beside its pilot")
+say(f"wire exit   {LED_WIRE_W:.0f} deep x {LED_WIRE_H:.0f} tall in the LEFT flank "
+    f"at the bottom-left corner (x~{_wx:.1f}, y {LED_WIRE_Y0:.1f}-"
+    f"{LED_WIRE_Y0+LED_WIRE_H:.1f}, z {LED_WIRE_Z0:.1f}-{CARRIER_Z0:.1f})")
+
 # --- the grid's boundary walls, and what the gutters have left ---------------
 _ymin_led = min(y for _, y in led_xy)
 _ymax_led = max(y for _, y in led_xy)
@@ -1503,6 +1597,28 @@ checks = [
      f"({_gut_w_bot:.2f} wide)", _gut_w_bot - MTX_PIN_ROW_BAND[1]),
     (f"top gutter still covers a 0.1\" header row "
      f"({_gut_w_top:.2f} wide)", _gut_w_top - MTX_PIN_ROW_BAND[1]),
+    # --- the crescent wire exit ---------------------------------------------
+    ("wire exit leaves flank below it (bridges over the notch on print)",
+     (LED_WIRE_Z0 - FP_T) - 1.0),
+    # >>> A REAL BOX-TO-BOX CLEARANCE. The first version only compared x, and only
+    # >>> when the pad was within PAD_W in y -- so for every real pad it fell
+    # >>> through to a 99.0 sentinel and printed "ok 99.00" without comparing
+    # >>> anything. A check whose pass value is a constant it made up is not a
+    # >>> check. Two boxes clear if they clear in EITHER axis, so take the better
+    # >>> gap per pad and the worst of those.
+    # >>> THE PAD TRIM IS BOUNDED, NOT FORBIDDEN. Butting into the lowest fixing pad
+    # >>> is a deliberate trade -- the alternative is a shorter exit or a hole in
+    # >>> the cavity floor, and neither is wanted. So the check does not demand
+    # >>> clearance; it demands the trim stay small and, far more importantly, stay
+    # >>> away from the pad's PILOT HOLE. A screw needs wall all round it, and that
+    # >>> is the thing a growing exit would quietly eat.
+    (f"pad trim is at most {LED_WIRE_PAD_TRIM_MAX} mm "
+     f"(actually {_pad_trim:.2f})", LED_WIRE_PAD_TRIM_MAX - _pad_trim),
+    (f"wall left beside the trimmed pad's pilot "
+     f"({_pilot_wall:.2f} >= {PAD_PILOT_WALL_MIN})",
+     _pilot_wall - PAD_PILOT_WALL_MIN),
+    ("wire exit fully crosses the flank (it leans with the ellipse)",
+     (LED_WIRE_X1 - LED_WIRE_X0) - CAV_WALL - 1.0),
 ]
 bad += [c for c in checks if c[1] < 0]
 for nm, v in checks:

@@ -691,7 +691,16 @@ BARREL_Y        = 12.0              # jack centre, centred in width, LOW
 # >>> only works while 2*VENT_HH <= VENT_RISE. Going taller and fewer would have
 # >>> been simpler and would have turned the vent back into a window onto the UPS.
 # >>> So the area is bought with WIDTH, which is free, and the slots stay 2.0 tall.
-VENT_W, VENT_HH = 72.0, 1.0         # slot width, HALF-height (so 2.0 tall)
+# >>> THE SLOTS FOLLOW THE ARCH NOW, AND EACH HAS ITS OWN LENGTH. Three equal
+# >>> 72 mm slots stacked read as a rectangle pasted onto a curved shell. Their
+# >>> ends now sit a CONSTANT distance in from the arch's inner face, which is a
+# >>> true offset of the contour rather than a scaled copy of it -- the ends trace
+# >>> the arch, so the stack narrows exactly as the shell does.
+# >>> VENT_W is gone: there is no single slot width any more, and leaving the name
+# >>> around would invite something to keep using it.
+VENT_HH = 1.0                       # HALF-height (so 2.0 tall)
+VENT_INSET = 40.0                   # slot end, in from the arch's INNER face
+VENT_LEN_MIN = 12.0                 # never let the top slot vanish to a dot
 VENT_N, VENT_P  = 3, 5.0            # count, pitch -- ONE stack, centred
 # >>> CLEAR OF THE LUX BOARD, NOT JUST THE LUX PINHOLE. 128 cleared the Ø4 pipe
 # >>> by 6 mm and put louvre 0 straight through the BH1750's upper mounting
@@ -1609,6 +1618,29 @@ def vent_y(i):
     return VENT_Y + i * VENT_P
 
 
+def arch_half_chord(y, r=None, ry=None):
+    """Half-width of the arch ellipse at height y (0 below the springing line)."""
+    r = ARCH_R if r is None else r
+    ry = ARCH_RY if ry is None else ry
+    t = (y - ARCH_Y) / ry
+    return r * math.sqrt(max(0.0, 1.0 - t * t)) if t <= 1.0 else 0.0
+
+
+def vent_half_len(y):
+    """Half-length of the louvre at height y -- a constant inset from the arch's
+    INNER face, so the slot ends follow the shell's own curve."""
+    return max(VENT_LEN_MIN / 2.0, arch_half_chord(y) - WALL - VENT_INSET)
+
+
+def vent_slots():
+    """Every louvre as (x_centre, y_centre, half_length, half_height).
+    ONE list, used by the dome's cut, its clearance table, the drawings and the
+    rear-wall item map -- so a slot cannot be one size in the solid and another
+    in the check."""
+    return [(vx, vent_y(i), vent_half_len(vent_y(i)), VENT_HH)
+            for vx in vent_x() for i in range(VENT_N)]
+
+
 def vent_x():
     """Centre x of each vent stack. ONE stack now, centred above the light
     pipe -- kept as a list so the dome's build loop is unchanged."""
@@ -1631,7 +1663,11 @@ def rear_wall_items():
         # >>> reaches VENT_HH above the top slot and below the bottom one, not
         # >>> VENT_HH/2. It under-reported the stack by 1 mm at each end -- which
         # >>> is exactly the kind of slack that lets a board look like it fits.
-        o.append((nm, vx - VENT_W/2, vx + VENT_W/2,
+        # >>> THE WIDEST SLOT BOUNDS THE STACK, and that is the BOTTOM one now that
+        # >>> they taper. Using any single slot's length would under-report the
+        # >>> footprint for the others.
+        _hl = max(hl for _vx, _vy, hl, _hh in vent_slots() if _vx == vx)
+        o.append((nm, vx - _hl, vx + _hl,
                   vent_y(0) - VENT_HH, vent_y(VENT_N - 1) + VENT_HH))
     return o
 

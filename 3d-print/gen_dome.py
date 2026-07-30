@@ -47,7 +47,8 @@ from enclosure_geom import (
     SW_D, SW_NUT_D, SW_WALL_X, SW_WALL_Y, VENT_RISE, TOF_FLAT_D, TOF_FLAT_W,
     TOF_HOLE_D, TOF_HOLE_P, TOF_HOLE_AXIS,
     TOF_PCB_D, TOF_PCB_W, TOF_X, TOF_Y, TOUCH_DEPTH, TOUCH_PAD_L, TOUCH_PAD_W,
-    TOUCH_WALL, TOUCH_Y, VENT_HH, VENT_N, VENT_P, VENT_W, VENT_Y, W, WALL,
+    TOUCH_WALL, TOUCH_Y, VENT_HH, VENT_N, VENT_P, VENT_Y, W, WALL,
+    vent_slots, vent_half_len,
     flat_depth, flex_holes, rear_wall_boards, touch_x, vent_x,
     REAR_BOARD_SCREW, REAR_PILOT_D,
 )
@@ -412,15 +413,36 @@ def _vent_f(f, vy):
     return RW0 - 1.0 + (WALL + 1.0) * f, vy + VENT_RISE * (1.0 - f)
 
 
-for vx in vent_x():
-    for i in range(VENT_N):
-        vy = VENT_Y + i * VENT_P
-        P = []
-        for f in (-0.25, 1.25):                  # past both faces, so it cuts
-            z, yc = _vent_f(f, vy)
-            P += [(x, y, z) for x in (vx - VENT_W / 2, vx + VENT_W / 2)
-                  for y in (yc - VENT_HH, yc + VENT_HH)]
-        cuts.append(Manifold.hull_points(P))
+# >>> OBROUND, NOT RECTANGULAR. A square-ended slot puts a sharp internal corner
+# >>> at each end -- a stress raiser in a thin shell, and on FDM the corner is
+# >>> where the perimeter doubles back and leaves a blob. Semicircular caps of
+# >>> radius VENT_HH make the end a continuous curve at no cost in open area worth
+# >>> counting, and the cap is exactly the slot's half-height so the profile is a
+# >>> true stadium rather than a rectangle with dents.
+# >>> Still ONE hull of two sections: a stadium is convex, so the hull of the two
+# >>> end stadiums is precisely the swept slot -- no stepping, no approximation.
+_CAP_SEG = 12
+
+
+def _stadium(cx, cy, hl, hh, z):
+    """Points of a stadium (obround) of half-length hl, half-height hh, at z."""
+    pts, r = [], hh
+    x_r, x_l = cx + hl - r, cx - hl + r
+    for k in range(_CAP_SEG + 1):                       # right cap, -90..+90
+        a = -math.pi / 2 + math.pi * k / _CAP_SEG
+        pts.append((x_r + r * math.cos(a), cy + r * math.sin(a), z))
+    for k in range(_CAP_SEG + 1):                       # left cap, +90..+270
+        a = math.pi / 2 + math.pi * k / _CAP_SEG
+        pts.append((x_l + r * math.cos(a), cy + r * math.sin(a), z))
+    return pts
+
+
+for vx, vy, _hl, _hh in vent_slots():
+    P = []
+    for f in (-0.25, 1.25):                  # past both faces, so it cuts
+        z, yc = _vent_f(f, vy)
+        P += _stadium(vx, yc, _hl, _hh, z)
+    cuts.append(Manifold.hull_points(P))
 # >>> THE POWER SWITCH -- resolved to rear wall, low and left. It was an open
 # >>> item from the original layout. This band was empty: below the Flex (which
 # >>> starts at y=16) and above the floor, on the opposite side from the UPS.
@@ -684,7 +706,8 @@ say(f"lugs        {len(SCREWS)} x {LUG_L}x{LUG_W}x{LUG_H}, "
     f"{chr(216)}{INSERT_D} blind for M3 heat-set")
 say(f"rear wall   barrel {chr(216)}{BARREL_D} on a {chr(216)}{BARREL_LAND_D} land | "
     f"lux {chr(216)}{LP_D} | {len(vent_x())*VENT_N} louvres "
-    f"{VENT_W}x{2*VENT_HH} | "
+    f"{'/'.join(f'{2*hl:.0f}' for _v, _y, hl, _h in vent_slots())}"
+    f"x{2*VENT_HH} obround, arch-following | "
     f"switch {chr(216)}{SW_D} @ ({SW_WALL_X},{SW_WALL_Y})")
 say(f"bosses      {len(board_bosses)} board bosses, all blind; "
     + ", ".join(f"{_n} M{REAR_BOARD_SCREW.get(_n, BOSS_SCREW)}"
@@ -729,11 +752,12 @@ _open = [("barrel", W / 2 - BARREL_D / 2, W / 2 + BARREL_D / 2,
          ("lux", W / 2 - LP_D / 2, W / 2 + LP_D / 2, LP_Y - LP_D / 2, LP_Y + LP_D / 2),
          ("switch", SW_WALL_X - SW_D / 2, SW_WALL_X + SW_D / 2,
           SW_WALL_Y - SW_D / 2, SW_WALL_Y + SW_D / 2)]
-for vx in vent_x():
-    for i in range(VENT_N):
-        _vy = VENT_Y + i * VENT_P
-        _open.append((f"louvre {i}", vx - VENT_W / 2, vx + VENT_W / 2,
-                      _vy - VENT_HH, _vy + VENT_HH))
+# >>> PER-SLOT NOW THEY TAPER. One shared VENT_W would have over-stated the two
+# >>> upper slots by up to 32 mm of length and could hide a boss that is really
+# >>> clear -- or, worse, the reverse if the bottom one ever grew.
+for _i, (vx, _vy, _hl, _hh) in enumerate(vent_slots()):
+    _open.append((f"louvre {_i} ({2*_hl:.0f} long)", vx - _hl, vx + _hl,
+                  _vy - _hh, _vy + _hh))
 _bw, _bwho = 1e9, ""
 for nm, hx, hy in board_bosses:
     for onm, ox0, ox1, oy0, oy1 in _open:

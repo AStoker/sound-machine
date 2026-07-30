@@ -34,6 +34,35 @@ and it is checked as a **rigid motion**: the hole-to-hole span and each hole's
 four edge distances have to survive it. Both broken forms were re-introduced to
 confirm the check fails (−6.34 for a swap, −8.25 for the original centreline bug).
 
+## Vents — obround, and following the arch
+
+Three equal 72 mm slots stacked read as a rectangle pasted onto a curved shell.
+Now each slot's ends sit a **constant 40 mm in from the arch's inner face** — a
+true offset of the contour rather than a scaled copy, so the ends trace the arch
+and the stack narrows exactly as the shell does:
+
+| slot | y | length | arch inner half-chord |
+|---|---|---|---|
+| 0 | 133 | **59.96** | 69.98 |
+| 1 | 138 | **45.50** | 62.75 |
+| 2 | 143 | **27.60** | 53.80 |
+
+Ends are **obround** — semicircular caps of radius `VENT_HH`, so the profile is a
+true stadium rather than a rectangle with dents. A square end is a stress raiser
+in a thin shell and the spot where an FDM perimeter doubles back and blobs. Still
+one hull of two sections: a stadium is convex, so the hull of the two end stadiums
+is exactly the swept slot.
+
+`VENT_W` is **deleted**. There is no single slot width any more, and leaving the
+name around would invite something to keep using it — the clearance table, the
+drawings and the dome's own "bosses clear every opening" check all read
+`vent_slots()` now, so a slot cannot be one size in the solid and another in the
+check.
+
+Open area drops **432 → 266 mm²**. Verified off the exported STL by sectioning the
+rear wall at mid-thickness: the three loops measure 59.96 / 45.50 / 27.60 × 2.00,
+exact, with 53-point outlines where a rectangle would have 4.
+
 ## Matrix — pin gutters, and why the inset stopped being a free choice
 
 Two requests that pull against each other: shallower window grid, **and** gutters

@@ -273,10 +273,10 @@ def rear_dome():
     # the UPS 5V switch -- a ROUND panel button, low and left
     o.append(circ(SW_WALL_X, fy(SW_WALL_Y), SW_D))
     o.append(circ(SW_WALL_X, fy(SW_WALL_Y), SW_NUT_D, "phan"))
-    for vx in vent_x():                      # ONE stack, centred above the pipe
-        for i in range(VENT_N):
-            o.append(rect(vx - VENT_W/2, fy(vent_y(i)) - VENT_HH,
-                          VENT_W, 2*VENT_HH, "obj", VENT_HH))
+    # >>> EACH SLOT DRAWN AT ITS OWN LENGTH, from vent_slots(). They taper with the
+    # >>> arch now, so a shared width would draw a rectangle the part does not have.
+    for vx, vy, hl, hh in vent_slots():
+        o.append(rect(vx - hl, fy(vy) - hh, 2*hl, 2*hh, "obj", hh))
     return o
 
 
@@ -318,16 +318,19 @@ def rear_dims():
     # >>> ONE VENT STACK NOW, CENTRED. This sheet indexed _vx in five
     # >>> places, from when there were two stacks either side of the UPS.
     _vx = vent_x()[-1]
+    _vhl = [hl for _v, _y, hl, _h in vent_slots()]
     o.append(dim_v(fy(vent_y(0)), fy(0), W + 38, dt(VENT_Y),
-                   ext=_vx + VENT_W/2))
+                   ext=_vx + _vhl[0]))
     o.append(leader(W/2 + BARREL_D/2, fy(BARREL_Y), 46, 26,
                     f"{chr(216)}{dt(BARREL_D)} DC barrel jack - UPS 3S charge in (?)"))
     o.append(leader(W/2 + LP_D/2, fy(LP_Y), 62, 62,
                     f"{chr(216)}{dt(LP_D)} light pipe - BH1750 lux"))
-    o.append(leader(_vx + VENT_W/2, fy(vent_y(VENT_N - 1)), 30, -26,
-                    f"{VENT_N} LOUVRE {dt(VENT_W)} x {dt(2*VENT_HH)} @ "
-                    f"{dt(VENT_P)} - rises {dt(VENT_RISE)} inward, so a level "
-                    f"line of sight is blocked"))
+    o.append(leader(_vx + _vhl[-1], fy(vent_y(VENT_N - 1)), 30, -26,
+                    f"{VENT_N} OBROUND LOUVRE "
+                    f"{'/'.join(dt(2*h) for h in _vhl)} x {dt(2*VENT_HH)} @ "
+                    f"{dt(VENT_P)} - ends follow the arch, {dt(VENT_INSET)} in "
+                    f"from its inner face; rises {dt(VENT_RISE)} inward, so a "
+                    f"level line of sight is blocked"))
     o.append(leader(RTC_WALL_X + RTC_PCB_W/2, fy(RTC_WALL_Y), 34, -34,
                     f"DS3231 RTC {dt(RTC_PCB_W)} x {dt(RTC_PCB_H)}, 4x M"
                     f"{BOSS_SCREW} @ {dt(RTC_HOLE_P)} - I2C 0x68. ON THIS WALL, "
@@ -338,9 +341,10 @@ def rear_dims():
     o.append(leader(SW_WALL_X - SW_NUT_D/2, fy(SW_WALL_Y), -26, 34,
                     f"{chr(216)}{dt(SW_D)} UPS 5V switch - ROUND panel button, "
                     f"on a {chr(216)}{dt(SW_NUT_D + 2*SW_RIB)} land", "end"))
-    o.append(dim_h(_vx - VENT_W/2, _vx + VENT_W/2,
-                   fy(vent_y(0)) + 10, dt(VENT_W), ext=fy(vent_y(0))))
-    o.append(dim_h(W/2, _vx, fy(vent_y(VENT_N-1)) - 9, dt(VENT_W)))
+    o.append(dim_h(_vx - _vhl[0], _vx + _vhl[0],
+                   fy(vent_y(0)) + 10, dt(2*_vhl[0]), ext=fy(vent_y(0))))
+    o.append(dim_h(_vx - _vhl[-1], _vx + _vhl[-1],
+                   fy(vent_y(VENT_N-1)) - 9, dt(2*_vhl[-1])))
     o.append(leader(UPS_WALL_X - UPS_W/2, fy(BP_T + UPS_H*0.30), -16, 18,
                     f"UPS 3S {dt(UPS_W)} x {dt(UPS_H)}, standing (jack lands here)",
                     "end"))
