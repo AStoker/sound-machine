@@ -69,12 +69,31 @@ Details worth remembering:
   a look on the test print: if you see two faint bands along the top and bottom of
   the clock, that is what they are.
 
+### The grid's boundary cells had no walls
+
+Andy spotted it in the model: 288 cells with **0.74 mm** walls between them, and
+**0.30 mm** walls closing the top and bottom rows. At a 0.4 nozzle that is one
+sub-nozzle trace, so the boundary cells slice as open — the grid visibly stops
+having joining walls at its edges.
+
+Cause: `MTX_GUTTER_WEB = 0.3`, a keep-out I picked for the gutter without ever
+comparing it to the web the grid already uses. It is now **derived** —
+`MTX_LED_PITCH - MTX_WINDOW` — so the perimeter wall is the same wall as every
+inner one and cannot become the odd one out again. The gutters narrow to 2.30 /
+2.04 mm, still covering a 0.1" header row at 0.5–1.8 mm from the board edge.
+
 ### Two checks that were wrong before they were right
 
 - **A tautological one.** `(MTX_INSET - MTX_GUTTER_D) - MTX_FACADE_MIN` reported
   `ok 0.00` the moment `MTX_INSET` became the sum of those two terms — it was
   subtracting a number from itself. Replaced with `_facade_measured`, which walks
   the actual solid backwards from the facade and finds where material stops.
+- **The perimeter-web check hit the same trap, twice over.** Comparing
+  `MTX_GUTTER_WEB` to `MTX_LED_PITCH - MTX_WINDOW` after deriving the first from
+  the second can only ever print `0.00`. It now walks the solid outward from the
+  gutter edge until material runs out, so a gutter that overran and merged with the
+  outermost row of windows would show up. Verified by re-breaking: 0.300 → `FAIL
+  -0.44`, 0.060 → `FAIL -0.68`.
 - **And it immediately caught a frame bug in itself.** The first version read
   `body` instead of `part_body`. Those differ by the STL export shift
   `(-REVEAL, -BP_T)`, so it was measuring 2.5 mm sideways into solid lip, happily

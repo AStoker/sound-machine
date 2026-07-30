@@ -38,6 +38,13 @@ RIM = 6.0        # full-thickness border outside the pocket, to hold and to
                  #   stop the coupon curling off the bed
 Z_HEAD = 3.0     # air above the tallest clip
 
+def union_all(parts):
+    out = parts[0]
+    for p in parts[1:]:
+        out = out + p
+    return out
+
+
 _out = []
 
 
@@ -75,6 +82,35 @@ CD = _fp.BP_ZB + _fp.CLIP_STACK_CLR + _fp.CLIP_RUN + _fp.CLIP_RAMP \
 
 box = Manifold.cube((CW, CH, CD)).translate((X0, Y0, 0.0))
 body = full ^ box
+_v_with_ribs = body.volume()
+
+# --- drop the facade stiffening ribs ----------------------------------------
+# >>> THE RIBS ARE 2.5 cm^3 OF A 14.3 cm^3 COUPON -- nearly a fifth of it, spent on
+# >>> two 3 mm walls running the full length at 13 mm tall. They stiffen the real
+# >>> facade against warping over 200 mm; on a 103 mm test tile they do nothing but
+# >>> burn filament and print time.
+# >>>
+# >>> CUT BY RULE, NOT BY COORDINATE. The rule is "nothing above the back face
+# >>> except the clips" -- so this removes everything above z = FP_T and then keeps
+# >>> a column around each clip. Listing the ribs' own y positions instead would be
+# >>> a second copy of gen_front_plate's rib layout, which is precisely the
+# >>> duplication this file exists to avoid: move a rib there and the coupon would
+# >>> quietly stop deleting it (or start deleting a clip).
+# >>> ASKED WHICH LIST, NOT WHICH VALUE. The first version tested
+# >>> `_cx in CLIP_TOP_X` to decide whether a clip was on the top edge -- but the
+# >>> top and bottom clips sit at the SAME x, so every clip tested as a top clip
+# >>> and both bottom keep-columns were built 30 mm away. The cut then removed both
+# >>> bottom clips, and the "bottom clip hook" checks caught it immediately.
+_keep = []
+for _top, _xs in ((True, _fp.CLIP_TOP_X), (False, _fp.CLIP_BOT_X)):
+  for _cx in _xs:
+    _y0 = (_fp.TRAY_Y0 + _fp.TRAY_H - 2.5) if _top \
+        else (_fp.TRAY_Y0 - _fp.MTX_POCKET - 1.0)
+    _keep.append(Manifold.cube(
+        (_fp.CLIP_W + 2.0, _fp.MTX_POCKET + 3.5, CD + 2.0)
+    ).translate((_cx - _fp.CLIP_W / 2 - 1.0, _y0, -1.0)))
+_tall = Manifold.cube((CW, CH, CD + 2.0)).translate((X0, Y0, _fp.FP_T))
+body = body - (_tall - union_all(_keep))
 
 # >>> ...AND THEN CHECK THE BITE ACTUALLY CONTAINS THE FEATURES. An intersection
 # >>> always succeeds; it just returns less. Get the window wrong and this file
@@ -146,6 +182,19 @@ want("facade lip is present outside the LED field",
 want("pocket floor is at the inset, not the back face",
      not solid_at(_fp.W / 2 - _fp.CLK_W / 2 - 1.0, _fp.CLK_Y,
                   _fp.MTX_INSET + 0.5))
+# >>> THE RIBS MUST BE GONE **AND** THE CLIPS MUST NOT BE. One assertion without
+# >>> the other is useless: cut nothing and the "clips present" checks above still
+# >>> pass; cut everything above the back face and they fail, which is the point of
+# >>> checking both directions. Probe the rib band, outside every clip column.
+_rib_z = _fp.FP_T + 2.0
+for _i, _ry in ((0, _fp.TRAY_Y0 - _fp.MTX_POCKET - 3.0),
+                (1, _fp.TRAY_Y0 + _fp.TRAY_H + _fp.MTX_POCKET + 3.0)):
+    want(f"stiffening rib {_i} has been removed (filament saving)",
+         not solid_at(_fp.MTX_X0 + 3.0, _ry, _rib_z, 0.8))
+want("...but the clips still reach above the back face",
+     solid_at(_fp.CLIP_BOT_X[0], _fp.TRAY_Y0 - _fp.CLIP_GAP - _fp.CLIP_T / 2,
+              _rib_z, 0.4))
+
 want("coupon has a solid rim to hold",
      solid_at(X0 + RIM / 2, Y0 + RIM / 2, _fp.FP_T / 2))
 
@@ -181,6 +230,9 @@ say("")
 say(f"wrote models/matrix-testfit.stl   {nf} triangles")
 say(f"coupon      {bb[3]-bb[0]:.1f} x {bb[4]-bb[1]:.1f} x {bb[5]-bb[2]:.1f} mm, "
     f"{body.volume()/1000:.1f} cm^3")
+say(f"            ribs deleted: {_v_with_ribs/1000:.1f} -> "
+    f"{body.volume()/1000:.1f} cm^3, {100*(1-body.volume()/_v_with_ribs):.0f}% less "
+    f"filament (they stiffen a 200 mm facade, not a 103 mm tile)")
 say(f"            (the front module is {full.volume()/1000:.1f} cm^3 -- "
     f"{full.volume()/body.volume():.0f}x this)")
 say("")

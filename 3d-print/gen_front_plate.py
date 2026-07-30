@@ -123,7 +123,17 @@ _UNUSED_STANDOFF = 0.6  # was: posts stand the boards off the facade a touch, so
 MTX_PIN_H    = 0.8    # (?) trimmed header pin, above the LED-side PCB face -- MEASURE
 MTX_GUTTER_CLR = 0.15 # air over the pin tip, so it never sets the seating height
 MTX_GUTTER_D = MTX_PIN_H + MTX_GUTTER_CLR
-MTX_GUTTER_WEB = 0.3  # keep-out between the gutter and the nearest LED window
+# >>> THE PERIMETER WALL IS THE SAME WALL AS EVERY OTHER ONE, so it is derived
+# >>> from the grid instead of being its own number. This was 0.3 -- a keep-out I
+# >>> picked for the gutter without ever comparing it to the web the grid already
+# >>> uses (2.54 pitch - 1.8 window = 0.74). The result: 288 cells with 0.74 mm
+# >>> walls between them and 0.30 mm walls closing the top and bottom rows. At a
+# >>> 0.4 nozzle that is one sub-nozzle trace, so the boundary cells slice as OPEN
+# >>> -- the grid visibly stops having joining walls at its edges, which is exactly
+# >>> what Andy spotted in the model.
+# >>> Tying it to the pitch means the boundary can never again be the odd one out.
+MTX_GUTTER_WEB = MTX_LED_PITCH - MTX_WINDOW      # = 0.74, same as every inner web
+MTX_PIN_ROW_BAND = (0.5, 1.8)   # where a 0.1" header row sits, from the board edge
 # >>> 0.45, NOT 0.4. Two layers at 0.2 is the structural floor, but this is the
 # >>> VISIBLE face and PLA at 0.4 glows: a lit display could show two faint bands
 # >>> along the top and bottom of the clock. 0.45 is three layers at 0.15 or a
@@ -1240,6 +1250,39 @@ for _i, (_px, _py) in enumerate(mtx_posts):
     probe(f"post {_i} still stands on solid lip (pedestal)", _px, _py, _gz_mid,
           size=0.3)
 
+# --- the grid's boundary walls, and what the gutters have left ---------------
+_ymin_led = min(y for _, y in led_xy)
+_ymax_led = max(y for _, y in led_xy)
+# >>> MEASURED IN THE SOLID, not computed from MTX_GUTTER_WEB. Now that the web is
+# >>> DERIVED from the pitch, "web == inner web" is true by construction and a
+# >>> check that compares the two constants can only ever print 0.00 -- the same
+# >>> self-referential trap the facade-thickness check fell into. Walking the body
+# >>> can still disagree: if a gutter overran and merged with the outermost row of
+# >>> windows, the wall would be gone and only the solid would know.
+def _wall_span(x, y_start, direction, z, limit=3.0, step=0.02):
+    """March from y_start while material lasts; return how far it lasted."""
+    d = 0.0
+    while d < limit:
+        _c = Manifold.cube((0.15, step, 0.15)).translate(
+            (x - 0.075, y_start + direction * (d + step / 2) - step / 2,
+             z - 0.075))
+        if (part_body ^ _c).volume() <= 1e-9:
+            break
+        d += step
+    return d
+
+
+_xcol = led_xy[0][0]                      # an LED column, so we hit a window
+_web_bot = _wall_span(_xcol, MTX_GUTTERS[0][1], +1, MTX_INSET / 2)
+_web_top = _wall_span(_xcol, MTX_GUTTERS[1][0], -1, MTX_INSET / 2)
+_gut_w_bot = MTX_GUTTERS[0][1] - MTX_GUTTERS[0][0]
+_gut_w_top = MTX_GUTTERS[1][1] - MTX_GUTTERS[1][0]
+say("")
+say(f"grid edges  perimeter web {_web_bot:.3f} bottom / {_web_top:.3f} top, "
+    f"against {MTX_LED_PITCH - MTX_WINDOW:.3f} between every inner cell")
+say(f"            gutters left {_gut_w_bot:.2f} / {_gut_w_top:.2f} wide, "
+    f"a 0.1\" row sits {MTX_PIN_ROW_BAND[0]}-{MTX_PIN_ROW_BAND[1]} from the edge")
+
 # --- how thick is the facade in front of a gutter, really? -------------------
 # >>> WALK THE SOLID. Sampling z from the facade backwards at the gutter centre and
 # >>> finding where material stops is the only version of this that can disagree
@@ -1445,6 +1488,21 @@ checks = [
      - (MTX_GUTTERS[0][1] - TRAY_Y0)),
     ("LED plane is closer to the facade than the pins used to hold it",
      (MTX_INSET + MTX_PIN_H) - MTX_INSET - 0.001),
+    # >>> THE BOUNDARY CELLS MUST BE WALLED LIKE THE INNER ONES. Measured off the
+    # >>> solid, then compared to the INNER web -- not to a threshold of its own.
+    # >>> A number of its own is how the perimeter came to be 0.30 against 0.74
+    # >>> inside: it passed every check because nothing ever compared the two.
+    (f"bottom perimeter web {_web_bot:.3f} >= inner web "
+     f"{MTX_LED_PITCH - MTX_WINDOW:.3f}",
+     _web_bot - (MTX_LED_PITCH - MTX_WINDOW) + 1e-9),
+    (f"top perimeter web {_web_top:.3f} >= inner web "
+     f"{MTX_LED_PITCH - MTX_WINDOW:.3f}",
+     _web_top - (MTX_LED_PITCH - MTX_WINDOW) + 1e-9),
+    # ...and the wall must not have eaten the gutter it borders.
+    (f"bottom gutter still covers a 0.1\" header row "
+     f"({_gut_w_bot:.2f} wide)", _gut_w_bot - MTX_PIN_ROW_BAND[1]),
+    (f"top gutter still covers a 0.1\" header row "
+     f"({_gut_w_top:.2f} wide)", _gut_w_top - MTX_PIN_ROW_BAND[1]),
 ]
 bad += [c for c in checks if c[1] < 0]
 for nm, v in checks:
