@@ -23,11 +23,16 @@ to, every rear-wall board and opening, and the crown controls.
 >>> six that hold the bottom plate are the only fasteners you can see, and they
 >>> are on the underside.
 
->>> EVERY BOARD GETS A FLAT. The crown is a cylinder and the walls curve above
->>> the springing line, so a PCB laid straight on either rocks and skews its
->>> connectors. Boards on curved surfaces sit in a shallow pocket milled into the
->>> INSIDE -- never the outside, which stays smooth. Depth is derived from the
->>> arch's own sagitta, see enclosure_geom.flat_depth().
+>>> EVERY BOARD LANDS ON A PLANE -- BUILT UP, NOT MILLED IN. The crown is a
+>>> cylinder and the walls curve above the springing line, so a PCB laid straight
+>>> on either rocks and skews its connectors. The fix is NOT a pocket milled into
+>>> the inside: that was tried and abandoned, because the pocket is a lens with a
+>>> knife edge where its plane meets the curved surface, and it severed the bosses
+>>> reaching up through it. Instead a board's bosses are all cut to the SAME tip
+>>> height -- the lowest of its own local ceilings, less its standoff -- so the
+>>> tips are coplanar and the board sits flat on them. Only the KNOB's seating pad
+>>> is still a milled pocket (enclosure_geom.flat_depth()), and that one is in the
+>>> OUTER skin where there is no boss to sever.
 
     python3 gen_dome.py     ->  models/dome.stl
 """
@@ -40,16 +45,16 @@ from manifold3d import CrossSection, Manifold
 from enclosure_geom import (
     ARCH_R, ARCH_RY, ARCH_Y, BARREL_D, BARREL_LAND_D, BARREL_NUT_D, BARREL_Y,
     BOSS_CHAMF, BOSS_D, BOSS_MIN_WALL, BOSS_PILOT_D, BOSS_SCREW, BP_T, D,
-    ENC_FLAT_D, ENC_FLAT_W, ENC_HOLE_P, ENC_HOLE_AXIS, ENC_PCB, ENC_SHAFT_D, ENC_Y,
+    ENC_SHAFT_D, ENC_Y,
     FLEX_BOSS_D, FLEX_HOLE_D, FLEX_STANDOFF, FLEX_WALL_Y, H, IN_D, IN_W, INSERT_D,
     KNOB_BOSS_D, LIP_T, LIP_W, LP_D, LP_Y, LUG_H, LUG_L, LUG_W, MODEL_DIR,
     RIB_T, RIB_W, R_BOT, REVEAL, FP_CLR, FP_T, SCREWS, SEAT_W, SLOT_W, STANDOFF_H, SW_RIB,
-    SW_D, SW_NUT_D, SW_WALL_X, SW_WALL_Y, VENT_RISE, TOF_FLAT_D, TOF_FLAT_W,
-    TOF_HOLE_D, TOF_HOLE_P, TOF_HOLE_AXIS,
+    SW_D, SW_NUT_D, SW_WALL_X, SW_WALL_Y, VENT_RISE,
+    TOF_HOLE_D, TOF_BOARD_GAP,
     TOF_PCB_D, TOF_PCB_W, TOF_X, TOF_Y, TOUCH_DEPTH, TOUCH_PAD_L, TOUCH_PAD_W,
     TOUCH_WALL, TOUCH_Y, VENT_HH, VENT_N, VENT_P, VENT_Y, W, WALL,
-    vent_slots, vent_half_len,
-    flat_depth, flex_holes, rear_wall_boards, touch_x, vent_x,
+    vent_slots, vent_half_len, BOSS_GAP_MIN,
+    flat_depth, flex_holes, rear_wall_boards, crown_boards, touch_x, vent_x,
     REAR_BOARD_SCREW, REAR_PILOT_D,
 )
 
@@ -60,12 +65,9 @@ BED = 220.0
 SEAT_LEDGE_T = 2.0    # thickness of the bottom-plate seating ledge
 GUSSET       = 45.0   # degrees; the support-free angle everything is built to
 LUG_GUSSET   = 6.0    # how far a lug's gusset reaches down the wall
-CROWN_FLAT_R = 3.0    # corner radius on a crown mounting flat
-FLAT_MARGIN_LOCAL = 1.6   # extra depth beyond the computed sagitta
 BOSS_OVERLAP = 1.0        # how far a crown boss reaches into the ceiling
 RAMP_STEP    = 0.5        # step size on a 45 deg support ramp
 RAMP_MIN     = 2.0        # least section a ramp step may be built with
-TOF_STAND    = 2.0        # ToF board standoff -- short, to sit near the skin
 
 _out = []
 
@@ -186,6 +188,23 @@ def crown_inner_y(x):
     there actually lands on."""
     a, b = ARCH_R - WALL, ARCH_RY - WALL
     return ARCH_Y + b * math.sqrt(max(1.0 - ((x - W / 2) / a) ** 2, 0.0))
+
+
+def crown_outer_y(x):
+    """Height of the crown's OUTER skin at this x -- the ceiling that nothing
+    built inside the shell may pass through.
+
+    >>> THE CROWN FEATURES ONLY KNEW ABOUT THE INNER SURFACE, and everything that
+    >>> reaches UP into the wall to fuse was written as `inner + a constant`. That
+    >>> holds near the apex, where the skin is flat enough that a millimetre or two
+    >>> of overshoot at a feature's CENTRE is still inside the skin at its EDGES.
+    >>> It stops holding out on the shoulder: the ToF's outboard buttress overshot
+    >>> its own local ceiling by 2.0 and came out through the skin 0.19 mm at its
+    >>> outboard corner. The containment guard caught it -- which is what the guard
+    >>> is for -- but a feature that has to be trimmed to stay legal is a feature
+    >>> built wrong, so the overshoot is clamped against this instead.
+    """
+    return ARCH_Y + ARCH_RY * math.sqrt(max(1.0 - ((x - W / 2) / ARCH_R) ** 2, 0.0))
 
 
 def union(parts, what="solid"):
@@ -321,8 +340,33 @@ body = body - _ramp_void
 # >>> Nothing is lost: the plate's FRONT edge was never carried by the ledge. It
 # >>> is captured between the seating ledge behind it and the front module's own
 # >>> bottom edge in front -- which is exactly what the notes always said.
+# >>> THE LEDGE IS EMBEDDED IN THE WALL, NOT BUTTED AGAINST IT -- and that one
+# >>> word is worth 0.5 mm of nothing and a whole class of mesh failure.
+# >>> annulus(WALL, ...) puts the ledge's OUTER face exactly on the cavity
+# >>> boundary, which is the plane the cavity was cut on. Two coincident faces,
+# >>> and the file has already paid for coincident faces three times (the crown
+# >>> buttresses' tangent planes, their tip caps, the stepped louvres). Here it
+# >>> produced a ZERO-VOLUME four-face flap on the left wall at y = BP_T, z =
+# >>> 24.1..29.0 -- a detached second body in the STL with no material in it.
+# >>>
+# >>> It hid for a long time because the body count is only measured when trimesh
+# >>> imports, the union order decides whether the flap lands on one side of the
+# >>> plane or the other, and NOTHING about the ledge had to change for it to
+# >>> appear -- adding two bosses per crown board was enough to flip it.
+# >>>
+# >>> Reaching LEDGE_BURY into the wall makes the union overlap solid material
+# >>> instead of meeting it. Geometrically it is a no-op: the wall already spans
+# >>> inset 0..WALL, so the extra ring is inside existing material and the volume
+# >>> and bounding box are unchanged to 4 decimal places. Only the topology moves.
+# >>>
+# >>> THE RIB AND ITS RAMP BLOCK MUST NOT GET THE SAME TREATMENT, even though they
+# >>> are written with the same annulus(WALL, ...). Their outer bound at inset WALL
+# >>> is load-bearing: _ramp_void's far section is lofted to d_points(WALL), so
+# >>> material pushed outboard of that would not be cut away and the 45 deg ramp
+# >>> would come back as a shelf. Only the ledge is free to be buried.
+LEDGE_BURY = 0.5          # how far the ledge reaches INTO the wall, to fuse
 LEDGE_Z0 = LIP_T + SLOT_W
-ledge = annulus(WALL, WALL + SEAT_W)
+ledge = annulus(WALL - LEDGE_BURY, WALL + SEAT_W)
 ledge = ledge ^ rect2(0.0, BP_T, W, SEAT_LEDGE_T)
 body = body + slab(ledge, LEDGE_Z0, CAV_Z1)
 
@@ -532,22 +576,12 @@ for tx in touch_x():
                      TOUCH_DEPTH + TOUCH_PAD_L / 2))
 
 # --- crown board mounts -----------------------------------------------------
-# >>> BOSSES GO IN BEFORE THE FLAT IS CUT, NOT AFTER. A boss added afterwards can
-# >>> only ever TOUCH the new ceiling plane -- coplanar faces, which manifold
-# >>> reports as separate bodies, and the ToF's pair ended up floating in mid-air.
-# >>> Built first and extended UP INTO the wall, the boss is fused with the shell
-# >>> before anything is removed; the flat then trims boss and ceiling together
-# >>> out of one solid, and they cannot come apart.
-def crown_flat_cut(cx, cz, fw, fd):
-    """Mill a flat into the INSIDE of the crown. Confined to the cavity so the
-    outer skin is never touched. Returns (cut, flat_y)."""
-    dx = abs(cx - W / 2) + fw / 2
-    a, b = ARCH_R - WALL, ARCH_RY - WALL
-    y_low = ARCH_Y + b * math.sqrt(max(1.0 - (dx / a) ** 2, 0.0))
-    y_flat = y_low - FLAT_MARGIN_LOCAL
-    box = slab(rect2(cx - fw / 2, y_flat, fw, H + 2 - y_flat),
-               cz - fd / 2, cz + fd / 2)
-    return box ^ slab(d_outline(WALL, ybot=YBOT_OUT), CAV_Z0, CAV_Z1), y_flat
+# >>> EVERY CROWN BOSS REACHES UP INTO THE WALL RATHER THAN STOPPING AT IT. A boss
+# >>> that only meets the ceiling shares a face with it -- coplanar faces, which
+# >>> manifold reports as separate bodies, and the ToF's pair once ended up
+# >>> floating in mid-air. Extended past the ceiling it is fused with the shell,
+# >>> and the containment guard plus the skin clamp in crown_boss_ramp() keep the
+# >>> overshoot from coming out through the outside.
 
 
 def crown_boss(cx, cz, tip_y, top_y):
@@ -606,7 +640,29 @@ def crown_boss_ramp(cx, cz, tip_y, ceil_y, step=0.5):
     # >>> plane; the boss's last 0.2 mm of rear face is a trivial overhang.
     TIP_GAP = 0.2
     x0, x1 = cx - RW / 2, cx + RW / 2
-    y_bot, y_top = tip_y + TIP_GAP, ceil_y + 2.0
+    # >>> THE OVERSHOOT IS CLAMPED TO THE SKIN, NOT A FLAT 2.0. It reaches above
+    # >>> the local ceiling so it fuses into the wall instead of merely touching it
+    # >>> -- but "the local ceiling" is measured at the boss CENTRE, and on the
+    # >>> shoulder the skin has fallen away by the time you reach the buttress's
+    # >>> outboard corner. +2.0 there put 0.19 mm of the ToF's outer buttress
+    # >>> OUTSIDE the machine. Clamped against the skin over the buttress's own
+    # >>> footprint it still overlaps the wall by ~1.7 mm, which is ample to fuse.
+    SKIN_KEEP = 0.3           # skin left above the buttress, at its worst corner
+    y_top = min(ceil_y + 2.0,
+                min(crown_outer_y(x0), crown_outer_y(x1)) - SKIN_KEEP)
+    y_bot = tip_y + TIP_GAP
+    # >>> AND IF THE CLAMP EATS THE WHOLE OVERLAP, SAY SO. Below the local ceiling
+    # >>> the buttress only TOUCHES the shell, which is the coplanar-faces failure
+    # >>> this whole function was rewritten to escape -- and the taper points at
+    # >>> ceil_y would sit above y_top and invert the wedge. A crown board pushed
+    # >>> this far down the shoulder needs moving, not a silently broken buttress.
+    if y_top <= ceil_y + 0.2:
+        raise SystemExit(
+            f"crown_boss_ramp at x={cx:.2f}: the skin is only "
+            f"{min(crown_outer_y(x0), crown_outer_y(x1)) - ceil_y:.2f} mm above "
+            f"the ceiling here, so the buttress cannot reach into the wall to "
+            f"fuse. This boss is too far down the shoulder -- move the board "
+            f"inboard rather than relaxing SKIN_KEEP.")
     # full height from the boss centre to its rear tangent, then a true 45 deg
     # taper back up to the ceiling over `drop`.
     P = [(x, y, z) for z in (cz, z0) for x in (x0, x1) for y in (y_bot, y_top)]
@@ -630,31 +686,48 @@ crown_mounts = []
 # >>> the KNOB does not care either way: it seats on its own round pocket milled
 # >>> into the OUTER skin, which is what keeps the visible part square.
 # >>>
-# >>> So both boards simply follow the arch. Each boss tip sits the same short
-# >>> standoff below its OWN local ceiling, so the board tilts to match the crown
-# >>> and sits as flush as it can -- which is what was wanted for the ToF anyway.
-# >>> EACH BOARD'S HOLE PAIR RUNS ON ITS OWN AXIS. The ToF is mounted LONGWISE
-# >>> front-to-back so its narrow edge clears the encoder -- so its holes are
-# >>> separated along the DEPTH. Treating that pitch as an x separation put one
-# >>> ToF boss 2.9 mm INSIDE an encoder boss, and put both of them outside the
-# >>> ToF board's own 17.8 mm width. A hole pitch wider than its own board is
-# >>> impossible; that was the tell, and the axis was the cause.
+# >>> THE FLAT IS STILL NOT CUT -- BUT THE BOARDS NO LONGER FOLLOW THE ARCH
+# >>> EITHER, AND THAT REVERSAL IS THE POINT. Each boss tip used to sit the same
+# >>> standoff below its OWN local ceiling, so a board tilted to match the crown.
+# >>> That was harmless while it was argued -- and it was argued about the ENCODER,
+# >>> which is centred on the apex and whose two bosses were on one x. It does not
+# >>> survive the real hole patterns:
+# >>>
+# >>>   * Both boards have FOUR holes, so both now span x, and the arch falls away
+# >>>     across that span. The encoder is still symmetric about the apex (all four
+# >>>     of its bosses are at |dx| = 10.16, so all four ceilings are equal and it
+# >>>     is flat either way) -- but the ToF is OFF the apex, from dx 16.7 to 30.9,
+# >>>     where the ceiling drops 2.6 mm across its 12.7 mm hole span. Following the
+# >>>     arch there tilts the board 11.5 deg.
+# >>>   * 11.5 deg is not a rounding error on a ToF. Its pinhole is a VERTICAL bore
+# >>>     and its FoV is a 25 deg cone: tilting the sensor 11.5 deg off the bore's
+# >>>     axis throws nearly half the cone into the side of the hole. The board that
+# >>>     most needed to sit flush was the one the arch treated worst.
+# >>>
+# >>> So each board's four tips are made COPLANAR -- all at the LOWEST of its four
+# >>> local ceilings, less its standoff -- and the bosses nearer the apex simply
+# >>> grow to reach it. That buys the flat's whole benefit with ADDED material
+# >>> instead of removed material, so there is no lens, no knife edge, and none of
+# >>> the mesh trouble that made cutting one a dead end. A boss growing 2.6 mm is
+# >>> free; its 45 deg buttress grows with it.
 _crown_bosses = []
-for _nm, _cx, _cz, _hp, _axis, _stand in (
-        ("encoder", W / 2, ENC_Y, ENC_HOLE_P, ENC_HOLE_AXIS, STANDOFF_H),
-        ("ToF", TOF_X, TOF_Y, TOF_HOLE_P, TOF_HOLE_AXIS, TOF_STAND)):
-    for _s in (-1, 1):
-        _bx = _cx + (_s * _hp / 2 if _axis == "x" else 0.0)
-        _bz = _cz + (_s * _hp / 2 if _axis == "depth" else 0.0)
+for _nm, _cx, _cz, _bw, _bd, _offs, _stand in crown_boards():
+    # ONE plane per board, set by its worst (lowest) ceiling, so the board is flat.
+    _tip = min(crown_inner_y(_cx + _dx) for _dx, _ in _offs) - _stand
+    for _dx, _dz in _offs:
+        _bx, _bz = _cx + _dx, _cz + _dz
         _ceil = crown_inner_y(_bx)
-        _b, _p = crown_boss(_bx, _bz, _ceil - _stand, _ceil + 1.2)
+        _b, _p = crown_boss(_bx, _bz, _tip, _ceil + 1.2)
         adds.append(_b)
-        _rblk = crown_boss_ramp(_bx, _bz, _ceil - _stand, _ceil)
+        _rblk = crown_boss_ramp(_bx, _bz, _tip, _ceil)
         if _rblk is not None:
             adds.append(_rblk)
         pilots.append(_p)
-        _crown_bosses.append((_nm, _bx, _bz))
-    crown_mounts.append((_nm, _cx, _cz, crown_inner_y(_cx) - _stand))
+        # >>> THE TIP IS RECORDED, NOT RE-DERIVED. The flatness check below has to
+        # >>> measure what was BUILT; recomputing min(ceiling) - standoff there
+        # >>> would just restate this line's formula and pass no matter what.
+        _crown_bosses.append((_nm, _bx, _bz, _tip))
+    crown_mounts.append((_nm, _cx, _cz, _tip))
 
 body = body + union(adds, 'adds')
 body = body - union(cuts, 'cuts')
@@ -783,16 +856,52 @@ _swept = union([_travel.translate((0.0, -_t, 0.0))
 chk("front module can slide UP into its groove (mm^3 in the way)",
     -(_swept ^ body).volume())
 
-# >>> THE TWO CROWN BOARDS MUST NOT SHARE A BOSS. The ToF's pair was placed on
-# >>> the x axis when it belongs on the depth axis, which drove one of its bosses
-# >>> 2.9 mm INSIDE an encoder boss.
-_cw = min(math.hypot(_ax - _bx2, _az - _bz2) - BOSS_D
-          for _an, _ax, _az in _crown_bosses
-          for _bn, _bx2, _bz2 in _crown_bosses if _an != _bn)
-chk("encoder and ToF bosses do not intersect", _cw)
-# ...and each board's hole pitch has to fit the board it belongs to
-chk("ToF hole pitch fits its own board", TOF_PCB_D - TOF_HOLE_P)
-chk("encoder hole pitch fits its own board", ENC_PCB - ENC_HOLE_P)
+# >>> THE TWO CROWN BOARDS MUST NOT SHARE A BOSS -- AND WITH FOUR HOLES EACH THIS
+# >>> IS 16 PAIRS, NOT ONE. It was nearly missed twice for the same reason: the
+# >>> boards' hole rows sit at IDENTICAL depths (both patterns are 20.32 along the
+# >>> depth and both boards are centred on ENC_Y), so a neighbouring pair is
+# >>> separated in x ALONE and the diagonal that would have saved it is not there.
+# >>> Against a 1.5 mm board-edge gap that left 0.59 mm between two Ø6 posts --
+# >>> not an intersection, so the old two-boss check would have passed it, and
+# >>> 0.59 mm of PETG between two posts prints as one blob. Hence BOSS_GAP_MIN and
+# >>> a check with real clearance in it rather than bare non-intersection.
+_cw, _cwho = 1e9, ""
+for _an, _ax, _az, _at in _crown_bosses:
+    for _bn, _bx2, _bz2, _bt in _crown_bosses:
+        if _an == _bn:
+            continue
+        _g = math.hypot(_ax - _bx2, _az - _bz2) - BOSS_D
+        if _g < _cw:
+            _cw, _cwho = _g, f"{_an} ({_ax:.1f},{_az:.1f}) <-> {_bn}"
+say(f"  ---- {_cw:8.2f}   tightest crown pair: {_cwho}")
+chk(f"crown bosses keep {BOSS_GAP_MIN} mm of plastic between boards",
+    _cw - BOSS_GAP_MIN)
+say(f"  ---- {TOF_BOARD_GAP:8.2f}   resulting ToF/encoder BOARD-edge gap")
+
+# ...and every hole has to be ON the board it belongs to. A pitch could be wider
+# than its own board (the ToF's was, and that was the tell); a corner inset
+# cannot -- so this now checks the thing that is still capable of going wrong,
+# which is a board being handed its pattern the wrong way round.
+for _nm, _cx, _cz, _bw, _bd, _offs, _stand in crown_boards():
+    for _dx, _dz in _offs:
+        chk(f"{_nm} hole ({_dx:+.2f},{_dz:+.2f}) sits on its own board",
+            min(_bw / 2 - abs(_dx), _bd / 2 - abs(_dz)))
+
+# >>> EACH CROWN BOARD MUST SIT FLAT, because the ToF's pinhole is a VERTICAL bore
+# >>> through the crown and a tilted sensor aims its 25 deg cone into the side of
+# >>> it. Measured the way it actually matters: the spread of the four boss TIPS,
+# >>> which is zero only if they were built coplanar. Following the arch instead
+# >>> put 2.58 mm of spread across the ToF -- an 11.5 deg tilt.
+for _nm, _cx, _cz, _bw, _bd, _offs, _stand in crown_boards():
+    _tips = [_t for _n, _, _, _t in _crown_bosses if _n == _nm]
+    _span = max(abs(_dx) for _dx, _ in _offs) * 2
+    _tilt = math.degrees(math.atan2(max(_tips) - min(_tips), _span))
+    # what following the arch WOULD have given, so the number stays visible
+    _arch = [crown_inner_y(_cx + _dx) - _stand for _dx, _ in _offs]
+    _was = math.degrees(math.atan2(max(_arch) - min(_arch), _span))
+    say(f"  ---- {_tilt:8.3f}   {_nm} board tilt (deg) over {_span:.2f} mm of x "
+        f"-- following the arch instead would give {_was:.2f}")
+    chk(f"{_nm} board sits flat, not on the arch", 0.05 - _tilt)
 
 # >>> THE LOUVRE HAS TO DO BOTH JOBS, so both are checked on the built solid, not
 # >>> assumed from the numbers. A slot that blocks the view but is not actually
@@ -905,8 +1014,38 @@ for _sx, _sd in SCREWS:
     chk(f"tab ({_sx:.0f},{_sd:.0f}) has a screw hole up it",
         _depth - (LUG_H - BOSS_MIN_WALL - 1.0))
 
+# >>> THE MESH VALIDATION IS THE MOST IMPORTANT BLOCK IN THIS FILE AND IT WAS
+# >>> SILENTLY OFF. It was wrapped in `except ImportError: say("no trimesh")` --
+# >>> but the try block is ~180 lines long and imports numpy inside it, and
+# >>> trimesh's split() needs SCIPY for connected components. scipy was missing,
+# >>> so every run printed "validate skipped: no trimesh" while trimesh was
+# >>> installed and fine. Watertightness, the body count and the board-envelope
+# >>> test had not run in a long time, and a detached body was sitting in the STL.
+# >>>
+# >>> A blanket ImportError round a large block reports the wrong cause and then
+# >>> skips work nobody asked it to skip. The imports are hoisted out and named, so
+# >>> a missing dependency says WHICH one -- and only the import can be skipped,
+# >>> never the checks.
+_missing = []
 try:
     import trimesh
+except ImportError:
+    _missing.append("trimesh")
+try:
+    import scipy                                            # noqa: F401
+except ImportError:
+    _missing.append("scipy (trimesh.split needs it for connected components)")
+try:
+    import numpy                                            # noqa: F401
+except ImportError:
+    _missing.append("numpy")
+
+if _missing:
+    say("")
+    say("*** MESH VALIDATION DID NOT RUN -- missing: " + ", ".join(_missing))
+    say("    pip install trimesh scipy numpy networkx")
+    bad.append("mesh validation could not run: missing " + ", ".join(_missing))
+else:
     tm = trimesh.load(os.path.join(MODEL_DIR, "dome.stl"))
     n_bodies = len(tm.split(only_watertight=False))
     say("")
@@ -1023,9 +1162,14 @@ try:
                (W / 2, KNOB_Z, ENC_SHAFT_D / 2, H - 26.0, H + 1.5, "encoder shaft"),
                (W / 2, KNOB_Z, KNOB_BOSS_D / 2, H - _pd - 0.3, H + 0.3,
                 "knob seating pocket")]
-    _bores += [(_bx, _bz, BOSS_PILOT_D / 2, crown_inner_y(_bx) - 6.0,
+    # >>> FROM THE RECORDED TIP, NOT A 6.0 mm GUESS. That band was written when
+    # >>> every boss hung STANDOFF_H + 2 below its own ceiling. Coplanar tips make
+    # >>> the apex-side bosses TALLER by the arch's sag, so a fixed 6.0 no longer
+    # >>> reaches the bottom of the longest pilot -- and this check would have been
+    # >>> probing above the hole it is meant to be measuring.
+    _bores += [(_bx, _bz, BOSS_PILOT_D / 2, _at - 1.5,
                 crown_inner_y(_bx) + 2.0, "crown pilot")
-               for _n, _bx, _bz in _crown_bosses]
+               for _n, _bx, _bz, _at in _crown_bosses]
     # >>> AND THE TEST IS THE BRIDGE SPAN, NOT THE DIAMETER. A round hole lying
     # >>> across the build direction closes gradually: the widest gap its topmost
     # >>> layer must span is the chord 2*sqrt(2*r*t), not 2*r. For the Ø30 knob
@@ -1075,8 +1219,6 @@ try:
     # >>> would mean chamfering a feature that does not need it, and a check that
     # >>> fails on things that are fine is a check people learn to ignore.
     chk("no unsupported ledge wider than 1 mm behind the front lip", 1.00 - _worst)
-except ImportError:
-    say("validate skipped: no trimesh")
 
 say("")
 say("ALL CLEAR" if not bad else f"*** {len(bad)} PROBLEM(S) ***")

@@ -27,22 +27,37 @@ physically will not go in, and there is no way to fix it after printing.
 Measure a single layer with calipers, gently — cloth compresses, so don't clamp
 it. If in doubt measure a folded stack of 4 layers and divide.
 
-### Board mounting-hole spacing — five boards
-For each of these I print a pair or a square of posts that the board bolts onto.
-If the spacing is wrong the board simply doesn't line up, and the posts are
-solid printed plastic.
+### ~~Board mounting-hole spacing — five boards~~ — RESOLVED, DO NOT MEASURE
 
-| Board | What it is | Currently guessed |
-|---|---|---|
-| Rotary encoder | the Adafruit seesaw breakout under the knob | 20 mm across |
-| Time-of-flight | the VL53L0X distance sensor on the crown | 20 mm, front-to-back |
-| Real-time clock | the DS3231, upper-left of the rear wall | 20 mm square |
-| Light sensor | the BH1750, behind the pinhole | 15 mm square |
-| Amplifier | the TPA2016, on the floor | 20 mm across |
+**All five came out of the vendors' own PCB files. Nothing to measure here.**
+Every board on this list is an Adafruit or Adafruit-style breakout whose Eagle
+`.brd` is published, and the board file states its outline and every mounting hole
+outright — which is better than a caliper on a sample, because it is the same
+number for every unit.
 
-Slack: the RTC's pitch could grow to about 38 mm before it hits anything. The
-encoder and ToF sit closest — about **10.5 mm** of growing room before their
-posts collide with each other, and neither pitch can exceed its own board.
+| Board | Outline | Holes | Source |
+|---|---|---|---|
+| Rotary encoder (#4991) | 25.4 × 25.4 | **4** × Ø2.5, 20.32 × 20.32 | [Adafruit-I2C-QT-Rotary-Encoder-PCB](https://github.com/adafruit/Adafruit-I2C-QT-Rotary-Encoder-PCB) |
+| Time-of-flight (#3317) | 25.4 × 17.78 | **4** × Ø2.5, 20.32 × 12.70 | [Adafruit-VL53L0X-ToF-Distance-Sensor-PCB](https://github.com/adafruit/Adafruit-VL53L0X-ToF-Distance-Sensor-PCB) |
+| Light sensor (#4681) | 25.4 × 17.78 | **4** × Ø2.5, 20.32 × 12.70 | [Adafruit-BH1750-PCB](https://github.com/adafruit/Adafruit-BH1750-PCB) |
+| Real-time clock (#5188) | 25.4 × 17.78 | **2** × Ø3.0, 20.32, top pair only | [Adafruit-DS3231-Precision-RTC-Breakout-PCB](https://github.com/adafruit/Adafruit-DS3231-Precision-RTC-Breakout-PCB) |
+| Amplifier (TPA2016) | — | **2** × Ø2.5, 22.86 vertical | its own `.brd` (see `AMP_HOLES`) |
+
+> **Every guess on the old list was wrong, and three of them were wrong in the
+> same way.** The encoder, ToF and light sensor were each given a **two**-hole
+> pitch (20, 20 and 15 mm) when all three carry **four** holes on the shared
+> STEMMA QT grid — 2.54 mm in from every edge. Two posts under a four-hole board
+> do not just leave two holes empty: the board pivots on the line joining them.
+>
+> The old "slack" note said the encoder and ToF had **10.5 mm of growing room**
+> before their posts collided. With the real patterns they had **0.59 mm** — the
+> two boards' hole rows sit at identical depths, so the bosses were dead in line
+> and there was no diagonal to save them. The gap between the boards is now
+> *derived* from that boss clearance (`_resolve_tof_x()`), not chosen.
+>
+> **The lesson worth keeping: look for the vendor's board file before reaching for
+> the calipers.** `3d-print/check_docs.py` now asserts all of the above against
+> these repos, so a future edit cannot quietly reintroduce a guess.
 
 ### The two holes you can't re-drill
 Both go through the outer skin, so a wrong hole is a scrapped dome.

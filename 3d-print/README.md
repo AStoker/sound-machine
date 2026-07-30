@@ -11,11 +11,11 @@ source of truth.
 
 | Part | File | Status |
 |---|---|---|
-| **Front module** | [`front-module.stl`](models/front-module.stl) | printable **whole** — 194.8 × 148.1 × 21.3, 70.3 cm³ |
-| **LED carrier** | [`led-carrier.stl`](models/led-carrier.stl) | printable — 185.0 × 69.2 × 4.7, 25.2 cm³ |
+| **Front module** | [`front-module.stl`](models/front-module.stl) | printable **whole** — 194.8 × 148.1 × 18.8, 68.2 cm³ |
+| **LED carrier** | [`led-carrier.stl`](models/led-carrier.stl) | printable — 186.1 × 70.7 × 2.5, 23.2 cm³ |
 | **Diffuser** | [`diffuser.svg`](diffuser.svg) | Glowforge cut file, 1:1 mm — 3 mm opal acrylic, round-notched for the carrier pads |
-| **Dome** | [`dome.stl`](models/dome.stl) | printable — 202 × 155.7 × 64, 146.8 cm³ |
-| **Bottom plate** | [`bottom-plate.stl`](models/bottom-plate.stl) | printable — 196.4 × 58.4 × 6.6, 45.3 cm³ |
+| **Dome** | [`dome.stl`](models/dome.stl) | printable — 202 × 155.7 × 64, 153.2 cm³ |
+| **Bottom plate** | [`bottom-plate.stl`](models/bottom-plate.stl) | printable — 196.4 × 58.4 × 6.6, 45.0 cm³ |
 | **Knob** | [`knob.stl`](models/knob.stl) | printable — Ø34 × 20, 13.2 cm³ |
 | **Matrix test coupon** | [`matrix-testfit.stl`](models/matrix-testfit.stl) | print **this first** — 103 × 45 × 13, 14 cm³. The clock mount cut straight out of the front module: lip, pocket, posts and all six clips. Validates the fit for ~20 min of filament instead of several hours. |
 | Matrix tray | [`matrix-tray.stl`](models/matrix-tray.stl) | printable — **no longer in the assembly**, the front module carries the matrices itself |
@@ -97,8 +97,10 @@ python3 gen_drawing.py && python3 gen_internals.py && python3 gen_wiring.py
 python3 -c "import cairosvg
 for f in ('enclosure-drawing','enclosure-internals','enclosure-wiring'):
     cairosvg.svg2png(url=f+'.svg', write_to=f+'.png', scale=3)"
-# solids (need manifold3d; trimesh + networkx for the mesh validation)
-../.venv/bin/pip install manifold3d trimesh networkx matplotlib
+# solids (need manifold3d; the mesh validation needs ALL of
+# trimesh + scipy + rtree + networkx -- see the note below, a missing one
+# used to make the validation skip itself silently)
+../.venv/bin/pip install manifold3d trimesh scipy rtree networkx matplotlib
 ../.venv/bin/python gen_front_plate.py && ../.venv/bin/python gen_led_carrier.py
 ../.venv/bin/python gen_dome.py && ../.venv/bin/python gen_bottom_plate.py
 ../.venv/bin/python gen_knob.py
@@ -760,7 +762,22 @@ cut, Ø34 at its widest, meeting the crown on a Ø28 flat, 20 mm tall, blind Ø6
 raise it toward `KNOB_D` for more of a hemisphere.
 
 The **ToF** sits on the crown just right of the knob, board turned **longwise
-front-to-back** so its 17.8 mm edge clears the 25.4 mm encoder breakout.
+front-to-back** so its 17.78 mm edge clears the 25.4 mm encoder breakout.
+
+Both crown boards carry **four** Ø2.5 mounting holes 2.54 mm in from every edge —
+read out of Adafruit's own Eagle files, see [`../HARDWARE.md`](../HARDWARE.md). How
+far apart the two boards sit is **not** a chosen board-edge gap: it is whatever
+leaves `BOSS_GAP_MIN` (2 mm) of plastic between their nearest **bosses**
+(`_resolve_tof_x()`), which works out at a 2.92 mm board gap.
+
+> ### ⚠️ Their bosses are dead in line, so x separation is all there is
+> Both patterns are 20.32 mm along the depth and both boards are centred on the
+> same depth, so the encoder's right-hand bosses and the ToF's left-hand bosses sit
+> at **identical** depths — there is no diagonal to gain clearance from. Against
+> the old 1.5 mm board-edge gap that left **0.59 mm** between two Ø6 posts, which
+> is not an intersection (so a non-intersection check passed it) and prints as one
+> blob. This is the same lesson the RTC's wall search recorded: *the bosses are the
+> binding constraint, not the board.*
 
 ## ⚠️ What the drawing found
 
@@ -778,6 +795,9 @@ front-to-back** so its 17.8 mm edge clears the 25.4 mm encoder breakout.
 | **The lux pipe has a ~5 mm slot to live in** | UPS to y=97, Flex from y=102. A centred pipe gets exactly that gap — Ø3, 1 mm clear each side. Any tighter and it has to move to the crown. |
 | **Fixings are wall lugs, and asymmetric** | The floor is fully spoken for. No lug fits on the front edge at all — the plate's front edge is captured by the ledge and the module instead. |
 | **Charge is a barrel jack** | 12.6 V 2 A, not USB-C. The only USB-C is the XIAO's internal flashing port. |
+| **The sensor breakouts have four holes, not two** | Encoder, ToF and BH1750 were each modelled on an invented two-hole pitch. All three carry four Ø2.5 holes 2.54 mm in from every edge (the DS3231 is the one exception — top pair only, Ø3.0). Read from the vendors' Eagle files; see [`../HARDWARE.md`](../HARDWARE.md). |
+| **The crown bosses collide before the boards do** | With the real patterns, the encoder's and ToF's bosses sit at identical depths and 1.5 mm of board gap left **0.59 mm** between two Ø6 posts. The gap is now derived from boss clearance, not chosen. |
+| **A four-hole board off the apex tilts** | Two bosses on one x cannot tilt; four spanning 12.7 mm on the falling shoulder tilt the ToF **10.7°**, aiming its 25° cone into the side of its own vertical pinhole. Boss tips are built coplanar so each board sits flat. |
 
 ### …and what the *solid* found, which the drawing could not
 
@@ -823,13 +843,37 @@ VL53L0X breakout**.
 
 ## Two rules everything inside obeys
 
-**Every board gets a flat.** The crown is a cylinder and the walls curve above
-the springing line, so a PCB laid on either rocks on two edges and skews whatever
-connector pokes through. Anything mounting on a curved surface sits in a shallow
-pocket milled into the **inside** — never the outside, which stays smooth. Depth
-is derived from the arch's own sagitta (`enclosure_geom.flat_depth()`), which is
-only 0.59 mm across the encoder board and 0.29 mm across the ToF: small, and
-exactly the kind of small that leaves a board rocking.
+**Every board lands on a plane — built up, not milled in.** The crown is a
+cylinder and the walls curve above the springing line, so a PCB laid on either
+rocks on two edges and skews whatever connector pokes through.
+
+The obvious fix is a shallow pocket milled into the **inside** (never the outside,
+which stays smooth), and that is what this section used to describe. **It was
+tried and abandoned.** A pocket in a curved surface is a *lens* — the sliver
+between a plane and a cylinder — with a knife edge everywhere the two meet, and
+cutting one severed the very bosses that reach up through it. Three parameter
+sweeps could not get a watertight mesh out of it.
+
+What the part does instead: **a board's bosses are all built to the same tip
+height** — the lowest of its own four local ceilings, less its standoff — so the
+four tips are coplanar and the board sits flat on them. The bosses nearer the apex
+simply grow by the arch's sag, which is free. Same result as the flat, with *added*
+material rather than removed, so there is no lens and no knife edge.
+
+Only the **knob's seating pad** is still a milled pocket
+(`enclosure_geom.flat_depth()`), and that one is in the **outer** skin where there
+is no boss to sever.
+
+> This mattered far more than the old note assumed. It argued the flat was
+> unnecessary because the sag is "only 0.59 mm across the encoder board" — true,
+> and irrelevant, because the encoder is centred on the apex, so all four of its
+> bosses are at the same |dx| and it sits flat either way. The **ToF** is the board
+> that needed it: off-apex, from dx 16.7 to 30.9, where the ceiling drops 2.6 mm
+> across its 12.7 mm hole span. Following the arch there tilts it **10.7°** — and
+> its pinhole is a *vertical* bore with a 25° cone, so a 10.7° tilt throws half the
+> cone into the side of its own hole. The board that most needed to sit flush was
+> the one the arch treated worst, and the argument for skipping the flat had been
+> made about the other board.
 
 **No screw enters from outside.** Every boss is blind — it stands proud of the
 inner surface and its pilot stops `BOSS_MIN_WALL` short of the skin. Screws go in

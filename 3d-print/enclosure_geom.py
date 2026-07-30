@@ -605,7 +605,7 @@ SPK_W_MAX    = W/2 - TRAY_W/2 - REVEAL - BOSS_EDGE - 2*SPK_FLANK
 # seats on a flat boss milled into the cylindrical crown, on the top ridge.
 ENC_SHAFT_D = 7.0    # clearance bore through the shell for the encoder shaft
 ENC_Y       = 30.0   # knob centre, from the front face, in plan
-ENC_PCB     = 25.4   # (?) Adafruit seesaw rotary breakout, 1.0" square
+ENC_PCB     = 25.4   # Adafruit #4991, 1.0" square -- CONFIRMED, see QT_PCB_SRC
 # The knob is a FULL pebble: an ellipse of revolution truncated by a shallow cut
 # at the bottom, so only a small flat meets the crown. KNOB_BASE_D sets how much
 # of the pebble is cut away -- closer to KNOB_D = more of a hemisphere.
@@ -649,9 +649,17 @@ TOUCH_WALL   = 1.6   # local wall thinning behind each pad, from WALL
 # ---- VL53L0X ToF, on the crown just to the right of the knob --------------
 # Mounted LONGWISE front-to-back so the 17.8 mm edge clears the encoder board.
 TOF_HOLE_D  = 3.5    # pinhole aperture through the crown (clears the 25 deg FoV)
-TOF_PCB_W   = 17.8   # (?) Adafruit VL53L0X STEMMA QT breakout, short edge
-TOF_PCB_D   = 25.4   # (?)   "                                  long edge
-TOF_X       = W/2 + ENC_PCB/2 + 1.5 + TOF_PCB_W/2   # clears the encoder board
+TOF_PCB_W   = 17.78  # Adafruit #3317 STEMMA QT, short edge -- CONFIRMED
+TOF_PCB_D   = 25.4   #   "                      long edge  -- CONFIRMED
+# >>> TOF_X IS NOT A BOARD-EDGE GAP ANY MORE, SO IT IS RESOLVED LATER. It used to
+# >>> be W/2 + ENC_PCB/2 + 1.5 + TOF_PCB_W/2 -- "leave 1.5 mm between the two
+# >>> boards" -- which is the wrong constraint: what actually collides is the
+# >>> BOSSES, and they stand outboard of nothing and inboard of the board edges.
+# >>> With both boards' real four-hole patterns the 1.5 mm board gap put an
+# >>> encoder boss and a ToF boss 0.59 mm apart at IDENTICAL depth. See
+# >>> _resolve_tof_x(), which solves for the gap that matters. BOSS_D does not
+# >>> exist yet at this point in the file, which is why this cannot be done here.
+TOF_X       = None   # resolved by _resolve_tof_x(), from boss clearance
 TOF_Y       = ENC_Y  # same front-offset as the knob, so it sits alongside
 
 # ---- rear-wall features (see the REAR view; y up from the bottom) ---------
@@ -1776,6 +1784,12 @@ BOSS_CHAMF   = 0.6        # lead-in chamfer on the boss top
 
 # A board sits on standoffs so its solder side clears the surface.
 STANDOFF_H   = 3.0
+# >>> THE ToF SITS CLOSER TO THE SKIN THAN ANYTHING ELSE, on purpose: its pinhole
+# >>> is a bore through the crown and every millimetre of standoff is another
+# >>> millimetre of tube in front of a 25 deg cone. It lived in gen_dome.py, which
+# >>> was fine while gen_dome.py was the only thing that placed crown boards --
+# >>> crown_boards() is shared now, so the standoff has to be shared too.
+TOF_STAND    = 2.0        # ToF board standoff -- short, to sit near the skin
 
 # ---- local flats on curved surfaces ---------------------------------------
 # The flat is a shallow pocket cut into the INSIDE of the shell, deep enough to
@@ -1804,24 +1818,111 @@ def flat_depth(width):
     return round(crown_sag(width) + FLAT_MARGIN, 2)
 
 
+# ---- the Adafruit STEMMA QT mounting-hole family ---------------------------
+# >>> FOUR HOLES, NOT TWO, AND THE SAME FOUR ON EVERY BOARD BUT ONE. The encoder,
+# >>> the ToF and the BH1750 were each modelled with a TWO-hole pitch -- one
+# >>> "(?) MEASURE" guess apiece (20.0, 20.0, 15.0). All three actually carry four
+# >>> plated Ø2.5 holes, one per corner, 0.100" in from every edge, and the vendor
+# >>> board files say so outright. Read out of Eagle, from the repos in QT_PCB_SRC:
+# >>>
+# >>>   #4991 I2C QT Rotary Encoder  25.40 x 25.40  holes 2.54/22.86 x 2.54/22.86
+# >>>   #3317 VL53L0X STEMMA QT      25.40 x 17.78  holes 2.54/22.86 x 2.54/15.24
+# >>>   #4681 BH1750 STEMMA QT       25.40 x 17.78  holes 2.54/22.86 x 2.54/15.24
+# >>>   #5188 DS3231 STEMMA QT       25.40 x 17.78  holes 2.54/22.86 x 15.24 ONLY
+# >>>
+# >>> So one inset describes all of them, and the DS3231 is the sole exception --
+# >>> it has the same 25.4 x 17.78 outline and the same grid, but Adafruit only
+# >>> populates the TOP pair (and drills those Ø3.0, not Ø2.5). Do not "tidy" the
+# >>> DS3231 into qt_hole_offsets(): the bottom pair is not there.
+QT_PCB_SRC = {
+    # board -> the Adafruit PCB repo the outline and holes were read out of
+    "encoder": "github.com/adafruit/Adafruit-I2C-QT-Rotary-Encoder-PCB",
+    "ToF":     "github.com/adafruit/Adafruit-VL53L0X-ToF-Distance-Sensor-PCB",
+    "lux":     "github.com/adafruit/Adafruit-BH1750-PCB",
+    "RTC":     "github.com/adafruit/Adafruit-DS3231-Precision-RTC-Breakout-PCB",
+}
+QT_HOLE_INSET = 2.54      # 0.100" in from EVERY edge -- the whole family
+QT_HOLE_D     = 2.5       # MOUNTINGHOLE_2.5_PLATED, drill 2.5, pad 3.2
+
+
+def qt_hole_offsets(bw, bh, inset=QT_HOLE_INSET):
+    """The four corner mounting holes of an Adafruit STEMMA QT breakout, as
+    offsets from the board CENTRE.
+
+    >>> THESE NEED NO BOARD-TO-PART FLIP, and that is a property of the pattern
+    >>> rather than an oversight worth copying. The four holes sit `inset` in from
+    >>> every edge, so the set is symmetric about both centre lines and mirroring
+    >>> it maps it onto itself. board_holes_part() still exists and is still
+    >>> required for patterns that are NOT symmetric -- the DS3231's two holes sit
+    >>> high on the board and DO flip.
+    """
+    return [(sx * (bw / 2.0 - inset), sy * (bh / 2.0 - inset))
+            for sx in (-1, 1) for sy in (-1, 1)]
+
+
 # ---- crown-mounted boards --------------------------------------------------
 # The seesaw encoder sits under the knob; the ToF sits alongside it, turned
 # longwise front-to-back so its short edge clears the encoder board.
-ENC_FLAT_W   = ENC_PCB + 2 * FLAT_EDGE
-ENC_FLAT_D   = ENC_PCB + 2 * FLAT_EDGE
-ENC_HOLE_P   = 20.0       # (?) seesaw breakout mounting hole pitch -- MEASURE
-TOF_FLAT_W   = TOF_PCB_W + 2 * FLAT_EDGE
-TOF_FLAT_D   = TOF_PCB_D + 2 * FLAT_EDGE
-# >>> THE ToF's HOLES RUN FRONT-TO-BACK, NOT ACROSS. The board is mounted
-# >>> LONGWISE so its 17.8 mm edge clears the encoder -- so its 25.4 mm axis is
-# >>> the DEPTH, and that is the axis the mounting holes are separated on.
-# >>> Treating the pitch as an x separation put the holes at 114.1 and 134.1: one
-# >>> of them 2.9 mm INSIDE the encoder's boss, and BOTH of them outside the
-# >>> board's own 17.8 mm width. A hole pitch wider than the board it belongs to
-# >>> is impossible, and that was the tell.
-TOF_HOLE_P   = 20.0       # (?) along the DEPTH axis -- MEASURE
-TOF_HOLE_AXIS = "depth"   # which way the pair is separated
-ENC_HOLE_AXIS = "x"       # the encoder board is square; its pair runs across
+# >>> ENC_FLAT_W/D AND TOF_FLAT_W/D ARE GONE, and so is gen_dome's
+# >>> crown_flat_cut(). They sized a milled flat under each crown board -- an
+# >>> approach abandoned long ago because the flat is a LENS with a knife edge
+# >>> where its plane meets the curved inner surface, and cutting one severed the
+# >>> bosses that reach up through it. gen_dome.py imported all four and called
+# >>> none of them, which left four live-looking constants describing a feature the
+# >>> part does not have. What actually keeps a crown board flat now is that its
+# >>> four boss tips are built COPLANAR -- added material instead of removed, so
+# >>> there is no lens and no knife edge. See gen_dome.py's crown board mounts.
+# Offsets in PART axes: (dx across the machine, ddepth front-to-back).
+# The encoder is square, so its pattern is the same either way round. The ToF is
+# mounted LONGWISE -- its 25.4 axis is the DEPTH, its 17.78 axis is x -- so its
+# pattern goes in that way round and NOT the other.
+ENC_HOLES    = qt_hole_offsets(ENC_PCB, ENC_PCB)
+TOF_HOLES    = qt_hole_offsets(TOF_PCB_W, TOF_PCB_D)
+
+# >>> HOW FAR APART THE BOARDS GO IS SET BY THE BOSSES, NOT THE BOARD EDGES. This
+# >>> is the same lesson the RTC's wall search recorded -- "the bosses are the
+# >>> binding constraint, not the board" -- and the crown had not learnt it. Two
+# >>> Ø6 posts need real plastic between them or they print as one blob, and the
+# >>> two boards' hole rows sit at the SAME two depths (both patterns are 20.32
+# >>> along the depth, both boards centred on ENC_Y), so the bosses are dead in
+# >>> line and x separation is all there is.
+BOSS_GAP_MIN = 2.0        # least plastic between two neighbouring bosses
+
+
+def _resolve_tof_x():
+    """Place the ToF outboard of the encoder by BOSS clearance.
+
+    The encoder's outermost boss column is at W/2 + (ENC_PCB/2 - QT_HOLE_INSET);
+    the ToF's innermost is TOF_X - (TOF_PCB_W/2 - QT_HOLE_INSET). Solve for the
+    TOF_X that leaves BOSS_GAP_MIN between the two Ø BOSS_D posts."""
+    global TOF_X
+    enc_out = W / 2 + (ENC_PCB / 2 - QT_HOLE_INSET)
+    tof_in = enc_out + BOSS_D + BOSS_GAP_MIN
+    TOF_X = round(tof_in + (TOF_PCB_W / 2 - QT_HOLE_INSET), 2)
+
+
+_resolve_tof_x()
+
+# What the derivation above actually leaves between the two BOARD edges. Reported
+# on the drawing so the number is visible; it is a RESULT now, not an input.
+TOF_BOARD_GAP = round((TOF_X - TOF_PCB_W / 2) - (W / 2 + ENC_PCB / 2), 2)
+
+
+def crown_boards():
+    """Every board that mounts under the crown, as
+    (name, centre_x, centre_depth, w_x, d_z, hole_offsets, standoff).
+
+    >>> A LIST OF HOLES, LIKE THE REAR WALL AND THE PLATE. The crown was the last
+    >>> place still describing a board with a PITCH plus an AXIS name, and it was
+    >>> the only one of the three that could not represent what these boards
+    >>> actually have. Two bosses under a four-hole board do not just leave two
+    >>> holes empty -- they let the board pivot on the line joining them, which on
+    >>> the ToF is a sensor pointing somewhere other than where its pinhole is.
+    """
+    return [
+        ("encoder", W / 2, ENC_Y, ENC_PCB,    ENC_PCB,   ENC_HOLES, STANDOFF_H),
+        ("ToF",     TOF_X, TOF_Y, TOF_PCB_W,  TOF_PCB_D, TOF_HOLES, TOF_STAND),
+    ]
 
 # ---- rear-wall boards ------------------------------------------------------
 # The RTC and the lux sensor had no defined mount at all until now; both are
@@ -1830,20 +1931,22 @@ ENC_HOLE_AXIS = "x"       # the encoder board is square; its pair runs across
 # >>> published on the product page. It was modelled as 25.4 SQUARE, so the board
 # >>> was 7.6 mm too tall -- which only ever made the rear wall look tighter than
 # >>> it is, but it was still wrong.
-# >>> (?) IT HAS **TWO** MOUNTING HOLES, NOT FOUR. Adafruit's own photo caption
-# >>> says "two mounting holes", one at each end beside the STEMMA QT connectors.
-# >>> The dome still builds a 4-boss square from RTC_HOLE_P, which is wrong, and
-# >>> the positions are not published -- so this is now the open item, not the
-# >>> outline. Do not print the rear wall until it is settled.
-RTC_PCB_W, RTC_PCB_H = 25.4, 17.8     # Adafruit #5188, published
+# >>> IT HAS **TWO** MOUNTING HOLES, NOT FOUR -- AND THAT IS NOW CONFIRMED, NOT
+# >>> INFERRED FROM A PHOTO CAPTION. "Adafruit DS3231 STEMMA QT.brd" declares
+# >>> exactly two: MOUNTINGHOLE_3.0_PLATEDTHIN at (2.54, 15.24) and (22.86, 15.24)
+# >>> in a 25.4 x 17.78 outline. So the DS3231 sits on the same family grid as the
+# >>> other three breakouts with its BOTTOM pair simply not populated. This was the
+# >>> open item that held up the rear wall; it is closed.
+# >>> TWO THINGS THE FAB-PRINT READING HAD WRONG: y was 14.73, not 15.24 -- half a
+# >>> millimetre of boss offset, read off a drawing instead of the board -- and the
+# >>> drill is Ø3.0, not Ø2.5. The Ø3.0 does NOT change the screw: these are
+# >>> CLEARANCE holes and M2.5 through Ø3.0 is a normal fit, so REAR_BOARD_SCREW
+# >>> keeps the RTC on M2.5 and the boss stays tapped for it.
+RTC_PCB_W, RTC_PCB_H = 25.4, 17.78    # Adafruit #5188 board file -- CONFIRMED
 RTC_PCB_T            = 7.8            # including the coin cell holder
-# >>> POSITIONS FROM THE STEMMA QT FAB PRINT: two holes, 0.80" apart, 0.12" down
-# >>> from the TOP edge -- so 0.10" (2.54) in from each side, 14.73 up from the
-# >>> bottom. They are NOT a diagonal pair and NOT on the centreline; they sit
-# >>> high on the board, beside the STEMMA QT connectors.
 RTC_HOLE_N           = 2
-RTC_HOLES            = [(2.54, 14.73), (22.86, 14.73)]
-RTC_HOLE_D           = 2.5
+RTC_HOLES            = [(2.54, 15.24), (22.86, 15.24)]
+RTC_HOLE_D           = 3.0            # MOUNTINGHOLE_3.0_PLATEDTHIN, drill 3.0
 RTC_HOLE_P           = 20.32          # 0.8", horizontal
 # >>> THE RTC IS ON THE REAR WALL. IT WENT TO THE FLOOR AND BACK, AND THE ROUND
 # >>> TRIP IS WORTH RECORDING, BECAUSE THE FLOOR TRIP WAS BASED ON A SEARCH THAT
@@ -1877,8 +1980,14 @@ RTC_HOLE_P           = 20.32          # 0.8", horizontal
 RTC_ON_FLOOR         = False
 RTC_WALL_X, RTC_WALL_Y = 43.0, 114.0  # rear wall, upper left, above the Flex
                                       #   9.0 mm to the nearest neighbour
-LUX_PCB_W, LUX_PCB_H = 20.0, 18.0     # (?) BH1750 breakout -- MEASURE
-LUX_HOLE_P           = 15.0           # (?)
+# >>> ADAFRUIT BH1750 - STEMMA QT (#4681): 25.4 x 17.78, FOUR Ø2.5 holes on the
+# >>> family grid -- read out of "Adafruit BH1750.brd". It was modelled 20.0 x 18.0
+# >>> on a 15.0 "(?)" square pitch: 5.4 mm too narrow, and a pitch that exists on
+# >>> no Adafruit board. The real pattern is 20.32 x 12.70, which is WIDER than the
+# >>> guess in x and NARROWER in y, so the four bosses moved in both axes -- the
+# >>> guess was not even conservative.
+LUX_PCB_W, LUX_PCB_H = 25.4, 17.78    # Adafruit #4681 -- CONFIRMED
+LUX_HOLES            = qt_hole_offsets(LUX_PCB_W, LUX_PCB_H)
 # The lux sensor looks through the light pipe, so its board is centred on it.
 LUX_WALL_X, LUX_WALL_Y = None, None   # resolved below, from the pipe
 
@@ -1966,8 +2075,7 @@ def rear_wall_boards():
         ("UPS",   UPS_WALL_X,  FLOOR_Y + UPS_H / 2,      UPS_W,      UPS_H,
          board_holes_part(UPS_HOLES, UPS_W, UPS_H)),
         ("lux",   LUX_WALL_X,  LUX_WALL_Y,               LUX_PCB_W,  LUX_PCB_H,
-         [(sx * LUX_HOLE_P / 2, sy * LUX_HOLE_P / 2)
-          for sx in (-1, 1) for sy in (-1, 1)]),
+         LUX_HOLES),
         ("RTC",   RTC_WALL_X,  RTC_WALL_Y,               RTC_PCB_W,  RTC_PCB_H,
          board_holes_part(RTC_HOLES, RTC_PCB_W, RTC_PCB_H)),
     ]

@@ -156,8 +156,12 @@ def not_centred(doc, pattern, why):
 
 
 draws("3d-print/gen_drawing.py", r"SW_WALL_X", "the UPS power switch")
-draws("3d-print/gen_drawing.py", r"ENC_HOLE_P", "the encoder crown bosses")
-draws("3d-print/gen_drawing.py", r"TOF_HOLE_P", "the ToF crown bosses")
+# >>> THE CROWN BOARDS COME OFF THE SHARED LIST NOW, like the rear wall's. These
+# >>> two rules used to name ENC_HOLE_P and TOF_HOLE_P -- and a rule that greps for
+# >>> a deleted name passes silently forever, so they are pointed at the list the
+# >>> bosses are actually built from.
+draws("3d-print/gen_drawing.py", r"crown_boards\(\)",
+      "the crown boards from the shared list")
 draws("3d-print/gen_drawing.py", r"LOUVRE", "the vents as louvres")
 # >>> EVERY REAR-WALL BOARD MUST REACH A SHEET. The rear elevation used to name
 # >>> the UPS and the Flex by hand, so the lux and the RTC -- four bosses each --
@@ -225,7 +229,8 @@ else:
 # >>> four but on 46 x 86, which no single pitch describes. Assert the shape of the
 # >>> data, because the bug was in the shape of the data.
 for _fn, _rows in (("rear_wall_boards", g.rear_wall_boards()),
-                   ("plate_boards", g.plate_boards())):
+                   ("plate_boards", g.plate_boards()),
+                   ("crown_boards", g.crown_boards())):
     for _r in _rows:
         _offs = _r[5]
         if _offs is None:
@@ -244,6 +249,102 @@ if _rtc_bosses != [2]:
         f"DS3231 (STEMMA QT version) has exactly TWO mounting holes, at "
         f"{g.RTC_HOLES} on a {g.RTC_HOLE_P} mm pitch. A third or fourth boss lands "
         f"on bare board.")
+
+# >>> THE FOUR STEMMA QT BREAKOUTS, ASSERTED AGAINST THEIR VENDOR BOARD FILES.
+# >>> Three of these carried a made-up TWO-hole pitch for months -- 20.0, 20.0 and
+# >>> 15.0, each marked "(?) MEASURE" and each wrong -- while the boards' own Eagle
+# >>> files had said four holes on 0.100" corner insets all along. The matrix rule
+# >>> below/above exists for exactly this failure mode; these are the same rule for
+# >>> the sensors. Numbers read from the <element MOUNTINGHOLE_*> entries and the
+# >>> layer-20 outline wires of the repos named in g.QT_PCB_SRC.
+_QT_VENDOR = {
+    # name: (outline w, outline h, holes in the BOARD frame, drill)
+    "encoder": (25.4, 25.4,
+                [(2.54, 2.54), (2.54, 22.86), (22.86, 2.54), (22.86, 22.86)], 2.5),
+    "ToF":     (25.4, 17.78,
+                [(2.54, 2.54), (2.54, 15.24), (22.86, 2.54), (22.86, 15.24)], 2.5),
+    "lux":     (25.4, 17.78,
+                [(2.54, 2.54), (2.54, 15.24), (22.86, 2.54), (22.86, 15.24)], 2.5),
+    "RTC":     (25.4, 17.78,
+                [(2.54, 15.24), (22.86, 15.24)], 3.0),
+}
+for _nm in _QT_VENDOR:
+    if _nm not in g.QT_PCB_SRC:
+        problems.append(
+            f"enclosure_geom.py: QT_PCB_SRC has no source repo for '{_nm}'. Every "
+            f"board whose geometry is asserted here must say where it came from.")
+
+# The outline each board is modelled with, in whatever names that board uses.
+for _nm, _got in (("encoder", (g.ENC_PCB, g.ENC_PCB)),
+                  # the ToF is stored (short edge, long edge) because it is mounted
+                  # longwise; the vendor outline is (long, short).
+                  ("ToF", (g.TOF_PCB_D, g.TOF_PCB_W)),
+                  ("lux", (g.LUX_PCB_W, g.LUX_PCB_H)),
+                  ("RTC", (g.RTC_PCB_W, g.RTC_PCB_H))):
+    _w, _h, _holes, _drill = _QT_VENDOR[_nm]
+    if (round(_got[0], 2), round(_got[1], 2)) != (_w, _h):
+        problems.append(
+            f"enclosure_geom.py: the {_nm} board is modelled "
+            f"{_got[0]} x {_got[1]}, but {g.QT_PCB_SRC[_nm]} gives {_w} x {_h}.")
+
+# >>> AND THE OFFSETS THAT ACTUALLY DRIVE THE BOSSES, not just the outline. The
+# >>> BH1750's guessed 15.0 pitch would have passed an outline-only check with a
+# >>> corrected outline and still put all four bosses in the wrong place.
+def _want_offsets(nm):
+    _w, _h, _holes, _ = _QT_VENDOR[nm]
+    return sorted((round(hx - _w / 2, 2), round(abs(hy - _h / 2), 2))
+                  for hx, hy in _holes)
+
+
+def _got_offsets(offs):
+    return sorted((round(dx, 2), round(abs(dy), 2)) for dx, dy in offs)
+
+
+_crown = {r[0]: r[5] for r in g.crown_boards()}
+_rear = {r[0]: r[5] for r in g.rear_wall_boards()}
+for _nm, _offs, _swap in (("encoder", _crown.get("encoder"), False),
+                          # mounted longwise: its (dx, ddepth) is the vendor
+                          # pattern's (dy, dx), so compare with the axes swapped.
+                          ("ToF", _crown.get("ToF"), True),
+                          ("lux", _rear.get("lux"), False)):
+    if _offs is None:
+        problems.append(f"enclosure_geom.py: no hole list found for the {_nm}.")
+        continue
+    _cmp = [(dz, dx) for dx, dz in _offs] if _swap else list(_offs)
+    if _got_offsets(_cmp) != _want_offsets(_nm):
+        problems.append(
+            f"enclosure_geom.py: the {_nm}'s hole offsets are {_got_offsets(_cmp)}, "
+            f"but {g.QT_PCB_SRC[_nm]} gives {_want_offsets(_nm)} (four Ø"
+            f"{_QT_VENDOR[_nm][3]} holes, {g.QT_HOLE_INSET} in from every edge). "
+            f"All three of these were once a single invented pitch.")
+
+_r = _QT_VENDOR["RTC"]
+if sorted(g.RTC_HOLES) != sorted(_r[2]) or g.RTC_HOLE_D != _r[3]:
+    problems.append(
+        f"enclosure_geom.py: RTC_HOLES = {g.RTC_HOLES} drill {g.RTC_HOLE_D}, but "
+        f"'Adafruit DS3231 STEMMA QT.brd' declares {_r[2]} drill {_r[3]}. The "
+        f"DS3231 populates only the TOP pair of the family grid.")
+if g.QT_HOLE_INSET != 2.54 or g.QT_HOLE_D != 2.5:
+    problems.append(
+        f"enclosure_geom.py: QT_HOLE_INSET/QT_HOLE_D = {g.QT_HOLE_INSET}/"
+        f"{g.QT_HOLE_D}; Adafruit's MOUNTINGHOLE_2.5_PLATED sits 2.54 (0.100\") in "
+        f"from each edge and drills 2.5.")
+
+# >>> THE CROWN BOARDS' BOSSES MUST NOT MERGE. This is checked on the built solid
+# >>> in gen_dome.py too, but the SPACING is decided here -- TOF_X is derived from
+# >>> BOSS_GAP_MIN -- so a stale derivation should be caught without a build. The
+# >>> two boards' hole rows sit at identical depths, so x separation is all there
+# >>> is and there is no saving diagonal.
+_cb = [(nm, cx + dx, cz + dz)
+       for nm, cx, cz, _w, _d, offs, _s in g.crown_boards() for dx, dz in offs]
+_gap = min(((ax - bx) ** 2 + (az - bz) ** 2) ** 0.5 - g.BOSS_D
+           for an, ax, az in _cb for bn, bx, bz in _cb if an != bn)
+if _gap < g.BOSS_GAP_MIN - 1e-6:
+    problems.append(
+        f"enclosure_geom.py: the nearest encoder/ToF bosses leave {_gap:.2f} mm of "
+        f"plastic, under BOSS_GAP_MIN = {g.BOSS_GAP_MIN}. TOF_X is supposed to be "
+        f"derived from that gap -- see _resolve_tof_x(). The old 1.5 mm "
+        f"BOARD-edge gap left 0.59 mm here, which prints as one blob.")
 if len(g.UPS_HOLES) != 4 or g.UPS_HOLE_D < 3.0:
     problems.append(
         f"enclosure_geom.py: UPS_HOLES = {g.UPS_HOLES}, D {g.UPS_HOLE_D}. The "

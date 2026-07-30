@@ -14,6 +14,21 @@ import os
 from drawlib import *
 from enclosure_geom import *
 
+
+def qt_note(bw, bh):
+    """Mounting-hole callout for an Adafruit STEMMA QT breakout.
+
+    >>> THE PITCH, NOT THE INSET, AND NOT THROUGH dt(). Written as "4x M2.5
+    >>> {dt(QT_HOLE_INSET)} in from each edge" it renders as "4x M2.5 2.5 in from
+    >>> each edge" -- dt() gives one decimal, so the 2.54 inset comes out as a
+    >>> second 2.5 and the callout has two different 2.5s in six words. The pitch
+    >>> is also the thing you can actually put a caliper on to check a board
+    >>> against the part; the inset is a derivation of it.
+    """
+    return (f"4x {chr(216)}{QT_HOLE_D} on {bw - 2*QT_HOLE_INSET:.2f} x "
+            f"{bh - 2*QT_HOLE_INSET:.2f}")
+
+
 # ============================================================== FRONT VIEW
 
 
@@ -157,18 +172,16 @@ def top_dome():
     o.append(circ(W/2, D-ENC_Y, ENC_SHAFT_D, "hid"))
     o.append(circ(W/2, D-ENC_Y, KNOB_BOSS_D, "phan"))
     o.append(circ(TOF_X, D-TOF_Y, TOF_HOLE_D))
-    # >>> THE CROWN MOUNTING BOSSES, seen from above. They were not on any sheet,
-    # >>> which is why an encoder boss and a ToF boss could overlap by 2.9 mm
-    # >>> unnoticed: the ToF's hole pair had been placed on the X axis when the
-    # >>> board is mounted LONGWISE and its holes run front-to-back. Drawn here,
-    # >>> that is the kind of thing you see at a glance.
-    for _s in (-1, 1):
-        o.append(circ(W/2 + _s*ENC_HOLE_P/2, D - ENC_Y, BOSS_D, "hid"))
-        o.append(circ(TOF_X, D - (TOF_Y + _s*TOF_HOLE_P/2), BOSS_D, "hid"))
-    o.append(rect(W/2 - ENC_PCB/2, D - ENC_Y - ENC_PCB/2, ENC_PCB, ENC_PCB,
-                  "phan", 1))
-    o.append(rect(TOF_X - TOF_PCB_W/2, D - TOF_Y - TOF_PCB_D/2,
-                  TOF_PCB_W, TOF_PCB_D, "phan", 1))
+    # >>> THE CROWN MOUNTING BOSSES, seen from above, AND FROM crown_boards() --
+    # >>> not from a pitch and an axis name. They were not on any sheet at all
+    # >>> once, which is why an encoder boss and a ToF boss could overlap by 2.9 mm
+    # >>> unnoticed; drawn from a pitch they then showed FOUR bosses as TWO, and
+    # >>> the pair that was 0.59 mm from an encoder boss was the pair not drawn.
+    # >>> Drawing the shared list means a boss cannot exist and be invisible here.
+    for _nm, _cx, _cz, _bw, _bd, _offs, _st in crown_boards():
+        for _dx, _dz in _offs:
+            o.append(circ(_cx + _dx, D - (_cz + _dz), BOSS_D, "hid"))
+        o.append(rect(_cx - _bw/2, D - _cz - _bd/2, _bw, _bd, "phan", 1))
     for tx in touch_x():                       # copper pads, inside face
         o.append(rect(tx - TOUCH_PAD_W/2, D - TOUCH_DEPTH - TOUCH_PAD_L/2,
                       TOUCH_PAD_W, TOUCH_PAD_L, "hid", 3))
@@ -225,7 +238,17 @@ def top_dims():
     o.append(leader(TOF_X, D-TOF_Y-TOF_HOLE_D/2, 56, -36,
                     f"{chr(216)}{dt(TOF_HOLE_D)} ToF pinhole (VL53L0X, planned)"))
     o.append(leader(TOF_X+TOF_PCB_W/2, D-TOF_Y+TOF_PCB_D/2, 26, 32,
-                    f"board {dt(TOF_PCB_W)} x {dt(TOF_PCB_D)} LONGWISE front-to-back (?)"))
+                    f"board {dt(TOF_PCB_W)} x {dt(TOF_PCB_D)} LONGWISE front-to-back, "
+                    f"{qt_note(TOF_PCB_W, TOF_PCB_D)}"))
+    o.append(leader(W/2 - ENC_PCB/2, D - ENC_Y - ENC_PCB/2, -32, -26,
+                    f"encoder {dt(ENC_PCB)} sq, {qt_note(ENC_PCB, ENC_PCB)}",
+                    "end"))
+    # >>> THE BOARD GAP IS DIMENSIONED AS A RESULT, not called up as a fit. It is
+    # >>> whatever leaves BOSS_GAP_MIN between the two boards' nearest bosses.
+    o.append(leader(W/2 + ENC_PCB/2 + TOF_BOARD_GAP/2, D - ENC_Y + ENC_PCB/2,
+                    -8, 46,
+                    f"{dt(TOF_BOARD_GAP)} board gap = whatever leaves "
+                    f"{dt(BOSS_GAP_MIN)} between bosses"))
     o.append(dim_h(W/2, TOF_X, -20, dt(TOF_X - W/2), ext=D-ENC_Y))
     o.append(leader(R_PLAN*0.293, R_PLAN*0.293, -14, -10, f"R{dt(R_PLAN)}", "end"))
     o.append(leader(WALL, D*0.28, -30, -18, f"wall {dt(WALL)}", "end"))
@@ -332,12 +355,18 @@ def rear_dims():
                     f"from its inner face; rises {dt(VENT_RISE)} inward, so a "
                     f"level line of sight is blocked"))
     o.append(leader(RTC_WALL_X + RTC_PCB_W/2, fy(RTC_WALL_Y), 34, -34,
-                    f"DS3231 RTC {dt(RTC_PCB_W)} x {dt(RTC_PCB_H)}, 4x M"
-                    f"{BOSS_SCREW} @ {dt(RTC_HOLE_P)} - I2C 0x68. ON THIS WALL, "
-                    f"not the bottom plate"))
+                    # >>> THE COUNT COMES FROM THE HOLE LIST. This read a hardcoded
+                    # >>> "4x" while the dome built the correct TWO bosses, so the
+                    # >>> sheet and the solid disagreed and only the sheet was
+                    # >>> wrong -- the one a human works from. And Ø3.0 is the
+                    # >>> board's CLEARANCE hole; the screw into the boss is M2.5.
+                    f"DS3231 RTC {dt(RTC_PCB_W)} x {dt(RTC_PCB_H)}, "
+                    f"{len(RTC_HOLES)}x {chr(216)}{dt(RTC_HOLE_D)} @ "
+                    f"{dt(RTC_HOLE_P)} (TOP pair only) for M{BOSS_SCREW} "
+                    f"- I2C 0x68. ON THIS WALL, not the bottom plate"))
     o.append(leader(LUX_WALL_X + LUX_PCB_W/2, fy(LUX_WALL_Y), 44, 18,
-                    f"BH1750 lux {dt(LUX_PCB_W)} x {dt(LUX_PCB_H)}, 4x M"
-                    f"{BOSS_SCREW} @ {dt(LUX_HOLE_P)} - looks through the pipe"))
+                    f"BH1750 lux {dt(LUX_PCB_W)} x {dt(LUX_PCB_H)}, "
+                    f"{qt_note(LUX_PCB_W, LUX_PCB_H)} - looks through the pipe"))
     o.append(leader(SW_WALL_X - SW_NUT_D/2, fy(SW_WALL_Y), -26, 34,
                     f"{chr(216)}{dt(SW_D)} UPS 5V switch - ROUND panel button, "
                     f"on a {chr(216)}{dt(SW_NUT_D + 2*SW_RIB)} land", "end"))
@@ -642,10 +671,18 @@ def build():
        f"{dt(KNOB_BORE_F)} D-flat. The encoder board mounts to a rib under the ridge.")
     nl(f"k   ToF sits on the crown beside the knob, board turned LONGWISE front-to-back so "
        f"its {dt(TOF_PCB_W)} edge clears the {dt(ENC_PCB)} encoder")
-    nl(f"    board by {dt(TOF_X - TOF_PCB_W/2 - W/2 - ENC_PCB/2)} mm. Pinhole lands "
+    nl(f"    board by {dt(TOF_BOARD_GAP)} mm - which is not a chosen gap but whatever "
+       f"leaves {dt(BOSS_GAP_MIN)} mm between the two boards' nearest")
+    nl(f"    bosses. Both carry FOUR {chr(216)}{QT_HOLE_D} holes {QT_HOLE_INSET} in from "
+       f"every edge, and their hole rows sit at the same two depths, so the")
+    nl(f"    bosses are separated in x alone. Pinhole lands "
        f"{dt(TOF_X - W/2 - KNOB_D/2)} mm right of the knob's widest point. Confirm where the "
-       "chip sits on YOUR breakout -")
-    nl("    the drawing assumes it is centred on the board.")
+       "chip sits on YOUR")
+    nl("    breakout - the drawing assumes it is centred on the board.")
+    nl(f"    Each crown board's four boss tips are COPLANAR, so the board sits flat "
+       f"instead of following the arch: the ToF would")
+    nl(f"    otherwise tilt 10.7 deg, aiming its 25 deg cone into the side of its own "
+       f"vertical pinhole.")
     nl(f"l   Front plate seats into a rebate in the dome lip ({dt(LIP)} wide, "
        f"{dt(REVEAL)} reveal all round).")
     o.append(g("NOTES", L, nx, ny))

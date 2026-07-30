@@ -5,7 +5,15 @@
 one body each. Firmware and all four documents are in sync with the geometry.
 Nothing is committed.
 
-## Latest session — the three boards are finally *held*
+## Latest session — the sensor hole patterns were all wrong
+
+The encoder, ToF and BH1750 each had an invented **two**-hole pitch. All three have
+**four** holes, and all three vendors publish the Eagle file that says so. Fixing
+that turned up two collisions the old model could not see (bosses 0.59 mm apart,
+and a 10.7° tilt on the ToF), and closed the last open item on the rear wall. Full
+account at **"The hole pitches were never pitches"** at the end of this file.
+
+## Previous session — the three boards are finally *held*
 
 Their hole patterns had been in the docs for a while. Nothing was using them.
 
@@ -672,12 +680,14 @@ Plus: crown bosses floated because the flat cut removed the ceiling they hung
 from, leaving coplanar faces. Fixed by cutting the flats first and letting the
 bosses overlap into the remaining material.
 
-### Still to measure
-`ENC_HOLE_P`, `TOF_HOLE_P`, `RTC_HOLE_P`, `AMP_HOLE_P`, `LUX_HOLE_P` are all
-`(?)` guesses at 20/15 mm, and `SW_W`/`SW_H`, `BARREL_NUT_D`, `RTC_PCB_*`,
-`LUX_PCB_*` likewise. **Every board mount depends on them.** Measure before
-printing the dome or the plate — the crown mounts especially, since a wrong hole
-pitch there means reprinting the whole shell.
+### ~~Still to measure~~ — the board holes are RESOLVED (see the later pass)
+`ENC_HOLE_P`, `TOF_HOLE_P`, `RTC_HOLE_P`, `AMP_HOLE_P`, `LUX_HOLE_P` were all
+`(?)` guesses at 20/15 mm. **They are gone.** Every one of these boards publishes
+its Eagle `.brd`, and the files give four Ø2.5 holes 2.54 mm in from every edge
+(two on the DS3231). See "The hole pitches were never pitches" below and
+[`../HARDWARE.md`](../HARDWARE.md).
+
+Still genuinely unmeasured: `SW_D`, `SW_NUT_D`, `BARREL_NUT_D`.
 
 
 ## Rear wall and bottom, reworked
@@ -788,6 +798,10 @@ its narrow edge clears the encoder, which means its holes are separated along th
 encoder boss — and both sat outside the board's own 17.8 mm width. A hole pitch
 wider than the board it belongs to is impossible; that was the tell. Now 10.5 mm
 of clearance.
+
+> **Superseded — the pair was never a pair.** See "The hole pitches were never
+> pitches" below. Both crown boards have **four** holes; the 10.5 mm of clearance
+> claimed here was really **0.59 mm** once the real patterns went in.
 
 **Drawings.** Three things were never on any sheet, and one was drawn wrong:
 
@@ -925,3 +939,139 @@ full thickness — so it is the hole, not the counterbore, that reaches a boss o
 the top face. Checking the wrong one of those two would have passed.
 
 Verified both ways: putting the RTC back at (20, 44) reports −3.20 mm and fails.
+
+
+## The hole pitches were never pitches
+
+The encoder, the ToF and the BH1750 each carried a made-up **two**-hole pitch —
+`ENC_HOLE_P = 20.0`, `TOF_HOLE_P = 20.0`, `LUX_HOLE_P = 15.0`, every one marked
+`(?) MEASURE`. All three boards have **four** holes, and all three vendors publish
+the board file that says so. The numbers were sitting in public Eagle files the
+whole time:
+
+| | outline | holes |
+|---|---|---|
+| #4991 I2C QT Rotary Encoder | 25.40 × 25.40 | 4 × Ø2.5, 20.32 × 20.32 |
+| #3317 VL53L0X STEMMA QT | 25.40 × 17.78 | 4 × Ø2.5, 20.32 × 12.70 |
+| #4681 BH1750 STEMMA QT | 25.40 × 17.78 | 4 × Ø2.5, 20.32 × 12.70 |
+| #5188 DS3231 STEMMA QT | 25.40 × 17.78 | **2** × Ø3.0, 20.32 — top pair only |
+
+One footprint family: holes 2.54 mm (0.100″) in from every edge of a 25.4 mm-wide
+blank. The DS3231 is the only board that does not populate all four.
+
+**Look for the vendor's board file before reaching for the calipers.** This is the
+third time on this part that a published number beat a measured or inferred one —
+the matrix's holes, the amp's holes, and now these. `check_docs.py` asserts all
+four patterns against their repos, so a guess cannot come back.
+
+### Three real consequences, not just tidier constants
+
+**The bosses were about to merge.** Both crown boards' hole rows are 20.32 along
+the depth and both boards are centred on the same depth, so the encoder's
+right-hand bosses and the ToF's left-hand bosses sit at **identical depths** —
+separated in x alone, with no diagonal to help. Against the old 1.5 mm board-edge
+gap that left **0.59 mm** between two Ø6 posts. That is not an intersection, so the
+existing "bosses do not intersect" check passed it; 0.59 mm of PETG between two
+posts prints as one blob. `TOF_X` is now *derived* from a required boss gap
+(`BOSS_GAP_MIN = 2.0`) rather than from a board-edge gap, and the check compares
+all 16 pairs with real clearance in it. **The bosses are the binding constraint,
+not the board** — the same sentence the RTC's wall search had already written down.
+
+**The ToF was going to tilt 10.7°.** Two bosses on one x cannot tilt a board.
+Four spanning 12.7 mm of x can, and the ToF is the one board that is **off the
+apex** — dx 16.7 to 30.9, where the ceiling falls 2.6 mm across its hole span. Its
+pinhole is a **vertical** bore and its FoV a 25° cone, so following the arch would
+have aimed half the cone into the side of its own hole. The board that most needed
+to sit flush was the one the arch treated worst — and the old note arguing the flat
+was unnecessary had measured the **encoder**, which is centred on the apex and sits
+flat either way. *An argument for skipping something is only as good as the case it
+was made about.*
+
+Each crown board's four boss tips are now built **coplanar**, at the lowest of its
+own local ceilings less its standoff. That is the milled flat's whole benefit bought
+with **added** material instead of removed — no lens, no knife edge, none of the
+mesh trouble that made cutting a flat a dead end. The dead flat machinery
+(`crown_flat_cut`, `ENC_FLAT_*`, `TOF_FLAT_*`, `CROWN_FLAT_R`,
+`FLAT_MARGIN_LOCAL`) is deleted: `gen_dome.py` imported all four constants and
+called none of them, which left a feature the part does not have looking live.
+
+**A buttress came out through the skin.** Everything that reaches up into the wall
+to fuse was written as `local ceiling + a constant`, measured at the feature's
+**centre**. Fine near the apex. Out on the shoulder the skin has fallen away by the
+time you reach the feature's outboard corner, and the ToF's outer buttress
+overshot by 2.0 and left the machine by 0.19 mm. The containment guard caught it —
+which is what the guard is for — but a feature that has to be trimmed to be legal
+is built wrong. There is now a `crown_outer_y()` to clamp against, and the ramp
+raises a hard error if the clamp ever eats the whole overlap.
+
+### Two checks that were passing for the wrong reason
+
+`chk("ToF hole pitch fits its own board", TOF_PCB_D - TOF_HOLE_P)` tested a pitch
+against a board. With a corner inset that comparison cannot fail, so it was
+replaced by one that can: every hole must lie on its own board, which catches a
+board handed its pattern the **wrong way round** — the live risk now that the ToF
+is mounted longwise and its (dx, ddepth) is the vendor pattern's (dy, dx).
+
+The flatness check was worse — first written as
+`min(crown_inner_y(...)) - standoff` per hole, which is the same formula the
+builder uses, so it reported 0.000° no matter what the part did. It reads the
+**recorded tip** of each built boss now. Verified by injection: reverting all five
+values (the two board outlines, the RTC's y, the old 1.5 mm gap, and the ToF
+pattern rotated) fails five separate assertions.
+
+### Also stale, on the sheet rather than in the solid
+
+The rear elevation called the DS3231 up as "4x M2.5 @ 20.3" while the dome
+correctly built **two** bosses — a hardcoded count next to a hole list that knew
+better. The label derives it now. And the RTC's own holes were 0.51 mm out (y =
+14.73, read off a fab print) and drilled Ø2.5 where the board says Ø3.0; the Ø3.0
+is a **clearance** hole, so the M2.5 self-tapper into the boss is unchanged. That
+was the last open item blocking the rear wall.
+
+### And the mesh validation had not been running
+
+Adding two bosses per crown board turned the dome into **two connected bodies**.
+The second one was a **zero-volume, four-face flap** on the left wall at
+`y = BP_T`, `z = 24.1..29.0` — no material in it, and nothing to do with the crown.
+
+The cause: `ledge = annulus(WALL, WALL + SEAT_W)` put the seating ledge's outer
+face *exactly* on the cavity boundary — the plane the cavity had just been cut on.
+Coincident faces, which this part has already paid for three times (the buttresses'
+tangent planes, their tip caps, the stepped louvres). Nothing about the ledge had
+to change for the flap to appear: **the union order decides which side of the plane
+it lands on, and four more bosses in `adds` was enough to flip it.** The ledge now
+reaches `LEDGE_BURY` (0.5) *into* the wall so the union overlaps solid material
+instead of meeting it. Volume and bounding box are unchanged to four decimals —
+only the topology moves.
+
+The rib and its ramp block are written the same way and **must not** get the same
+treatment: `_ramp_void` lofts its far section to `d_points(WALL)`, so material
+pushed outboard of that would not be cut away and the 45° ramp would come back as
+a shelf. Only the ledge is free to be buried.
+
+**The reason this was invisible is worse than the bug.** The whole validation block
+sat inside `except ImportError: say("validate skipped: no trimesh")` — a ~180-line
+try with imports inside it. trimesh was installed and fine; **scipy** was missing,
+and `trimesh.split()` needs it for connected components. So every run printed "no
+trimesh" and skipped watertightness, the body count and the board-envelope test.
+Removing the blanket handler immediately surfaced a *second* missing dependency,
+**rtree**, which the ray intersector needs — so even more had been skipped than the
+body count.
+
+Imports are hoisted and named now, a missing one says *which*, and the checks can
+no longer be skipped: a missing dependency is a **failure**, not a shrug. With all
+four installed the dome reports watertight, one body, all three rear-wall board
+envelopes clear of the shell (including the BH1750, now 25.4 wide rather than 20),
+and the overhang audit passes at 0.87 mm against a 1.0 limit.
+
+> **A blanket `except ImportError` around a large block does not just report the
+> wrong cause — it silently skips work nobody chose to skip.** Five other
+> generators are written the same way; they all pass now that the dependencies are
+> present, but the pattern is worth removing from them too.
+
+Stale figures found while re-measuring, now corrected in the parts table: the dome
+was listed at 146.8 cm³ (really 153.2 after the extra bosses), the front module at
+70.3 (68.2) with a 21.3 thickness (18.8), the LED carrier at 25.2 (23.2) and
+185.0 × 69.2 × 4.7 (186.1 × 70.7 × 2.5), the plate at 45.3 (45.0). `check_docs.py`
+asserts the envelope and the front-module face size but not part volumes, which is
+why these drifted.
