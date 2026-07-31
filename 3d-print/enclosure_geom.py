@@ -604,7 +604,11 @@ SPK_W_MAX    = W/2 - TRAY_W/2 - REVEAL - BOSS_EDGE - 2*SPK_FLANK
 # The knob is PART 5: a printed pebble that caps the seesaw encoder shaft. It
 # seats on a flat boss milled into the cylindrical crown, on the top ridge.
 ENC_SHAFT_D = 7.0    # clearance bore through the shell for the encoder shaft
-ENC_Y       = 30.0   # knob centre, from the front face, in plan
+# >>> ENC_Y IS DEFINED FURTHER DOWN NOW, next to CARRIER_Z0, because it is
+# >>> DERIVED FROM IT. It was 30.0 by hand, chosen before the crescent baffle
+# >>> existed; the baffle now reaches CARRIER_Z0 into the dome and the encoder's
+# >>> 25.4 mm board started at depth 17.3 -- 77.8 mm^3 of it inside the front
+# >>> module, with the ToF 55.4 mm^3 in beside it. See CROWN_Z.
 ENC_PCB     = 25.4   # Adafruit #4991, 1.0" square -- CONFIRMED, see QT_PCB_SRC
 # The knob is a FULL pebble: an ellipse of revolution truncated by a shallow cut
 # at the bottom, so only a small flat meets the crown. KNOB_BASE_D sets how much
@@ -660,7 +664,7 @@ TOF_PCB_D   = 25.4   #   "                      long edge  -- CONFIRMED
 # >>> _resolve_tof_x(), which solves for the gap that matters. BOSS_D does not
 # >>> exist yet at this point in the file, which is why this cannot be done here.
 TOF_X       = None   # resolved by _resolve_tof_x(), from boss clearance
-TOF_Y       = ENC_Y  # same front-offset as the knob, so it sits alongside
+# TOF_Y is set with ENC_Y from CROWN_Z, below -- they sit side by side.
 
 # ---- rear-wall features (see the REAR view; y up from the bottom) ---------
 # >>> THE UPS AND THE FLEX NO LONGER STACK. The flattened crown took the
@@ -784,6 +788,19 @@ CARRIER_T      = 2.5
 DIFF_LIP       = 1.5                 # facade left in FRONT of the acrylic
 CAV_Z          = DIFF_LIP + DIFF_REBATE + DIFF_GAP   # cavity wall back face
 CARRIER_Z0     = CAV_Z + LED_STRIP_T                 # carrier front face
+
+# ---- crown boards: BEHIND the baffle, not beside it -------------------------
+# >>> THE FRONT MODULE REACHES INTO THE DOME, AND THE CROWN BOARDS DID NOT KNOW.
+# >>> The crescent cavity wall runs from the facade back to CARRIER_Z0, so the
+# >>> first CARRIER_Z0 mm of the dome's interior is not free space at all. The
+# >>> encoder and the ToF were placed at a hand-picked depth of 30.0 from before
+# >>> that wall existed, which put the leading 1.53 mm of both boards inside it.
+# >>> Deriving the depth means the boards move whenever the baffle does -- and the
+# >>> baffle has moved twice this week.
+CROWN_BAFFLE_CLR = 2.0                # air between the baffle and a crown board
+CROWN_Z = CARRIER_Z0 + CROWN_BAFFLE_CLR + max(ENC_PCB, TOF_PCB_D) / 2.0
+ENC_Y = CROWN_Z       # knob/encoder centre, from the front face, in plan
+TOF_Y = CROWN_Z       # same front-offset as the knob, so it sits alongside
 CARRIER_Z1     = CARRIER_Z0 + CARRIER_T
 
 # The strip ribbon is STRIP_W wide and the bottom row's CENTRE is only LED_D/2
@@ -1637,6 +1654,20 @@ def mic_x():
 
 def vent_y(i):
     return VENT_Y + i * VENT_P
+
+
+def crown_inner_y(x):
+    """Height of the crown's INNER surface at this x -- what a board mounted up
+    there actually lands on.
+
+    >>> MOVED HERE FROM gen_dome. It lived in the dome, so only the dome could ask
+    >>> where its ceiling is -- and the front module, which reaches CARRIER_Z0 into
+    >>> that same space, could not check its own boards against it. Shared geometry
+    >>> belongs in the shared module; a fact only one part can see is a fact no
+    >>> cross-part check can use.
+    """
+    a, b = ARCH_R - WALL, ARCH_RY - WALL
+    return ARCH_Y + b * math.sqrt(max(1.0 - ((x - W / 2) / a) ** 2, 0.0))
 
 
 def arch_half_chord(y, r=None, ry=None):

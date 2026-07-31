@@ -48,6 +48,7 @@ from enclosure_geom import (
     SPK_NUB_H, SPK_NUB_W, SPK_POST_W, SPK_POST_H_Y, CLR_POST_MIC,
     DIFF_LIP, CAV_Z, CARRIER_Z0, CARRIER_T, LED_STRIP_T, DIFF_R_G, CAV_RY_G,
     strip_rects, BAFFLE_DROP, CARRIER_SKIRT, CARRIER_LIP,
+    crown_boards, crown_inner_y, CROWN_BAFFLE_CLR,
     PAD_PROJ, PAD_W, PAD_DRAFT, PAD_Z0, PAD_RAMP, PAD_OFFSET_IN, PAD_PILOT_D,
     PAD_PILOT_Z, carrier_pads, DIFF_RY_G,
     pad_led_clearances,
@@ -1377,6 +1378,26 @@ for _i, (_px, _py) in enumerate(mtx_posts):
 # >>> straight into this bar: the rows are placed so the lowest pixel's edge grazes
 # >>> the aperture's flat bottom at CRES_Y, which leaves the ribbon hanging 2.4 mm
 # >>> BELOW the cavity floor, where the bar is solid.
+# >>> THIS PART REACHES INTO THE DOME, AND NOTHING WAS CHECKING IT. The crescent
+# >>> baffle runs CARRIER_Z0 back from the facade, so the first ~19 mm of the
+# >>> dome's interior is not free space -- but the encoder and ToF hang from the
+# >>> crown at a depth chosen before the baffle existed, and had 77.8 and 55.4 mm^3
+# >>> of board buried in it. Neither part could see it: the dome checks its own
+# >>> features, this file checks its own, and the interference lived between them.
+# >>> The intruding part is the right place for the check, because it is the one
+# >>> that knows how far it reaches.
+say("")
+say("crown boards (dome-mounted) vs this module's reach")
+for _cnm, _ccx, _ccz, _cbw, _cbd, _coffs, _cstand in crown_boards():
+    _ctip = min(crown_inner_y(_ccx + _dx) for _dx, _ in _coffs) - _cstand
+    _cenv = Manifold.cube((_cbw, 1.6 + 6.0, _cbd)).translate(
+        (_ccx - _cbw / 2, _ctip - 1.6 - 6.0, _ccz - _cbd / 2))
+    clash(f"{_cnm} board (depth {_ccz - _cbd/2:.1f}-{_ccz + _cbd/2:.1f}) "
+          f"is clear of the baffle", _cenv)
+say(f"  ---- {min(c - _cbd/2 for _n, _x, c, _w, _cbd, _o, _s in crown_boards()) - CARRIER_Z0:8.2f}"
+    f"   nearest crown board to the baffle at z={CARRIER_Z0:.2f} "
+    f"(design clearance {CROWN_BAFFLE_CLR})")
+
 say("")
 say("LED ribbons vs the cavity bar")
 for _i, (_hl, _ry, _hw) in enumerate(strip_rects()):

@@ -55,6 +55,7 @@ from enclosure_geom import (
     TOUCH_WALL, TOUCH_Y, VENT_HH, VENT_N, VENT_P, VENT_Y, W, WALL,
     vent_slots, vent_half_len, BOSS_GAP_MIN,
     flat_depth, flex_holes, rear_wall_boards, crown_boards, touch_x, vent_x,
+    crown_inner_y,
     REAR_BOARD_SCREW, REAR_PILOT_D,
 )
 
@@ -181,13 +182,6 @@ def ycyl(cx, cz, y0, y1, d, segs=SEG):
     return (Manifold.cylinder(y1 - y0, d / 2, d / 2, segs)
             .rotate((-90, 0, 0))
             .translate((cx, y0, cz)))
-
-
-def crown_inner_y(x):
-    """Height of the crown's INNER surface at this x -- what a board mounted up
-    there actually lands on."""
-    a, b = ARCH_R - WALL, ARCH_RY - WALL
-    return ARCH_Y + b * math.sqrt(max(1.0 - ((x - W / 2) / a) ** 2, 0.0))
 
 
 def crown_outer_y(x):

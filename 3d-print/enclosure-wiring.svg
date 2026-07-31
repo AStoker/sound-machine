@@ -174,8 +174,8 @@
 <rect class="hid" x="2" y="3.6" width="4" height="148.09"/>
 <line class="dim" x1="61.5" y1="151.69" x2="98" y2="135.69" marker-start="url(#arw)"/><circle class="bal" cx="98" cy="135.69" r="4.6"/><text class="balt" x="98" y="137.29" text-anchor="middle">3</text>
 <line class="dim" x1="61.5" y1="35.69" x2="98" y2="49.69" marker-start="url(#arw)"/><circle class="bal" cx="98" cy="49.69" r="4.6"/><text class="balt" x="98" y="51.29" text-anchor="middle">4</text>
-<line class="dim" x1="34" y1="3" x2="98" y2="-22" marker-start="url(#arw)"/><circle class="bal" cx="98" cy="-22" r="4.6"/><text class="balt" x="98" y="-20.4" text-anchor="middle">5</text>
-<line class="dim" x1="34" y1="3" x2="-30" y2="-22" marker-start="url(#arw)"/><circle class="bal" cx="-30" cy="-22" r="4.6"/><text class="balt" x="-30" y="-20.4" text-anchor="middle">6</text>
+<line class="dim" x1="30.47" y1="3" x2="98" y2="-22" marker-start="url(#arw)"/><circle class="bal" cx="98" cy="-22" r="4.6"/><text class="balt" x="98" y="-20.4" text-anchor="middle">5</text>
+<line class="dim" x1="30.47" y1="3" x2="-30" y2="-22" marker-start="url(#arw)"/><circle class="bal" cx="-30" cy="-22" r="4.6"/><text class="balt" x="-30" y="-20.4" text-anchor="middle">6</text>
 <line class="dim" x1="49.5" y1="105.19" x2="-30" y2="105.19" marker-start="url(#arw)"/><circle class="bal" cx="-30" cy="105.19" r="4.6"/><text class="balt" x="-30" y="106.79" text-anchor="middle">2</text>
 <line class="dim" x1="50" y1="145.69" x2="-30" y2="131.69" marker-start="url(#arw)"/><circle class="bal" cx="-30" cy="131.69" r="4.6"/><text class="balt" x="-30" y="133.29" text-anchor="middle">1</text></g>
 <text class="lbl" x="185.08" y="108.528" text-anchor="middle">RIGHT SIDE</text>

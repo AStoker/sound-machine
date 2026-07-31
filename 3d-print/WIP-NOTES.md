@@ -42,6 +42,37 @@ and it is checked as a **rigid motion**: the hole-to-hole span and each hole's
 four edge distances have to survive it. Both broken forms were re-introduced to
 confirm the check fails (−6.34 for a swap, −8.25 for the original centreline bug).
 
+## The front module reaches into the dome, and nothing was checking it
+
+Andy spotted it: the crescent baffle runs `CARRIER_Z0` = 18.83 mm back from the
+facade, so the first ~19 mm of the dome's interior **is not free space** — but the
+encoder and ToF hang from the crown at a depth picked before that baffle existed.
+Measured: **encoder 77.8 mm³, ToF 55.4 mm³** of board buried inside the front
+module. The leading 1.53 mm of each 25.4 mm board.
+
+Neither part could see it. The dome checks its own features, the front module
+checks its own, and the interference lived in the gap between them.
+
+**`ENC_Y`/`TOF_Y` are derived now**: `CROWN_Z = CARRIER_Z0 + CROWN_BAFFLE_CLR +
+board/2` = 33.53, up from a hand-picked 30.0. The boards move whenever the baffle
+does — and the baffle has moved twice this week. Interference: **0.0 / 0.0**.
+
+Two structural changes came with it:
+
+- **`crown_inner_y()` moved to `enclosure_geom`.** It lived in `gen_dome`, so only
+  the dome could ask where its own ceiling is — and the part intruding into that
+  space could not check itself against it. A fact only one part can see is a fact
+  no cross-part check can use.
+- **The check lives in the intruding part.** `gen_front_plate.py` now measures
+  every crown board against its own solid, because it is the part that knows how
+  far it reaches. Verified by re-breaking to the old depth: `FAIL 179.56` /
+  `FAIL 127.71`.
+
+**The lux sensor did not need lowering.** Worth measuring before moving: the
+encoder's lowest point is y = 142.20, the lux board's top is 128.89 — **13.31 mm
+apart in height, and 10.27 mm in depth**. They clear in both axes at once, so the
+move would have bought nothing.
+
 ## The baffle floor is drafted, and the ribbon clash is gone
 
 Row 0's ribbon hangs 2.4 mm below the crescent baseline and sat **703 mm³** inside
