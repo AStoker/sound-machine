@@ -42,6 +42,60 @@ and it is checked as a **rigid motion**: the hole-to-hole span and each hole's
 four edge distances have to survive it. Both broken forms were re-introduced to
 confirm the check fails (−6.34 for a swap, −8.25 for the original centreline bug).
 
+## The encoder's NeoPixel now has a way out
+
+The seesaw carries a NeoPixel and `packages/knob.yaml` has been driving it since
+it was written — into a sealed cavity. The crown was solid over it.
+
+**Position, from the fab print:** centred across the board and in line with the
+two top mounting holes — board-local (12.7, 22.86), i.e. exactly **(0, +10.16)**
+from the board centre. Landing on the same 10.16 radius as the screw holes is a
+useful cross-check on the reading.
+
+A Ø4.5 window through the crown, 10.16 mm forward of the shaft. Under the knob rim
+with 1.59 mm to spare, 4.41 mm clear of the shaft bore, 4.91 mm clear of the
+nearest encoder boss.
+
+### The knob is unchanged
+
+A rotationally-symmetric light gap was cut into the knob's base — the knob turns,
+so a pocket would only sit over the hole until you used it once — and then removed
+at Andy's call: the knob/crown seam on a printed part already leaks plenty, so
+lifting the knob off its seat bought nothing and cost seating area. **The window in
+the crown is the whole feature.** `KNOB_LAND_D` and `KNOB_LIGHT_GAP` are gone.
+
+### One assembly instruction that the geometry cannot enforce
+
+The board has four holes on a square pitch and a central shaft, so **it drops in
+happily at 180° out** — which would put the pixel, and the window lighting it, at
+the back of the knob instead of the front. `ENC_PIXEL_FORWARD` records the intent;
+fitting it backwards is the one way to get this wrong at assembly time.
+
+## MEASURE-ME is tied to the source now
+
+That document is the one Andy acts on, and it had drifted furthest of anything in
+the repo — still asking for five hole patterns Adafruit's board files had settled,
+for speaker nubs he had confirmed on a print, and for `MTX_SOCKET_H`, a
+measurement for the press-in backpack scheme that lost to the clips and was never
+built. Nobody noticed, because prose has no checks.
+
+`check_docs.py` now asserts it **both ways**: every constant still marked `(?)`
+must be named in MEASURE-ME, and everything MEASURE-ME names must still be marked
+`(?)`. The second direction is the one that catches stale asks.
+
+It found a real defect on its first run: `UPS_W, UPS_D, UPS_H` shared one line and
+one `(?)`, so the check demanded the width and height too — which the DXF settled
+long ago. **A marker on a tuple marks everything in it.** Split so the `(?)` lands
+only on the depth.
+
+And the break test caught a flaw in the check itself: the "settled" exemption read
+`split("## Settled")[-1]`, which swallows the rest of the file, so a stale ask
+appended at the END was silently exempt and the test that should have failed
+passed. Now cut at the next heading, and verified failing from both the middle and
+the end of the document.
+
+16 values remain unknown, down from a list that read like 30.
+
 ## The front module reaches into the dome, and nothing was checking it
 
 Andy spotted it: the crescent baffle runs `CARRIER_Z0` = 18.83 mm back from the

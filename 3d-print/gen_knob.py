@@ -87,6 +87,7 @@ keep = Manifold.cube((bore_d + 2, slab_hi - slab_lo, KNOB_BORE_H + 2)) \
 bore = bore ^ keep
 body = body - bore.translate((0.0, 0.0, -0.5))     # break out through the base
 
+
 # --- base edge break --------------------------------------------------------
 # A 45 deg chamfer, cut as a cone -- self-supporting and it keeps the knob from
 # scuffing the crown boss as it is pushed on.
@@ -168,6 +169,7 @@ chk("fits the bed (x)", BED - (bb[3] - bb[0]))
 chk("fits the bed (z)", BED - (bb[5] - bb[2]))
 chk("widest point is ABOVE the base (it is a pebble, not a cone)",
     KNOB_D - KNOB_BASE_D)
+
 
 try:
     import trimesh

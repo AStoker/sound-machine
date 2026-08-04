@@ -392,6 +392,60 @@ if abs(_ap[0][1]) < 1.0:
         f"the board's depth centre. Both are at board x = 19.05, which is 8.26 off "
         f"a 21.59-wide centre -- on the centreline the board cannot go on at all.")
 
+# >>> MEASURE-ME IS TIED TO THE (?) MARKERS, BOTH WAYS. That document is the one
+# >>> the human acts on, and it had drifted furthest of anything in the repo: still
+# >>> asking for five hole patterns Adafruit's board files had settled, for speaker
+# >>> nubs confirmed on a print, and for MTX_SOCKET_H -- a measurement for the
+# >>> press-in backpack scheme, which lost to the clips and was never built. Nobody
+# >>> noticed because prose has no checks.
+# >>> So: every constant still marked (?) in the source must be NAMED in
+# >>> MEASURE-ME, and every constant MEASURE-ME names must still be marked (?).
+# >>> The second direction is the one that catches stale asks.
+import re as _re
+
+_MM = ROOT / "3d-print" / "MEASURE-ME.md"
+_mm_text = _MM.read_text()
+_unknown = set()
+for _fn in ("enclosure_geom.py", "gen_front_plate.py", "gen_dome.py",
+            "gen_bottom_plate.py", "gen_led_carrier.py", "gen_knob.py"):
+    _path = ROOT / "3d-print" / _fn
+    if not _path.exists():
+        continue
+    for _line in _path.read_text().splitlines():
+        _m = _re.match(r"^([A-Z][A-Z_0-9]*(?:\s*,\s*[A-Z][A-Z_0-9]*)*)\s*=.*\(\?\)",
+                       _line)
+        if _m:
+            for _nm in _m.group(1).split(","):
+                _unknown.add(_nm.strip())
+
+_named = {_n for _n in _unknown if f"`{_n}`" in _mm_text}
+_missing = sorted(_unknown - _named)
+if _missing:
+    problems.append(
+        "MEASURE-ME.md does not mention " + ", ".join(_missing) +
+        " -- still marked (?) in the source, so they are still guesses the "
+        "human has to resolve, and the document is what they act on.")
+
+# ...and the other way: anything MEASURE-ME asks for must still be unknown.
+_asked = set(_re.findall(r"`([A-Z][A-Z_0-9]*)`", _mm_text))
+# >>> THE EXEMPTION IS ONE SECTION, NOT "EVERYTHING AFTER THE HEADING". This read
+# >>> _mm_text.split("## Settled")[-1], which swallows the rest of the file -- so a
+# >>> stale ask appended at the END of the document was silently exempt, and the
+# >>> break test that should have caught it passed. Cut at the next heading.
+_settled_section = ""
+if "## Settled" in _mm_text:
+    _rest = _mm_text.split("## Settled", 1)[1]
+    _nxt = _re.search(r"\n## ", _rest)
+    _settled_section = _rest[:_nxt.start()] if _nxt else _rest
+_stale = sorted(_n for _n in _asked - _unknown
+                if f"`{_n}`" not in _settled_section)
+if _stale:
+    problems.append(
+        "MEASURE-ME.md still asks for " + ", ".join(_stale) +
+        " -- these are no longer marked (?) in the source. A list that asks for "
+        "numbers already settled is how it came to ask for a measurement of a "
+        "part that was never built.")
+
 # >>> WHERE THE RTC LIVES IS ASSERTED, NOT DESCRIBED. The docs said "the rear
 # >>> wall is FULL and the RTC had to leave it" for the whole time that had
 # >>> stopped being true. Tie the prose to RTC_ON_FLOOR so it cannot say one and

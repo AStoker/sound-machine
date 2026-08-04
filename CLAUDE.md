@@ -104,10 +104,23 @@ If you switch it to the stock platform, that regression is what you are buying.
 Cross-file invariants worth knowing before changing behavior:
 - **Display is single-owner.** The active display package's `render_display`
   (`packages/matrix.yaml` today, or `packages/display.yaml` for the 7-seg) is the
-  ONLY writer of the display. It renders one of three things in priority order:
-  low-battery "LO" warning → transient preset code → clock. Preset selects in
-  other packages set `preset_code`/`showing_preset` and call `show_preset_code`
-  (both in `ambient.yaml`); they never write the display directly.
+  ONLY writer of the display. It renders one thing, in priority order:
+  HA-authored message → device status message → low-battery warning → transient
+  preset code → clock. Other packages never write the display directly; they go
+  through one of the two transient channels in `ambient.yaml`:
+  - `preset_code`/`showing_preset` + `show_preset_code` — short codes ("L1",
+    "S3", "OFF") from a user turning a knob or picking a select.
+  - `show_status_message(text, seconds)` — short announcements from device events
+    (today: `battery.yaml` announcing "CHG"/"BATT" when External Power flips).
+    Keep new callers here, **not** on a display-specific id, or the documented
+    matrix ↔ 7-seg swap stops compiling.
+- **4 characters is the static budget for a status message.** The matrix draws it
+  inside a SINGLE panel (the right-hand one) in the compact 3x5 font, so it can
+  never straddle the inter-panel gap — which is why no seam-alignment logic is
+  needed for it. 4 chars = 15px inside 16 columns. Longer strings still work but
+  fall back to scrolling the full width, and a pass takes far longer than the few
+  seconds a status is meant to occupy. The 7-seg alternative has 4 digits, so the
+  same budget happens to apply there.
 - **The matrix has a physical inter-panel gap.** Two tiled panels aren't
   seamless — there's a ~1px dead column between them (`matrix_panel_gap`). The
   matrix lays content out in *physical* columns that include the gap and maps

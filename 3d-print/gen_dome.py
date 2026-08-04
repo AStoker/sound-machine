@@ -45,7 +45,8 @@ from manifold3d import CrossSection, Manifold
 from enclosure_geom import (
     ARCH_R, ARCH_RY, ARCH_Y, BARREL_D, BARREL_LAND_D, BARREL_NUT_D, BARREL_Y,
     BOSS_CHAMF, BOSS_D, BOSS_MIN_WALL, BOSS_PILOT_D, BOSS_SCREW, BP_T, D,
-    ENC_SHAFT_D, ENC_Y,
+    ENC_SHAFT_D, ENC_Y, ENC_PIXEL_D, enc_pixel_xy, KNOB_BASE_D,
+    ENC_HOLES,
     FLEX_BOSS_D, FLEX_HOLE_D, FLEX_STANDOFF, FLEX_WALL_Y, H, IN_D, IN_W, INSERT_D,
     KNOB_BOSS_D, LIP_T, LIP_W, LP_D, LP_Y, LUG_H, LUG_L, LUG_W, MODEL_DIR,
     RIB_T, RIB_W, R_BOT, REVEAL, FP_CLR, FP_T, SCREWS, SEAT_W, SLOT_W, STANDOFF_H, SW_RIB,
@@ -550,6 +551,13 @@ cuts.append(ycyl(W / 2, KNOB_Z, H - _pad_depth, H + 1.0, KNOB_BOSS_D))
 cuts.append(ycyl(W / 2, KNOB_Z, H - 25.0, H + 1.0, ENC_SHAFT_D))
 # the ToF pinhole
 cuts.append(ycyl(TOF_X, TOF_Y, H - 25.0, H + 1.0, TOF_HOLE_D, segs=48))
+# >>> A WINDOW FOR THE ENCODER'S NeoPixel. The seesaw carries one, and it was
+# >>> being lit by the firmware into a sealed cavity -- the crown is solid over it.
+# >>> The hole sits 10.16 mm forward of the shaft, on the same radius as the
+# >>> board's own mounting holes, and stays under the knob: the knob covers it, and
+# >>> the light leaves through the knob/crown seam -- the knob is unchanged.
+_px, _pz = enc_pixel_xy()
+cuts.append(ycyl(_px, _pz, H - 25.0, H + 1.0, ENC_PIXEL_D, segs=48))
 
 # --- touch pads: local wall thinning ----------------------------------------
 # Copper strips bond to the INSIDE of each shoulder; thinning the wall behind
@@ -800,6 +808,25 @@ chk("switch is below the Flex", FLEX_WALL_Y - (SW_WALL_Y + SW_D / 2))
 chk("switch is above the floor", (SW_WALL_Y - SW_D / 2) - BP_T)
 chk("barrel land clears the nut", BARREL_LAND_D - BARREL_NUT_D)
 chk("touch pad thinning leaves wall", TOUCH_WALL)
+
+# --- the NeoPixel window ----------------------------------------------------
+# >>> THE ENCODER CARRIES A NeoPixel AND THE CROWN WAS SOLID OVER IT. The firmware
+# >>> in packages/knob.yaml has been driving it since it was written, into a sealed
+# >>> cavity. The window is on the same 10.16 radius as the board's own mounting
+# >>> holes, forward of the shaft, and stays hidden under the knob -- the light gets
+# >>> out through the knob/crown seam, which leaks plenty on a printed part. The
+# >>> knob itself is UNCHANGED; a light gap was cut into its base and then removed.
+_pxx, _pzz = enc_pixel_xy()
+_pixr = ((_pxx - W / 2) ** 2 + (_pzz - ENC_Y) ** 2) ** 0.5
+chk(f"NeoPixel window stays under the knob rim "
+    f"(r={_pixr:.2f} + {ENC_PIXEL_D / 2:.2f})",
+    KNOB_BASE_D / 2 - (_pixr + ENC_PIXEL_D / 2))
+chk("NeoPixel window clears the shaft bore",
+    (_pixr - ENC_PIXEL_D / 2) - ENC_SHAFT_D / 2)
+_encb = min(((_pxx - (W / 2 + _dx)) ** 2 + (_pzz - (ENC_Y + _dz)) ** 2) ** 0.5
+            for _dx, _dz in ENC_HOLES)
+chk(f"NeoPixel window clears the encoder bosses ({_encb:.2f} apart)",
+    _encb - BOSS_D / 2 - ENC_PIXEL_D / 2)
 chk("nothing trimmed by the containment guard", 0.01 - _trimmed)
 chk("bbox depth == the design depth", 0.01 - abs((bb[5] - bb[2]) - D))
 chk("bbox width == the design width", 0.01 - abs((bb[3] - bb[0]) - W))

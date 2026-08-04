@@ -249,12 +249,10 @@ MTX_BP_HOLE_PITCH = (38.10, 22.86)   # 1.5" x 0.9"
 # >>> The driver therefore cannot be screwed down to the plate through the stack;
 # >>> it has to be held from BEHIND. See the note in gen_front_plate.
 # ---- inter-board sockets (the press-in scheme) ------------------------------
-# >>> (?) THE ONE NUMBER THE PRESS-IN DESIGN TURNS ON. Soldering female headers
-# >>> to the driver and plugging the matrix in replaces a 3.8 mm soldered gap with
-# >>> the socket's body height. A standard 2.54 mm socket is ~8.5; low-profile
-# >>> ones run 5.0-7.0. Every downstream depth follows from it, so MEASURE the
-# >>> mated pair rather than trusting this.
-MTX_SOCKET_H = 8.5                   # (?) female header body height -- MEASURE
+# >>> MTX_SOCKET_H WAS DELETED, along with the question it asked. It existed for
+# >>> the "solder female headers to the backpack and press the matrix in" scheme,
+# >>> which lost to the clip design and was never built. It was still sitting in
+# >>> MEASURE-ME as a blocking measurement for a part that does not exist.
 MTX_PCB_T   = 1.6                    # matrix thickness
 MTX_BP_T    = 1.6                    # driver backpack thickness
 # >>> THE STACK HEIGHT IS MEASURED; THE HEADER GAP IS DERIVED FROM IT. It was the
@@ -371,10 +369,10 @@ SPK_RING_W = 3.0     # VESTIGIAL. Was a raised baffle seat around each body,
 # >>> commit the print.
 SPK_FIX      = 2     # fixings per speaker: one nub per side
 SPK_NUB_Z    = 7.0   # front face -> nub landing face  -- MEASURED
-SPK_NUB_PROJ = 4.0   # (?) how far a nub stands off the 50 body -- MEASURE
-SPK_NUB_W    = 8.0   # (?) nub size along the depth   -- MEASURE
-SPK_NUB_H    = 6.0   # (?) nub size up the side       -- MEASURE
-SPK_NUB_SCREW = 3.0  # (?) M3 through the nub
+SPK_NUB_PROJ = 4.0   # CONFIRMED on a test print -- "the speaker nubs are perfect"
+SPK_NUB_W    = 8.0   # CONFIRMED, same print
+SPK_NUB_H    = 6.0   # CONFIRMED, same print
+SPK_NUB_SCREW = 3.0  # CONFIRMED, same print
 SPK_POST_WALL = 2.0  # material outboard of the screw, in the module post
 SPK_FIT       = 0.35 # per side, body to its locating rib / post
 # The nub+post budget. With the speaker rotated this is spent VERTICALLY, above
@@ -620,6 +618,23 @@ KNOB_BORE_D = 6.0    # (?) encoder shaft -- Adafruit seesaw is a 6 mm D-shaft
 KNOB_BORE_F = 4.5    # (?) across the D-flat
 KNOB_BORE_H = 15.0   # blind bore depth
 KNOB_BOSS_D = 30.0   # flat seating pad on the crown, under the knob
+# ---- the encoder's NeoPixel, and a way for its light to get out -------------
+# >>> POSITION FROM THE FAB PRINT: the NeoPixel sits centred across the board and
+# >>> IN LINE WITH THE TWO TOP MOUNTING HOLES -- board-local (12.7, 22.86), i.e.
+# >>> exactly (0, +10.16) from the board centre. That it lands on the same 10.16
+# >>> radius as the screw holes is a useful cross-check on the reading.
+ENC_PIXEL_OFF = (0.0, 10.16)   # from the BOARD CENTRE, board coordinates
+ENC_PIXEL_D   = 4.5            # light hole through the crown
+# >>> THE BOARD IS SYMMETRIC, SO WHICH WAY IT FACES IS AN ASSEMBLY INSTRUCTION.
+# >>> Four holes on a square pitch and a central shaft mean it drops in happily
+# >>> at 180 deg out, which would put the pixel -- and the hole that lights it --
+# >>> at the BACK of the knob instead of the front. Fitted with the NeoPixel edge
+# >>> FORWARD, so the glow shows on the side you look at.
+ENC_PIXEL_FORWARD = True
+# >>> NO CHANGE TO THE KNOB. A rotationally-symmetric light gap was cut into the
+# >>> knob's base and then removed: the seam between the knob and the crown already
+# >>> leaks plenty, so lifting the knob off its seat bought nothing and cost the
+# >>> seating area. The window in the crown is the whole feature.
 # ---- capacitive touch: TWO pads, one on each upper shoulder --------------
 # Tap either side to cycle presets. BOTH PADS SHARE ONE PIN (GPIO4 / D3,
 # TOUCH4): self-capacitance sensing measures the whole electrode net, so two
@@ -947,7 +962,12 @@ SCREWS = [(_LX,     36.0), (W - _LX,     36.0),   # side walls, behind the speak
 # interior, so the whole board STANDS VERTICALLY against the rear wall -- but it
 # no longer stands in the MIDDLE of it. See the rear-wall note: it shares the
 # wall with the Flex, side by side, and the jack became a panel-mount part.
-UPS_W, UPS_D, UPS_H = 60.0, 24.0, 93.0   # 60x93 board; 24 deep = board + cells (?)
+# >>> SPLIT SO THE (?) LANDS ON THE ONE VALUE THAT IS ACTUALLY A GUESS. All three
+# >>> shared a line and a single "(?)", so the doc check quite reasonably demanded
+# >>> that MEASURE-ME ask for the width and height too -- which the DXF settled
+# >>> long ago. A marker on a tuple marks everything in it.
+UPS_W, UPS_H = 60.0, 93.0                # board outline, from the Waveshare DXF
+UPS_D        = 24.0                      # (?) board + cells, front to back -- MEASURE
 # >>> MOUNTING HOLES, READ OUT OF WAVESHARE'S OWN DXF. Four Ø3.1 holes, 7.0 mm in
 # >>> from each long edge and 3.5 mm from each short edge, so a 46.0 x 86.0 pitch
 # >>> inside the 60 x 93 board. There is also a lone Ø2.5 near the top centre
@@ -1656,6 +1676,17 @@ def vent_y(i):
     return VENT_Y + i * VENT_P
 
 
+def enc_pixel_xy():
+    """The NeoPixel's centre in PART coordinates, as (x, depth).
+
+    >>> ONE FLIP, IN ONE PLACE. The board hangs component-side UP under the crown,
+    >>> so looking down at it you see the fab print's own view -- no mirroring.
+    >>> Only the 180 deg mounting choice matters, and ENC_PIXEL_FORWARD is it.
+    """
+    dx, dy = ENC_PIXEL_OFF
+    return (W / 2 + dx, ENC_Y + (-dy if ENC_PIXEL_FORWARD else dy))
+
+
 def crown_inner_y(x):
     """Height of the crown's INNER surface at this x -- what a board mounted up
     there actually lands on.
@@ -2038,7 +2069,7 @@ BARREL_NUT_D  = 16.0      # (?) across the nut's corners -- MEASURE
 # >>> panel-mount push button, not a rocker -- a rectangular cutout would leave
 # >>> four visible gaps around a circular bezel and nothing for its nut to pull
 # >>> against.
-SW_D         = 12.0       # (?) panel cutout diameter for the button -- MEASURE
+SW_D         = 12.0       # CONFIRMED by measurement -- push button is 12 mm
 SW_NUT_D     = 16.0       # (?) across the nut, for the land -- MEASURE
 SW_WALL_X    = 26.0       # rear wall, left of the Flex
 SW_WALL_Y    = 12.0       # low, level with the jack
