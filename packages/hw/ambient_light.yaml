@@ -1,0 +1,81 @@
+# =====================================================================
+# HARDWARE: BH1750 ambient light sensor (I2C)  [layer: hw]
+#
+# Turns lux into ONE abstract brightness level, 0..15, and publishes it as
+# `ambient_level`. That is the whole interface: nothing downstream sees lux.
+#
+# Why an abstract level rather than a percentage: it started as the HT16K33's
+# 4-bit brightness register and stayed, because every consumer wants a coarse
+# "how dark is the room" and none of them share units. The matrix scales it into
+# a PWM range, the 7-seg writes it straight to its register, and the knob
+# indicator scales it into a brightness ceiling.
+#
+# The lux -> level curve is HARDWARE INTERPRETATION, which is why it lives here
+# and not in a behavior package: it is about how eyes respond to light, not about
+# what this device chooses to do.
+#
+# DEFINES  ambient_level (global, 0..15), ambient_light (sensor entity).
+# CONSUMES internal_i2c (device core), and the ambient_* settings.
+# READ BY  api/display.yaml (folds it into the display frame) and
+#          api/indicator.yaml (the knob pixel's brightness ceiling).
+# =====================================================================
+globals:
+  - id: ambient_level
+    type: int
+    restore_value: no
+    initial_value: '9'      # sensible mid default until the first lux read
+
+sensor:
+  - platform: bh1750
+    id: ambient_light
+    name: "Ambient Light"
+    address: ${i2c_addr_ambient_light}
+    update_interval: ${ambient_update_interval}
+    filters:
+      # Kills sample jitter before the curve ever sees it, so the slew below
+      # only has to smooth genuine room changes.
+      - sliding_window_moving_average:
+          window_size: 4
+          send_every: 2
+    on_value:
+      - lambda: |-
+          // Eyes respond to light roughly logarithmically, so the map is
+          // log-in-lux rather than linear - a linear map spends almost its whole
+          // range on daylight and leaves the entire dim end pinned at one level.
+          //
+          // Tuned DARK on purpose (this thing lives 60cm from a face at 3am):
+          // below ambient_lux_dark the level sits at the hardware floor, and
+          // ambient_dim_gamma > 1 holds the curve down through the middle so an
+          // ordinary lamp-lit room is still only ~level 5, not 9.
+          float lux = x;
+          if (!(lux >= 0.0f)) lux = 0.0f;               // nan/negative guard
+
+          const float lux_dark   = ${ambient_lux_dark};
+          const float lux_bright = ${ambient_lux_bright};
+          const float level_min  = ${ambient_level_min};
+          const float level_max  = ${ambient_level_max};
+
+          float target;
+          if (lux <= lux_dark) {
+            target = level_min;
+          } else if (lux >= lux_bright) {
+            target = level_max;
+          } else {
+            // Normalised position between the two anchors, in log space.
+            float t = logf(lux / lux_dark) / logf(lux_bright / lux_dark);
+            target = level_min + (level_max - level_min) * powf(t, ${ambient_dim_gamma}f);
+          }
+
+          // Slew toward the target instead of snapping, so crossing a boundary
+          // (or walking past the sensor) doesn't produce a visible step.
+          static float smoothed = -1.0f;
+          if (smoothed < 0.0f) smoothed = target;       // first reading: jump
+          smoothed += (target - smoothed) * ${ambient_slew}f;
+
+          int level = (int) lroundf(smoothed);
+          if (level < 0)  level = 0;
+          if (level > 15) level = 15;
+          id(ambient_level) = level;
+          // No push from here. Consumers pick the level up on their own tick and
+          // only write hardware when the value they derive from it changes, so
+          // publishing every reading costs nothing.

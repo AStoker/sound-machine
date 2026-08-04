@@ -1,0 +1,365 @@
+# =====================================================================
+# HARDWARE: IS31FL3731 charlieplex 16x9 matrix (I2C) - the ACTIVE display driver
+# [layer: hw]
+#
+# There is NO native ESPHome component for the IS31FL3731, so this drives it over
+# the shared I2C bus with raw register writes. It is one of two interchangeable
+# DISPLAY DRIVERS (the other is hw/seg7.yaml) - load exactly one, since both
+# provide `display_paint`.
+#
+# THIS FILE MAKES NO DECISIONS. It renders the frame that api/display.yaml
+# resolved, and it is the only place in the build that talks to the matrix.
+#   display_paint  - draw display_frame_text (or the clock, if that is empty)
+#                    at display_frame_level, honouring display_frame_scope.
+# See the FRAME contract at the top of packages/api/display.yaml.
+#
+# SINGLE vs DUAL PANEL --------------------------------------------------------
+# One 16x9 panel is tight for a clock, so N panels are tiled side-by-side into
+# ONE logical framebuffer 16*N wide x 9 tall. Everything draws in LOGICAL (x,y);
+# a flush step slices the framebuffer per panel and pushes each slice to that
+# panel's own I2C address. Change ONE setting to go from bring-up to the full
+# display:
+#     matrix_panels: "1"   -> left panel only, compact 3x5 font  (bring-up)
+#     matrix_panels: "2"   -> 32x9, roomy 5x7 font               (real clock)
+# In single mode the second address is never touched, so a board that isn't wired
+# yet causes no I2C errors. Tiling is horizontal: panel p owns logical columns
+# [16*p .. 16*p+15].
+#
+# THE INTER-PANEL GAP ---------------------------------------------------------
+# Two panels butted together are NOT seamless: there is a physical ~1-pixel gap
+# between the last column of the left panel and the first column of the right
+# (${matrix_panel_gap}). So content is laid out in PHYSICAL columns (which
+# include that gap as a dead column) and mapped back to logical columns at draw
+# time - set_px() drops any pixel that lands in the gap. That keeps the clock
+# visually centred across the seam instead of looking shoved to one side, and it
+# makes 2-char codes ("S1", "L2"...) fall naturally one-per-panel with the gap
+# between them.
+#
+# WHY COMPACT SCOPE EXISTS ----------------------------------------------------
+# A COMPACT frame is drawn inside ONE panel (the right-hand one) rather than
+# centred across the whole display, so it can never straddle the gap. A word
+# centred across both panels loses one column of whichever glyph lands on the
+# dead column, which for a narrow 3x5 glyph can be fatal (a 'T' reduced to its
+# top bar). Nothing here has to know where the gap is. The tradeoff is a
+# 4-character budget - 15px at the 3x5 font's 4px pitch, inside 16 columns.
+# Longer COMPACT text falls back to scrolling the full width.
+#
+# CHIP MODEL (from Adafruit's Adafruit_IS31FL3731 base 16x9 class):
+#   - pixel (x,y) -> LED number  = x + y*16   (x: 0..15 cols, y: 0..8 rows)
+#   - PWM byte for LED n         at register 0x24 + n   (144 LEDs, 0x24..0xB3)
+#   - LED on/off enable          registers 0x00..0x11   (18 bytes, 8 LEDs each)
+#   - blink enable               registers 0x12..0x23   (held off)
+#   - "command register" 0xFD selects the bank/page:
+#       0x00 = frame 0 (enable + PWM live here)
+#       0x0B = function register (config / picture-frame / shutdown)
+#   Function-bank registers: 0x00 config (0x00 = picture mode),
+#       0x01 picture-display-frame, 0x0A shutdown (0 = off, 1 = normal).
+#
+# DEFINES  display_paint (script), matrix_inited (global).
+# CONSUMES internal_i2c (device core), the frame globals from api/display.yaml,
+#          the matrix_* and display_scroll_* settings.
+# =====================================================================
+globals:
+  # Panels are configured once, not every frame - a repaint only pushes PWM.
+  # Clearing this flag forces a re-init, which is how the driver recovers if a 5V
+  # glitch resets the chip (it has no NVM).
+  - id: matrix_inited
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
+script:
+  - id: display_paint
+    then:
+      - lambda: |-
+          const int     PANELS  = ${matrix_panels};                 // 1 or 2
+          const uint8_t ADDR[2] = {(uint8_t)${matrix_address},
+                                   (uint8_t)${matrix_address_2}};
+          const int     H = 9;
+          // Physical geometry: a dead gap column sits between adjacent panels.
+          const int GAP = (PANELS > 1) ? ${matrix_panel_gap} : 0;
+          const int BLK = 16 + GAP;                    // physical span: panel + gap
+          const int WP  = 16 * PANELS + GAP * (PANELS - 1);  // total physical width
+
+          auto W1 = [&](uint8_t addr, uint8_t reg, uint8_t val) {
+            uint8_t b[2] = {reg, val};
+            id(internal_i2c).write(addr, b, 2);
+          };
+
+          // ---- one-time per-panel init (auto-recovers after a chip reset) ----
+          bool force = false;
+          if (!id(matrix_inited)) {
+            for (int p = 0; p < PANELS; p++) {
+              uint8_t addr = ADDR[p];
+              W1(addr, 0xFD, 0x0B);              // function register bank
+              W1(addr, 0x0A, 0x00);              // shutdown
+              delay(10);
+              W1(addr, 0x0A, 0x01);              // normal operation
+              W1(addr, 0x00, 0x00);              // picture mode
+              W1(addr, 0x01, 0x00);              // display frame 0
+              W1(addr, 0xFD, 0x00);              // frame 0 bank
+              for (uint8_t r = 0x00; r <= 0x11; r++) W1(addr, r, 0xFF);  // enable all
+              for (uint8_t r = 0x12; r <= 0x23; r++) W1(addr, r, 0x00);  // blink off
+            }
+            id(matrix_inited) = true;
+            force = true;                        // guarantee a paint after init
+          }
+
+          // ---- unpack the frame ----
+          // Lit-pixel PWM tracks the ambient auto-dim level (0..15), scaled into
+          // [matrix_pwm_min .. matrix_pwm_on] so the matrix dims at night and
+          // never fully blanks (the floor keeps digits readable).
+          int level = id(display_frame_level);
+          if (level < 0)  level = 0;
+          if (level > 15) level = 15;
+          const uint8_t PMIN = ${matrix_pwm_min};
+          const uint8_t PMAX = ${matrix_pwm_on};
+          const uint8_t ON = PMIN + (uint8_t)((PMAX - PMIN) * level / 15);
+
+          const std::string text = id(display_frame_text);
+          const bool compact = (id(display_frame_scope) == 1);
+          // Four fixed slots, '_' = blank. A dash in every slot is how an
+          // unreadable RTC looks - clearly "no time" rather than a dead display.
+          // The length check is belt-and-braces: the api always emits 4 or 0, and
+          // the loops below index all four unconditionally.
+          const bool clock_valid = id(display_frame_clock).size() >= 4;
+          const std::string clk = clock_valid ? id(display_frame_clock)
+                                              : std::string("----");
+
+          // Compact text uses the narrow font even on a dual panel: it lives
+          // inside one 16-column panel, where 5x7 would fit only two glyphs.
+          const int font_w = (compact || PANELS < 2) ? 3 : 5;
+          const int font_h = (font_w == 5) ? 7 : 5;
+          const int pitch  = font_w + 1;               // one blank column between
+          const int text_w = text.empty() ? 0 : ((int) text.size() * pitch - 1);
+          // Anything over budget scrolls rather than being clipped.
+          const int budget = compact ? 16 : WP;
+          const bool scrolling = !text.empty() && text_w > budget;
+          int scroll_ms = id(display_scroll_ms);
+          if (scroll_ms < ${display_scroll_ms_per_px_min}) scroll_ms = ${display_scroll_ms_per_px_min};
+          const uint32_t now_ms = millis();
+          const int phase = (int) (now_ms / (uint32_t) scroll_ms);
+
+          // ---- skip the redraw when nothing visible changed ----
+          // ~300 bytes on a 100kHz bus is ~30ms of bus time, on a bus this build
+          // already had to slow down for the XVF3800. The api layer ticks several
+          // times a second and relies on this returning early.
+          std::string sigkey;
+          if (text.empty()) {
+            sigkey = "T:"; sigkey += clk;
+          } else {
+            sigkey = compact ? "C:" : "W:";
+            sigkey += text;
+            if (scrolling) { sigkey += ":"; sigkey += std::to_string(phase); }
+          }
+          sigkey += "/"; sigkey += std::to_string((int) ON);
+          uint32_t sig = 2166136261u;            // FNV-1a over the state key
+          for (size_t i = 0; i < sigkey.size(); i++)
+            sig = (sig ^ (uint8_t) sigkey[i]) * 16777619u;
+          static uint32_t last_sig = 0;
+          static bool have_sig = false;
+          if (!force && have_sig && sig == last_sig) return;
+          last_sig = sig; have_sig = true;
+
+          // ---- render into the logical framebuffer (16*PANELS wide) ----
+          uint8_t fb[9][32];                     // 32 = the 2-panel maximum
+          for (int y = 0; y < H; y++)
+            for (int x = 0; x < 32; x++) fb[y][x] = 0;
+
+          // Place a pixel by PHYSICAL column: map physical -> logical, dropping
+          // anything that falls in the inter-panel gap (a dead column).
+          auto set_px = [&](int px, int y) {
+            if (px < 0 || px >= WP || y < 0 || y >= H) return;
+            int p = px / BLK;
+            int within = px - p * BLK;
+            if (within >= 16) return;            // in the gap between panels
+            fb[y][p * 16 + within] = ON;
+          };
+
+          // Fonts: glyph rows are bit patterns, MSB = leftmost column.
+          static const uint8_t FONT3x5[10][5] = {
+            {0b111,0b101,0b101,0b101,0b111}, {0b010,0b110,0b010,0b010,0b111},
+            {0b111,0b001,0b111,0b100,0b111}, {0b111,0b001,0b111,0b001,0b111},
+            {0b101,0b101,0b111,0b001,0b001}, {0b111,0b100,0b111,0b001,0b111},
+            {0b111,0b100,0b111,0b101,0b111}, {0b111,0b001,0b001,0b001,0b001},
+            {0b111,0b101,0b111,0b101,0b111}, {0b111,0b101,0b111,0b001,0b111},
+          };
+          static const uint8_t FONT5x7[10][7] = {
+            {0b01110,0b10001,0b10001,0b10001,0b10001,0b10001,0b01110},  // 0
+            {0b00100,0b01100,0b00100,0b00100,0b00100,0b00100,0b01110},  // 1
+            {0b01110,0b10001,0b00001,0b00010,0b00100,0b01000,0b11111},  // 2
+            {0b01110,0b10001,0b00001,0b00110,0b00001,0b10001,0b01110},  // 3
+            {0b00010,0b00110,0b01010,0b10010,0b11111,0b00010,0b00010},  // 4
+            {0b11111,0b10000,0b11110,0b00001,0b00001,0b10001,0b01110},  // 5
+            {0b01110,0b10001,0b10000,0b11110,0b10001,0b10001,0b01110},  // 6
+            {0b11111,0b00001,0b00010,0b00100,0b01000,0b01000,0b01000},  // 7
+            {0b01110,0b10001,0b10001,0b01110,0b10001,0b10001,0b01110},  // 8
+            {0b01110,0b10001,0b10001,0b01111,0b00001,0b10001,0b01110},  // 9
+          };
+          // Full uppercase alphabet, for messages and codes.
+          static const uint8_t ALPHA5[26][7] = {
+            {0b01110,0b10001,0b10001,0b11111,0b10001,0b10001,0b10001},  // A
+            {0b11110,0b10001,0b10001,0b11110,0b10001,0b10001,0b11110},  // B
+            {0b01110,0b10001,0b10000,0b10000,0b10000,0b10001,0b01110},  // C
+            {0b11100,0b10010,0b10001,0b10001,0b10001,0b10010,0b11100},  // D
+            {0b11111,0b10000,0b10000,0b11110,0b10000,0b10000,0b11111},  // E
+            {0b11111,0b10000,0b10000,0b11110,0b10000,0b10000,0b10000},  // F
+            {0b01110,0b10001,0b10000,0b10111,0b10001,0b10001,0b01110},  // G
+            {0b10001,0b10001,0b10001,0b11111,0b10001,0b10001,0b10001},  // H
+            {0b01110,0b00100,0b00100,0b00100,0b00100,0b00100,0b01110},  // I
+            {0b00001,0b00001,0b00001,0b00001,0b10001,0b10001,0b01110},  // J
+            {0b10001,0b10010,0b10100,0b11000,0b10100,0b10010,0b10001},  // K
+            {0b10000,0b10000,0b10000,0b10000,0b10000,0b10000,0b11111},  // L
+            {0b10001,0b11011,0b10101,0b10101,0b10001,0b10001,0b10001},  // M
+            {0b10001,0b11001,0b10101,0b10011,0b10001,0b10001,0b10001},  // N
+            {0b01110,0b10001,0b10001,0b10001,0b10001,0b10001,0b01110},  // O
+            {0b11110,0b10001,0b10001,0b11110,0b10000,0b10000,0b10000},  // P
+            {0b01110,0b10001,0b10001,0b10001,0b10101,0b10010,0b01101},  // Q
+            {0b11110,0b10001,0b10001,0b11110,0b10100,0b10010,0b10001},  // R
+            {0b01110,0b10001,0b10000,0b01110,0b00001,0b10001,0b01110},  // S
+            {0b11111,0b00100,0b00100,0b00100,0b00100,0b00100,0b00100},  // T
+            {0b10001,0b10001,0b10001,0b10001,0b10001,0b10001,0b01110},  // U
+            {0b10001,0b10001,0b10001,0b10001,0b10001,0b01010,0b00100},  // V
+            {0b10001,0b10001,0b10001,0b10101,0b10101,0b11011,0b10001},  // W
+            {0b10001,0b10001,0b01010,0b00100,0b01010,0b10001,0b10001},  // X
+            {0b10001,0b10001,0b01010,0b00100,0b00100,0b00100,0b00100},  // Y
+            {0b11111,0b00001,0b00010,0b00100,0b01000,0b10000,0b11111},  // Z
+          };
+          static const uint8_t ALPHA3[26][5] = {
+            {0b010,0b101,0b111,0b101,0b101},  // A
+            {0b110,0b101,0b110,0b101,0b110},  // B
+            {0b011,0b100,0b100,0b100,0b011},  // C
+            {0b110,0b101,0b101,0b101,0b110},  // D
+            {0b111,0b100,0b110,0b100,0b111},  // E
+            {0b111,0b100,0b110,0b100,0b100},  // F
+            {0b011,0b100,0b101,0b101,0b011},  // G
+            {0b101,0b101,0b111,0b101,0b101},  // H
+            {0b111,0b010,0b010,0b010,0b111},  // I
+            {0b001,0b001,0b001,0b101,0b010},  // J
+            {0b101,0b101,0b110,0b101,0b101},  // K
+            {0b100,0b100,0b100,0b100,0b111},  // L
+            {0b101,0b111,0b111,0b101,0b101},  // M
+            {0b101,0b111,0b111,0b111,0b101},  // N
+            {0b111,0b101,0b101,0b101,0b111},  // O
+            {0b110,0b101,0b110,0b100,0b100},  // P
+            {0b111,0b101,0b101,0b111,0b001},  // Q
+            {0b110,0b101,0b110,0b101,0b101},  // R
+            {0b011,0b100,0b010,0b001,0b110},  // S
+            {0b111,0b010,0b010,0b010,0b010},  // T
+            {0b101,0b101,0b101,0b101,0b111},  // U
+            {0b101,0b101,0b101,0b101,0b010},  // V
+            {0b101,0b101,0b111,0b111,0b101},  // W
+            {0b101,0b101,0b010,0b101,0b101},  // X
+            {0b101,0b101,0b010,0b010,0b010},  // Y
+            {0b111,0b001,0b010,0b100,0b111},  // Z
+          };
+          static const uint8_t DASH5[7]       = {0b00000,0b00000,0b00000,0b11111,0b00000,0b00000,0b00000};
+          static const uint8_t UNDERSCORE5[7] = {0b00000,0b00000,0b00000,0b00000,0b00000,0b00000,0b11111};
+          static const uint8_t DOT5[7]        = {0b00000,0b00000,0b00000,0b00000,0b00000,0b00110,0b00110};
+          static const uint8_t EXCL5[7]       = {0b00100,0b00100,0b00100,0b00100,0b00100,0b00000,0b00100};
+          static const uint8_t QMARK5[7]      = {0b01110,0b10001,0b00001,0b00010,0b00100,0b00000,0b00100};
+          static const uint8_t COLON5[7]      = {0b00000,0b00110,0b00110,0b00000,0b00110,0b00110,0b00000};
+          static const uint8_t DASH3[5]       = {0b000,0b000,0b111,0b000,0b000};
+          static const uint8_t UNDERSCORE3[5] = {0b000,0b000,0b000,0b000,0b111};
+          static const uint8_t DOT3[5]        = {0b000,0b000,0b000,0b000,0b010};
+          static const uint8_t EXCL3[5]       = {0b010,0b010,0b010,0b000,0b010};
+          static const uint8_t QMARK3[5]      = {0b110,0b001,0b010,0b000,0b010};
+          static const uint8_t COLON3[5]      = {0b000,0b010,0b000,0b010,0b000};
+          auto glyph5 = [&](char c) -> const uint8_t* {
+            if (c >= 'a' && c <= 'z') c = (char) (c - 'a' + 'A');
+            if (c >= '0' && c <= '9') return FONT5x7[c - '0'];
+            if (c >= 'A' && c <= 'Z') return ALPHA5[c - 'A'];
+            switch (c) {
+              case '-': return DASH5;
+              case '_': return UNDERSCORE5;
+              case '.': return DOT5;
+              case '!': return EXCL5;
+              case '?': return QMARK5;
+              case ':': return COLON5;
+            }
+            return nullptr;                      // space / unknown -> blank
+          };
+          auto glyph3 = [&](char c) -> const uint8_t* {
+            if (c >= 'a' && c <= 'z') c = (char) (c - 'a' + 'A');
+            if (c >= '0' && c <= '9') return FONT3x5[c - '0'];
+            if (c >= 'A' && c <= 'Z') return ALPHA3[c - 'A'];
+            switch (c) {
+              case '-': return DASH3;
+              case '_': return UNDERSCORE3;
+              case '.': return DOT3;
+              case '!': return EXCL3;
+              case '?': return QMARK3;
+              case ':': return COLON3;
+            }
+            return nullptr;
+          };
+          auto draw_glyph = [&](const uint8_t *rows, int gw, int gh, int dx, int dy) {
+            if (!rows) return;
+            for (int r = 0; r < gh; r++)
+              for (int c = 0; c < gw; c++)
+                if (rows[r] & (1 << (gw - 1 - c))) set_px(dx + c, dy + r);
+          };
+          // All text drawing works in PHYSICAL coordinates; off-screen columns
+          // are clipped by set_px(), which is what lets text scroll cleanly.
+          auto draw_text_at = [&](const std::string &s, int gw, int gh, int x0, int y0) {
+            const int n = (int) s.size();
+            for (int i = 0; i < n; i++)
+              draw_glyph((gw == 5) ? glyph5(s[i]) : glyph3(s[i]),
+                         gw, gh, x0 + i * (gw + 1), y0);
+          };
+          auto draw_text_centered = [&](const std::string &s, int gw, int gh) {
+            const int n = (int) s.size();
+            if (n == 0) return;
+            draw_text_at(s, gw, gh, (WP - (n * (gw + 1) - 1)) / 2, (H - gh) / 2);
+          };
+          // COMPACT: centred inside the LAST panel, so it cannot touch the seam.
+          auto draw_text_in_panel = [&](const std::string &s) {
+            const int n = (int) s.size();
+            if (n == 0) return;
+            const int width = n * 4 - 1;
+            draw_text_at(s, 3, 5, (PANELS - 1) * BLK + (16 - width) / 2, (H - 5) / 2);
+          };
+          auto draw_text_scrolling = [&](const std::string &s, int gw, int gh, int step) {
+            const int n = (int) s.size();
+            if (n == 0) return;
+            const int width = n * (gw + 1) - 1;
+            const int travel = width + WP;       // off one edge and back on
+            draw_text_at(s, gw, gh, WP - (step % (travel > 0 ? travel : 1)), (H - gh) / 2);
+          };
+
+          if (!text.empty()) {
+            if (scrolling)     draw_text_scrolling(text, font_w, font_h, phase);
+            else if (compact)  draw_text_in_panel(text);
+            else               draw_text_centered(text, font_w, font_h);
+          } else if (PANELS >= 2) {
+            // Clock: HH on the left panel, MM on the right, colon at the seam.
+            // MM is pulled toward the seam by GAP so the colon sits symmetric
+            // across the physical gap (see "THE INTER-PANEL GAP" above).
+            const int top = 1;                   // 7-tall band, rows 1..7
+            const int slot_x[4] = {2, 8, 16 + GAP + 1, 16 + GAP + 7};
+            for (int i = 0; i < 4; i++)
+              if (clk[i] != '_') draw_glyph(glyph5(clk[i]), 5, 7, slot_x[i], top);
+            if (clock_valid) { set_px(15, top + 2); set_px(15, top + 4); }
+          } else {
+            // Single-panel clock: compact 3x5 font, no seam to worry about.
+            const int top = 2;                   // 5-tall band, rows 2..6
+            const int slot_x[4] = {0, 4, 9, 13};
+            for (int i = 0; i < 4; i++)
+              if (clk[i] != '_') draw_glyph(glyph3(clk[i]), 3, 5, slot_x[i], top);
+            if (clock_valid) { set_px(7, top + 1); set_px(7, top + 3); }
+          }
+
+          // ---- flush: slice each panel's 16 cols and burst its PWM ----
+          for (int p = 0; p < PANELS; p++) {
+            uint8_t addr = ADDR[p];
+            // Auto-incrementing 16-byte bursts (9 of them): [start-reg, b0, ...].
+            for (int i = 0; i < 144; i += 16) {
+              uint8_t burst[1 + 16];
+              burst[0] = 0x24 + i;
+              for (int j = 0; j < 16; j++) {
+                const int n = i + j;             // LED number = x + y*16
+                burst[1 + j] = fb[n / 16][p * 16 + (n % 16)];
+              }
+              id(internal_i2c).write(addr, burst, sizeof(burst));
+            }
+          }

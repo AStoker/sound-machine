@@ -63,11 +63,11 @@ playing sound — and that single fact constrains everything downstream (see §4
 
 When the wake word fires, both background channels (noise + media) **duck** for
 the turn; the spoken reply rides the announcement channel at full volume; a
-watchdog un-ducks when the reply finishes. See `packages/audio.yaml`.
+watchdog un-ducks when the reply finishes. See `packages/behavior/voice.yaml`.
 
 ### The light
 
-`packages/lighting.yaml` owns the SK6812 crescent: an Off/On entity plus a
+`packages/hw/crescent.yaml` owns the SK6812 crescent: an Off/On entity plus a
 preset dispatcher (a `select`) with **Sunrise** (a timed, animated dawn),
 **Nightlight**, and **Morning Light**. The **Circadian Sunrise** is a
 keyframe-interpolated effect that fills the crescent from the bottom row upward,
@@ -76,17 +76,20 @@ then holding and auto-off. An **Alarm** datetime fires the sunrise at a set time
 
 ### The display
 
-The display is **pluggable**: `packages/ambient.yaml` owns the device-agnostic
-layer (auto-dim, the transient text channels, the 1s tick) and exactly one
-display package provides `render_display`. The active one is
-`packages/matrix.yaml` (two tiled IS31FL3731 16x9 panels, 32x9 logical);
-`packages/display.yaml` keeps the original HT16K33 7-seg as a drop-in
-alternative.
+The display is **pluggable**: `packages/api/display.yaml` owns the whole
+device-agnostic layer (the content channels and their priority, expiring them,
+formatting the clock, the tick) and resolves all of it into a *frame*. Exactly one
+driver renders that frame by providing `display_paint`. The active one is
+`packages/hw/matrix.yaml` (two tiled IS31FL3731 16x9 panels, 32x9 logical);
+`packages/hw/seg7.yaml` keeps the original HT16K33 7-seg as a drop-in
+alternative — and, because the driver makes no decisions, the swap is one line in
+the package manifest.
 
-**`render_display` is the single writer**, rendering one thing in priority order:
-a message typed from Home Assistant → a **device status message** → a low-battery
-warning → a transient preset code (e.g. "S3", "L1") → the clock. The BH1750
-ambient-light sensor auto-dims it on a log curve tuned deliberately dark.
+**The api layer is the single writer**, resolving one thing in priority order:
+a message typed from Home Assistant → a **device status message** → a sticky
+**alert** (the low-battery warning) → a transient code (e.g. "S3", "L1") → the
+clock. The BH1750 ambient-light sensor auto-dims it on a log curve tuned
+deliberately dark.
 
 Status messages are the channel for things the *device* wants to say rather than a
 code echoing a knob turn — today, "CHG" / "BATT" when the power source changes.
@@ -99,7 +102,7 @@ longer than anyone wants to watch for a status glance.
 
 ### Power & monitoring
 
-`packages/battery.yaml` reads the Waveshare 3S UPS via an INA219 and derives
+`packages/hw/power.yaml` reads the Waveshare 3S UPS via an INA219 and derives
 voltage, current, per-cell voltage, an estimated state-of-charge, a "charging"
 flag, and a latching "low battery" flag (with hysteresis so it can't chatter).
 The display and other logic key off those flags.
@@ -127,12 +130,19 @@ the UI uses, so physical, HA, and web controls stay in sync.
 ### How the repo is organized
 
 `soundmachine.yaml` is the entry point and holds **only** the device core — the
-`substitutions:` block (the single source of truth for every tunable), the I2C
-bus, connectivity, boot, and the `packages:` includes. Each **feature package**
-(`audio`, `lighting`, `display`, `battery`) is a self-contained slice; after
-ESPHome merges them, **all ids are global**, so cross-package wiring works by id
-(e.g. the Sound select sets the display's `preset_code`). Custom C++ lives in
-`components/`. See `CLAUDE.md` for the editing rules.
+I2C bus, connectivity, the external components, and the `packages:` manifest.
+Everything else is split three ways, and the split is the point: `packages/hw/`
+is one file per physical part, `packages/api/` is the abstraction layer that is
+the only writer of that hardware, and `packages/behavior/` is the operational
+logic that decides what should happen. Every tunable in the build lives in
+`packages/settings.yaml`. After ESPHome merges the packages **all ids are
+global**, so the wiring is by id — but each layer only reaches *down* through an
+api verb (`display_show_code`, `noise_play`, `crescent_static`), never straight
+into a device. Custom C++ lives in `components/`.
+
+[`packages/README.md`](packages/README.md) is the architecture map — the layer
+rules, the hardware→behavior event contracts, and where to add a new thing. See
+`CLAUDE.md` for the editing rules and the invariants.
 
 ---
 
@@ -216,7 +226,7 @@ scan, and confirm the part is an INA219 (vs INA226, which needs a platform
 swap). Also verify the **current sign convention** on the bench.
 
 **Calibrate the ToF thresholds on the bench.** The **VL53L0X** is now live
-(`packages/knob.yaml`) but only in its *modest* role: pre-illuminating the knob
+(`packages/hw/proximity.yaml`) but only in its *modest* role: pre-illuminating the knob
 NeoPixel when a hand comes near. `tof_near_m` / `tof_far_m` (0.20 / 0.30 m) are
 reasonable guesses, not measurements — watch the **Knob Proximity** binary sensor
 while reaching for the knob and adjust. The broader **touchless wake** gesture
@@ -254,7 +264,7 @@ match the code in this repo. Current code wins. The notable drifts:
 | **Enclosure size** | **258 × 64 × 190**, front module split in two for the bed | **202 × 64 × 155.7**, both printed parts fit a 220 bed **whole**. Speakers rotated 90° (nubs top/bottom), mic array moved above them, crown flattened |
 | **Printed parts** | dome, front module, bottom plate, knob | …plus an **LED carrier** (part 6) and a generated **notched acrylic diffuser** (part 7) — a plate holding the six strip segments at the 12 mm standoff, screwed to pads inside the diffusion cavity wall |
 | **MCU** | XIAO ESP32-S3 **Plus** | Either works; **standard XIAO ESP32-S3 is a confirmed drop-in** (`board: esp32-s3-devkitc-1`, 8MB flash) |
-| **ToF sensor** | VL53L0X treated as part of the sensor stack, for a touchless *wake* gesture | **Kept and now live** (`packages/knob.yaml`), but in a smaller role: it only **pre-illuminates the knob NeoPixel** when a hand comes near. Touchless wake is still unimplemented |
+| **ToF sensor** | VL53L0X treated as part of the sensor stack, for a touchless *wake* gesture | **Kept and now live** (`packages/hw/proximity.yaml`), but in a smaller role: it only **pre-illuminates the knob NeoPixel** when a hand comes near. Touchless wake is still unimplemented |
 | **SHT40 temp/hum** | Part of the planned sensor stack | **Removed** from the design entirely |
 | **Front ends** | HA + embedded web server (a standalone PWA was tried) | **HA + embedded web server**; the standalone PWA was **removed** |
 

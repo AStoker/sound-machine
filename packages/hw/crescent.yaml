@@ -1,158 +1,37 @@
 # =====================================================================
-# CRESCENT LIGHT - SK6812 strip, presets, Circadian Sunrise, alarm, touch pad
+# HARDWARE: SK6812 crescent LED strip (RMT, GRBW)  [layer: hw]
 #
-# Owns everything about the light: the strip, the preset dispatcher (Crescent
-# Preset select), the sunrise effect + its duration/hold numbers, the alarm
-# datetime that fires the sunrise, and the capacitive touch pad that cycles
-# presets.
+# The strip itself, its geometry, and the effects that need to know that
+# geometry. Nothing here decides when the light should be on - that is
+# behavior/light.yaml, working through api/light.yaml.
 #
-# Defines ids: sunrise_done, light_preset, light_preset_last, cycle_light_preset,
-#   turn_off_light, crescent, light_preset_select, sunrise_duration, sunrise_hold,
-#   alarm_time, alarm_enabled, preset_touch.
-# Consumes (display): preset_code + showing_preset globals and show_preset_code.
+# >>> THE PIXEL COUNT AND ROW LAYOUT ARE NOT SETTINGS. They are DERIVED from the
+# >>> enclosure: 3d-print/enclosure_geom.py is the source of truth and this file
+# >>> carries a copy of its output. Change the crescent, re-run gen_drawing.py,
+# >>> re-sync BOTH values here, and run 3d-print/check_docs.py - which fails the
+# >>> build if they drift. Get this wrong and the firmware addresses pixels that
+# >>> are not physically there.
+#
+# The Circadian Sunrise effect lives here, with the two numbers that shape it,
+# because it paints per-ROW and so is inseparable from the row layout above it.
+# Its auto-off is NOT here: it raises sunrise_done and api/light.yaml acts on it,
+# because turning the light off is a write and writes belong to the api layer
+# (also: calling turn_off from inside a running effect is asking for trouble).
+#
+# DEFINES  crescent (light), sunrise_duration + sunrise_hold (numbers),
+#          sunrise_done (global).
+# CONSUMES the led_*, sunrise_* and pin_crescent_data settings.
+# WRITTEN BY api/light.yaml ONLY.
 # =====================================================================
 globals:
   # Set true by the Circadian Sunrise effect once it has held at full for the
-  # configured hold time; the 1s interval below acts on it and turns off.
+  # configured hold time. api/light.yaml's tick acts on it and turns the light
+  # off. Cleared on each fresh run of the effect.
   - id: sunrise_done
     type: bool
     restore_value: no
     initial_value: 'false'
-  # Which LIGHT preset is active: 0 = Off/On, 1 = Sunrise[timed],
-  # 2 = Nightlight[static], 3 = Morning[static]. Applied by the Crescent Preset select.
-  - id: light_preset
-    type: int
-    restore_value: yes
-    initial_value: '0'
-  # Last non-off value so turning the light back on restores what was showing.
-  - id: light_preset_last
-    type: int
-    restore_value: yes
-    initial_value: '1'
 
-script:
-  # LIGHT preset controls. The "Crescent Preset" SELECT is the single dispatcher
-  # (applies the light + sets the display code). Physical/alarm triggers just
-  # drive that select via select.set.
-
-  # Single tap: advance among the ON presets (1..light_preset_count), then hand
-  # off to the select. Off is reached by a long-press (turn_off_light).
-  - id: cycle_light_preset
-    then:
-      - lambda: |-
-          int current = id(light_preset);
-          // From Off, restore the last preset; otherwise advance 1..N.
-          id(light_preset) = (current < 1) ? id(light_preset_last)
-                                           : (current % ${light_preset_count}) + 1;
-      - select.set:
-          id: light_preset_select
-          option: !lambda |-
-            switch (id(light_preset)) {
-              case 2: return std::string("Nightlight");
-              case 3: return std::string("Morning Light");
-              default: return std::string("(Dynamic) Sunrise");
-            }
-
-  # Long-press (touch): lights off.
-  - id: turn_off_light
-    then:
-      - select.set:
-          id: light_preset_select
-          option: "Off"
-
-interval:
-  # Deferred Circadian Sunrise auto-off (safe: not called from inside the effect)
-  - interval: 1s
-    then:
-      - if:
-          condition:
-            lambda: 'return id(sunrise_done);'
-          then:
-            - light.turn_off: crescent
-            - lambda: 'id(sunrise_done) = false;'
-
-# ---------------------------------------------------------------------
-# CAPACITIVE TOUCH - tap = next light preset, long-press = off
-# ESP32-S3 touch channels live on GPIO1..14, so D3 = GPIO4 (or D2 = GPIO3).
-# ---------------------------------------------------------------------
-esp32_touch:
-  setup_mode: false   # flip to true ONCE, watch the logs for this pad's raw
-                      # value untouched vs touched, then set threshold below.
-
-binary_sensor:
-  # Capacitive pad: tap = next light preset, long-press = lights off.
-  - platform: esp32_touch
-    name: "Preset Touch"
-    id: preset_touch
-    pin: ${touch_pin}          # see substitutions (D3 = GPIO4, D2 = GPIO3)
-    threshold: ${touch_threshold}   # ESP32-S3 raw threshold - CALIBRATE via setup_mode
-    filters:
-      - delayed_on: 40ms       # debounce the pad against noise
-    on_multi_click:
-      - timing:                # quick tap -> next preset
-          - ON for at most 0.8s
-          - OFF for at least 0.2s
-        then:
-          - script.execute: cycle_light_preset
-      - timing:                # hold ~1s -> lights off
-          - ON for at least 1s
-        then:
-          - script.execute: turn_off_light
-
-# Off + presets. Dynamic (animated/timed) presets are prefixed "(Dynamic)".
-# The Crescent Light entity is retained for custom colour / brightness.
-select:
-  - platform: template
-    name: "Crescent Preset"
-    id: light_preset_select
-    icon: "mdi:weather-sunset-up"
-    optimistic: true
-    restore_value: false          # start Off each boot; don't force the light on
-    initial_option: "Off"
-    options:
-      - "Off"
-      - "(Dynamic) Sunrise"
-      - "Nightlight"
-      - "Morning Light"
-    set_action:
-      - lambda: |-
-          std::string sel = x;
-          if (sel == "Off") {
-            id(light_preset) = 0;
-            id(crescent).turn_off().perform();
-            id(preset_code) = "OFF";
-          } else if (sel == "(Dynamic) Sunrise") {
-            id(light_preset) = 1;
-            auto call = id(crescent).turn_on();
-            call.set_effect("Circadian Sunrise");
-            call.perform();
-            id(preset_code) = "L1";
-          } else if (sel == "Nightlight") {
-            id(light_preset) = 2;
-            auto call = id(crescent).turn_on();
-            call.set_effect("None");
-            call.set_brightness(0.12f);
-            call.set_rgb(1.0f, 0.30f, 0.0f);
-            call.perform();
-            id(preset_code) = "L2";
-          } else if (sel == "Morning Light") {
-            id(light_preset) = 3;
-            auto call = id(crescent).turn_on();
-            call.set_effect("None");
-            call.set_brightness(${preset_max_brightness}f);   // capped for current budget
-            call.set_rgb(1.0f, 0.55f, 0.15f);
-            call.perform();
-            id(preset_code) = "L3";
-          }
-          // Remember the last ON preset so a later "turn back on" restores it.
-          if (id(light_preset) > 0) id(light_preset_last) = id(light_preset);
-      - script.execute: show_preset_code
-
-# ---------------------------------------------------------------------
-# SUNRISE WAKE - adjustable dawn duration (minutes)
-# 30 min default = the typical dawn-simulation protocol in the research.
-# Trigger the effect (duration) minutes before your target wake time.
-# ---------------------------------------------------------------------
 number:
   - platform: template
     name: "Sunrise Duration"
@@ -166,8 +45,8 @@ number:
     unit_of_measurement: "min"
     mode: box
 
-  # How long to hold the full "state B" before auto-off. 0 = off immediately
-  # at full; e.g. 10 = stay bright 10 min after sunrise completes, then off.
+  # How long to hold the full "state B" before auto-off. 0 = off immediately at
+  # full; e.g. 10 = stay bright 10 min after the sunrise completes, then off.
   - platform: template
     name: "Sunrise Hold (auto-off)"
     id: sunrise_hold
@@ -180,42 +59,6 @@ number:
     unit_of_measurement: "min"
     mode: box
 
-# ---------------------------------------------------------------------
-# ALARM - a TIMED-preset trigger. Fires the Sunrise at a set time of day,
-# gated by the "Alarm Enabled" switch. Add another timed preset by adding a
-# second datetime here whose on_time selects that preset.
-# ---------------------------------------------------------------------
-datetime:
-  - platform: template
-    name: "Alarm Time"
-    id: alarm_time
-    type: time
-    optimistic: true
-    restore_value: true
-    initial_value: "${alarm_default_time}"
-    on_time:
-      - if:
-          condition:
-            switch.is_on: alarm_enabled
-          then:
-            - select.set:
-                id: light_preset_select
-                option: "(Dynamic) Sunrise"
-
-switch:
-  # ---- ALARM enable (gates the Alarm Time on_time trigger) ----
-  - platform: template
-    name: "Alarm Enabled"
-    id: alarm_enabled
-    icon: "mdi:alarm"
-    optimistic: true
-    restore_mode: RESTORE_DEFAULT_OFF
-
-# ---------------------------------------------------------------------
-# SK6812 CRESCENT - RMT driver, GRBW
-# NOTE: moved to GPIO1 (D0) because GPIO43 now belongs to I2S mic.
-# Verify D0/GPIO1 is exposed + unused on the Flex breakout pads.
-# ---------------------------------------------------------------------
 light:
   - platform: esp32_rmt_led_strip
     id: crescent
@@ -223,7 +66,7 @@ light:
     chipset: SK6812
     rgb_order: GRB
     is_rgbw: true
-    pin: GPIO1
+    pin: ${pin_crescent_data}
     # Real build: the crescent is a FLATTENED HALF-ELLIPSE, 89 x 62.7 semi-axes,
     # not a half circle -- the crown was flattened (CROWN_K 0.74) to get the dome
     # printable in one piece on a 220 bed. MEASURED strip: 10.0mm ribbon, 16.5mm
@@ -251,27 +94,28 @@ light:
     num_leds: 48
     # Hard current ceiling: caps max PWM to led_max_pct of full scale, so the
     # strip physically can't exceed that current no matter what HA commands.
-    # Sized against the UPS 5V/5A rail with the amp at full tilt (see subs).
+    # Sized against the UPS 5V/5A rail with the amp at full tilt - see the power
+    # budget in settings.yaml section 8.
     color_correct:            # block style: ${} can't live inside a [ ] flow list
       - ${led_max_pct}
       - ${led_max_pct}
       - ${led_max_pct}
       - ${led_max_pct}
-    gamma_correct: ${led_gamma}    # linear so low brightness still lights (see subs)
-    default_transition_length: 1s
+    gamma_correct: ${led_gamma}    # linear so low brightness still lights
+    default_transition_length: ${crescent_transition}
     effects:
       - addressable_rainbow:
       - addressable_color_wipe:
       - pulse:
-      # Circadian Sunrise: keyframe-interpolated dawn simulation.
-      # Sun rises from the bottom row; color evolves deep-red -> amber ->
-      # blue-enriched cool white over an ADJUSTABLE duration (see the
-      # "Sunrise Duration" number). Holds the final keyframe when done.
+      # Circadian Sunrise: keyframe-interpolated dawn simulation. The sun rises
+      # from the bottom row; colour evolves deep-red -> amber -> blue-enriched
+      # cool white over an ADJUSTABLE duration (the "Sunrise Duration" number
+      # above). Holds the final keyframe when done, then asks for auto-off.
       - addressable_lambda:
           name: "Circadian Sunrise"
-          update_interval: 100ms
+          update_interval: ${sunrise_update_interval}
           lambda: |-
-            // ============ CONFIGURE FOR YOUR BUILD ============
+            // ============ THE ROW LAYOUT (see the header warning) ============
             // LEDs per row, DATA-LINE order, BOTTOM row first. Sum == num_leds.
             // FLATTENED half-ellipse crescent, 89 x 62.7 semi-axes. 16.5mm pitch
             // ALONG a row; rows are 11.0 apart, NOT 16.5 -- the grid is
@@ -308,14 +152,14 @@ light:
             static const uint8_t keyframe_green[]      = { 20,    70,   130,   180,   200};
             static const uint8_t keyframe_blue[]       = {  0,     5,    30,   110,   255};
             static const uint8_t keyframe_white[]      = {  0,     0,    20,   110,   200};
-            // ==================================================
+            // =================================================================
 
             // How far through the sunrise are we? progress = elapsed / duration,
             // clamped to 1.0 so it holds the final "wake" keyframe (state B).
             float duration_minutes = id(sunrise_duration).state;
-            if (!(duration_minutes >= 0.1f)) duration_minutes = 30.0f;   // nan/0 guard
+            if (!(duration_minutes >= 0.1f)) duration_minutes = ${sunrise_default_minutes}.0f;  // nan/0 guard
             float hold_minutes = id(sunrise_hold).state;
-            if (!(hold_minutes >= 0.0f)) hold_minutes = 10.0f;           // nan guard
+            if (!(hold_minutes >= 0.0f)) hold_minutes = ${sunrise_default_hold}.0f;             // nan guard
 
             static uint32_t start_millis = 0;
             if (initial_run) { start_millis = millis(); id(sunrise_done) = false; }
@@ -323,8 +167,9 @@ light:
             float progress = elapsed_seconds / (duration_minutes * 60.0f);
             if (progress > 1.0f) progress = 1.0f;
 
-            // Auto-off: after holding at full for hold_minutes, ask the 1s
-            // interval to switch the light off (safer than doing it in here).
+            // Auto-off: after holding at full for hold_minutes, ask api/light.yaml
+            // to switch the light off (safer than doing it from inside the effect
+            // that is currently painting).
             if (elapsed_seconds >= (duration_minutes + hold_minutes) * 60.0f)
               id(sunrise_done) = true;
 
@@ -352,7 +197,7 @@ light:
 
             // Paint: the lit "sun" fills from the bottom row upward with a soft
             // glowing leading edge; the sky above the sun stays dark.
-            const float edge_softness = 0.15f;   // vertical width of the glowing edge
+            const float edge_softness = ${sunrise_edge_softness}f;
             uint16_t led_index = 0;
             for (uint8_t row = 0; row < row_count && led_index < it.size(); row++) {
               float row_height = (row_count > 1) ? (float) row / (row_count - 1) : 0.0f;
@@ -361,7 +206,7 @@ light:
               if (sun_above_row <= 0.0f)               edge_glow = 0.0f;   // sun not here yet
               else if (sun_above_row < edge_softness)  edge_glow = sun_above_row / edge_softness;
               else                                     edge_glow = 1.0f;   // fully lit below sun
-              float level = sky_brightness * edge_glow * ${sunrise_max_brightness};  // current cap
+              float level = sky_brightness * edge_glow * ${sunrise_max_brightness}f;  // current cap
               uint8_t out_red   = (uint8_t)(sky_red   * level);
               uint8_t out_green = (uint8_t)(sky_green * level);
               uint8_t out_blue  = (uint8_t)(sky_blue  * level);

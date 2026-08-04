@@ -44,7 +44,7 @@ confirm the check fails (−6.34 for a swap, −8.25 for the original centreline
 
 ## The encoder's NeoPixel now has a way out
 
-The seesaw carries a NeoPixel and `packages/knob.yaml` has been driving it since
+The seesaw carries a NeoPixel and `packages/api/indicator.yaml` has been driving it since
 it was written — into a sealed cavity. The crown was solid over it.
 
 **Position, from the fab print:** centred across the board and in line with the
@@ -413,7 +413,7 @@ python3 check_docs.py          # <- prose vs geometry; ends in ALL SYNCED
 ## `check_docs.py` — new, and the reason it exists
 
 Numbers live in five places: `enclosure_geom.py` (truth),
-`packages/lighting.yaml` (the firmware's copy of the LED layout), and three
+`packages/hw/crescent.yaml` (the firmware's copy of the LED layout), and three
 markdown docs. Prose does not fail a unit test, so every rework left documents
 describing a machine that no longer existed — the 258-wide split enclosure was
 still documented as current three revisions after it stopped being built.
@@ -612,7 +612,7 @@ prints the viable bands each run. **Re-read that table rather than nudging
 
 ## Firmware — done
 
-`packages/lighting.yaml`: `num_leds: 45`, `leds_per_row[] = {10, 10, 9, 8, 6, 2}`,
+`packages/hw/crescent.yaml`: `num_leds: 45`, `leds_per_row[] = {10, 10, 9, 8, 6, 2}`,
 comment block rewritten for the measured strip and the ribbon constraint.
 `soundmachine.yaml` header no longer says "half-circle".
 

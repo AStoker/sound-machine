@@ -811,7 +811,7 @@ chk("touch pad thinning leaves wall", TOUCH_WALL)
 
 # --- the NeoPixel window ----------------------------------------------------
 # >>> THE ENCODER CARRIES A NeoPixel AND THE CROWN WAS SOLID OVER IT. The firmware
-# >>> in packages/knob.yaml has been driving it since it was written, into a sealed
+# >>> in packages/api/indicator.yaml has been driving it since it was written, into a sealed
 # >>> cavity. The window is on the same 10.16 radius as the board's own mounting
 # >>> holes, forward of the shaft, and stays hidden under the knob -- the light gets
 # >>> out through the knob/crown seam, which leaks plenty on a printed part. The

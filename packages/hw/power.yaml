@@ -1,50 +1,58 @@
 # =====================================================================
-# BATTERY / UPS MONITORING - Waveshare UPS Module 3S (3x 18650 series)
+# HARDWARE: Waveshare UPS Module 3S power monitoring (INA219, I2C)  [layer: hw]
 #
-# Defines the ids: battery_voltage, battery_current, battery_power,
-# battery_shunt_voltage, battery_oc_voltage, battery_level, battery_cell_voltage,
-# battery_charging, external_power, battery_low, power_source_announced. Other
-# packages (display, matrix) read battery_low / external_power by id. All
-# tunables live in the substitutions block of the main config.
+# Reads bus voltage and current off the UPS board and turns them into the two
+# facts the rest of the device actually needs:
 #
-# Consumes: show_status_message (ambient) - to announce power-source changes on
-# whichever display is loaded. That is the ONLY outward call this package makes.
+#   external_power  - is the barrel jack live?      (THE mains detector)
+#   battery_low     - should we be worried?         (latching, with hysteresis)
 #
-# !! THE ADDRESS AND SHUNT VALUE ARE PLACEHOLDERS !! See the substitutions
-# block. Boot with the UPS connected, read the I2C scan in the logs, and set
-# ups_i2c_address to whatever unclaimed address appears. Everything below keys
-# off the substitutions, so that's the only thing you should need to change
-# once the scan comes back.
+# Everything between those and the raw chip - load compensation, the state-of-
+# charge curve, the debounces - is hardware interpretation and belongs here.
+# What to DO about a flat pack or a pulled plug is policy: behavior/power.yaml.
 #
-# SIGN CONVENTION: the INA219 on this board reports CHARGE CURRENT POSITIVE
-# and DISCHARGE CURRENT NEGATIVE natively - do NOT add a `multiply: -1`
-# filter. An earlier revision of this file did, which flipped discharge to
-# positive and made "Battery Charging" read true while the pack was actually
-# powering the device. Confirmed against mgjbroadbent/waveshare_ups_monitor,
-# which reads this same board (INA219 @ 0x41, 0.01 ohm shunt) and documents
-# UPS_CURRENT_A as "-0.650 (negative = discharging)".
+# INPUT EVENT RAISED
+#   on_power_state_changed  - fired whenever external_power or battery_low
+#                            publishes. Read the two sensors for the new state.
+#
+# !! THE ADDRESS AND SHUNT VALUE ARE PLACEHOLDERS !! Boot with the UPS connected,
+# read the I2C scan in the logs, and set ups_i2c_address to whatever unclaimed
+# address appears. Everything here keys off settings.yaml, so that is the only
+# thing you should need to change once the scan comes back. If the readings are
+# nonsense the part may be an INA226 - change `platform: ina219` below.
+#
+# SIGN CONVENTION: the INA219 on this board reports CHARGE CURRENT POSITIVE and
+# DISCHARGE CURRENT NEGATIVE natively - do NOT add a `multiply: -1` filter. An
+# earlier revision of this file did, which flipped discharge to positive and made
+# "Battery Charging" read true while the pack was actually powering the device.
+# Confirmed against mgjbroadbent/waveshare_ups_monitor, which reads this same
+# board (INA219 @ 0x41, 0.01 ohm shunt) and documents UPS_CURRENT_A as
+# "-0.650 (negative = discharging)".
 #
 # "CHARGING" IS NOT "ON MAINS". A full pack on the charger tapers to near-zero
-# current, so testing for charging reports mains-lost on a perfectly healthy
-# UPS. Anything that wants to know "is the barrel jack live?" must read
-# `external_power`, which is defined as NOT DISCHARGING rather than charging.
+# current, so testing for charging reports mains-lost on a perfectly healthy UPS.
+# Anything that wants to know "is the jack live?" reads external_power, which is
+# defined as NOT DISCHARGING rather than as charging.
+#
+# PACK THRESHOLDS, for reference (3S = per-cell x3):
+#   12.6V full (4.20/cell)   10.2V low (3.40/cell)   9.0V empty (3.00/cell)
+# The SOC curve below spans exactly that range. It is a measured lithium-ion
+# rest-voltage curve, not a tunable, which is why it lives here rather than in
+# settings.yaml.
+#
+# DEFINES  battery_voltage, battery_current, battery_power,
+#          battery_shunt_voltage, battery_oc_voltage, battery_level,
+#          battery_cell_voltage, battery_charging, external_power, battery_low.
+# CONSUMES internal_i2c (device core), the ups_* / battery_* settings.
+# REQUIRES script on_power_state_changed (behavior/power.yaml).
 # =====================================================================
-globals:
-  # Latch so the FIRST external_power publish (which is the initial reading, not
-  # a change) doesn't fire a power-source announcement on every boot. See the
-  # on_state trigger below.
-  - id: power_source_announced
-    type: bool
-    restore_value: no
-    initial_value: 'false'
-
 sensor:
   - platform: ina219
     address: ${ups_i2c_address}
     i2c_id: internal_i2c
     shunt_resistance: ${ups_shunt_ohms}
-    max_voltage: 16.0V         # 3S tops out at 12.6V; 16V bus range covers it
-    max_current: 5.0A          # matches the board's 5V/5A output rating
+    max_voltage: ${ups_max_voltage}
+    max_current: ${ups_max_current}
     update_interval: ${ups_poll_interval}
     bus_voltage:
       name: "Battery Voltage"
@@ -60,8 +68,7 @@ sensor:
       accuracy_decimals: 3
       device_class: current
       state_class: measurement
-      # NO SIGN FILTER. See SIGN CONVENTION above. Positive = charging,
-      # negative = discharging, straight off the chip.
+      # NO SIGN FILTER. See SIGN CONVENTION above.
     power:
       name: "Battery Power"
       id: battery_power
@@ -74,20 +81,20 @@ sensor:
       id: battery_shunt_voltage
       internal: true           # diagnostic only; not worth an HA entity
 
-  # Open-circuit (unloaded) pack voltage, recovered from the loaded bus
-  # voltage using the pack's internal resistance:
+  # Open-circuit (unloaded) pack voltage, recovered from the loaded bus voltage
+  # using the pack's internal resistance:
   #
   #     V_oc = V_bus - (I * R)
   #
   # Charge current is positive so it SUBTRACTS (a charging pack reads high);
   # discharge current is negative so it ADDS BACK (a loaded pack sags). One
-  # expression handles both directions. This is what stops Battery Level
-  # lurching every time the sunrise ramps or the amp starts drawing - the old
-  # behaviour where SOC dived under load and "recovered" when it stopped.
+  # expression handles both directions. This is what stops Battery Level lurching
+  # every time the sunrise ramps or the amp starts drawing - the old behaviour
+  # where SOC dived under load and "recovered" when it stopped.
   #
   # An EMA on top keeps the number from twitching on single noisy samples.
-  # ups_internal_resistance is THE value worth tuning - see the substitutions
-  # block for the procedure.
+  # ups_internal_resistance is THE value worth tuning - settings.yaml section 10
+  # has the procedure.
   - platform: template
     name: "Battery Compensated Voltage"
     id: battery_oc_voltage
@@ -113,10 +120,10 @@ sensor:
 
   # State of charge, derived from the COMPENSATED pack voltage against a
   # lithium-ion OCV curve. Still an estimate - the UPS board has no coulomb
-  # counter, so voltage is all we get, and the curve is flat through the
-  # middle by nature. But feeding it V_oc rather than the loaded bus voltage
-  # removes the load-sag error, which was the biggest source of drift.
-  # Treat <20% as "plug it in", not as a fuel gauge.
+  # counter, so voltage is all we get, and the curve is flat through the middle
+  # by nature. But feeding it V_oc rather than the loaded bus voltage removes the
+  # load-sag error, which was the biggest source of drift. Treat <20% as "plug it
+  # in", not as a fuel gauge.
   - platform: template
     name: "Battery Level"
     id: battery_level
@@ -169,9 +176,9 @@ sensor:
 
 binary_sensor:
   # TRUE only while the cells are actually absorbing charge. Goes FALSE once a
-  # full pack tapers off on mains - that is correct and expected, and is
-  # exactly why nothing else in this config gates on it. It is a battery-health
-  # readout, not a mains detector.
+  # full pack tapers off on mains - that is correct and expected, and is exactly
+  # why nothing else in this config gates on it. A battery-health readout, not a
+  # mains detector.
   - platform: template
     name: "Battery Charging"
     id: battery_charging
@@ -183,10 +190,10 @@ binary_sensor:
       - delayed_on: ${ups_confirm_time}
       - delayed_off: ${ups_confirm_time}
 
-  # THE MAINS DETECTOR. Defined as NOT DISCHARGING, not as charging: idle-on-
-  # mains and full-on-mains both sit near zero current and must still read as
-  # powered. Only a sustained NEGATIVE current - the device pulling its whole
-  # draw out of the pack - counts as mains lost.
+  # THE MAINS DETECTOR. Defined as NOT DISCHARGING, not as charging: idle-on-mains
+  # and full-on-mains both sit near zero current and must still read as powered.
+  # Only a sustained NEGATIVE current - the device pulling its whole draw out of
+  # the pack - counts as mains lost.
   #
   # The threshold is deliberately asymmetric with the charge threshold. A full
   # pack on the charger periodically hands the load back to the cells for a few
@@ -204,35 +211,14 @@ binary_sensor:
     filters:
       - delayed_on: ${ups_confirm_time}
       - delayed_off: ${ups_confirm_time}
-    # Announce the power source on the display when it CHANGES: "CHARGING" when
-    # the charger goes in, "BATTERY" when the device starts running off the pack.
-    #
-    # The first publish is swallowed on purpose. This sensor has no state until
-    # the INA219 reports and the debounce settles, so its initial publish is
-    # "here is the power source" rather than "the power source changed" - without
-    # the guard every boot would open with a message. power_source_announced is
-    # never reset, so only genuine transitions after that are announced.
-    #
-    # show_status_message lives in ambient.yaml (always loaded), NOT in a display
-    # package, so this trigger stays valid whichever display is active.
     on_state:
-      - if:
-          condition:
-            lambda: 'return id(power_source_announced);'
-          then:
-            - script.execute:
-                id: show_status_message
-                text: !lambda |-
-                  return x ? std::string("${power_msg_mains}")
-                           : std::string("${power_msg_battery}");
-                seconds: ${power_msg_seconds}
-      - lambda: 'id(power_source_announced) = true;'
+      - script.execute: on_power_state_changed
 
-  # Latching low-battery flag with hysteresis: trips at battery_low_pct, and
-  # will not clear until SOC climbs 10 points past it. Without the gap this
-  # would chatter every time the sunrise ramps and the pack sags across the
-  # threshold. Anything that reacts to low battery should read THIS, not the
-  # raw percentage.
+  # Latching low-battery flag with hysteresis: trips at battery_low_pct and will
+  # not clear until SOC climbs battery_low_clear_gap points past it. Without the
+  # gap this chatters every time the sunrise ramps and the pack sags across the
+  # threshold. Anything reacting to low battery reads THIS, not the raw
+  # percentage.
   - platform: template
     name: "Battery Low"
     id: battery_low
@@ -240,5 +226,8 @@ binary_sensor:
     lambda: |-
       if (!id(battery_level).has_state()) return {};
       float pct = id(battery_level).state;
-      if (id(battery_low).state) return pct < (${battery_low_pct} + 10.0f);
+      if (id(battery_low).state)
+        return pct < (${battery_low_pct} + ${battery_low_clear_gap}.0f);
       return pct <= ${battery_low_pct};
+    on_state:
+      - script.execute: on_power_state_changed

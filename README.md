@@ -8,8 +8,12 @@ clock, an SK6812 sunrise crescent, and battery/UPS monitoring.
 
 | Path | What |
 |------|------|
-| `soundmachine.yaml` | Device core + feature package includes (the build entry point) |
-| `packages/` | `audio`, `lighting`, `display`, `battery` — one slice each |
+| `soundmachine.yaml` | Device core + the package manifest (the build entry point) |
+| [`packages/README.md`](packages/README.md) | **The architecture map** — start here to change firmware behavior |
+| `packages/settings.yaml` | Every tunable in the build, in one documented file |
+| `packages/hw/` | One file per physical part (matrix, crescent, knob, UPS, sensors…) |
+| `packages/api/` | The abstraction layer — `display`, `sound`, `light`, `indicator` |
+| `packages/behavior/` | Operational logic: presets, gestures, announcements, voice |
 | `components/` | Custom ESPHome components: `noise_source`, `seesaw`, `tpa2016` |
 | `sounds/` | On-device audio baked into flash |
 | `soundmachine.min.yaml` | Reference minimal device YAML for Home Assistant |

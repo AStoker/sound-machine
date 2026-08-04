@@ -1,0 +1,430 @@
+# =====================================================================
+# SETTINGS - every tunable in the build, in one file
+#
+# This package contains NOTHING BUT `substitutions:`. It is the single place to
+# change a value; no package below it hardcodes a number you might want to edit.
+# It is split out of soundmachine.yaml so the entry file can stay a short,
+# readable device core.
+#
+# HOW THESE ARE OVERRIDDEN. Local substitutions beat package ones, so the tiny
+# device YAML on Home Assistant (soundmachine.min.yaml) can override any value
+# here - that is how credentials get injected without `!secret` ever appearing in
+# this repo (remote ESPHome packages forbid `!secret`).
+#
+# SECTIONS, in the order the packages that read them are loaded:
+#   1. Device identity + credentials
+#   2. Buses and pins (I2C addresses, I2S, GPIO)
+#   3. Ambient light (the shared auto-dim level)
+#   4. Display service (display-agnostic: channels, clock, message widths)
+#   5. Matrix driver (IS31FL3731)
+#   6. 7-segment driver (HT16K33)
+#   7. Audio chain (amp, noise, volume, ducking, voice)
+#   8. Crescent light (strip, presets, sunrise, alarm)
+#   9. Knob indicator + proximity
+#  10. Power / UPS monitoring
+#  11. Gestures (shared tap/hold timings)
+#  12. Media sources
+#  13. Logging
+#
+# CONVENTION: a value that is DERIVED from something else (the LED row layout,
+# the IS31FL3731's register map) is NOT a substitution - it lives next to the
+# code that owns it, so nobody is tempted to "tune" it. See the crescent note in
+# CLAUDE.md for the one geometry coupling that is enforced by a script.
+# =====================================================================
+substitutions:
+
+  # ===================================================================
+  # 1. DEVICE IDENTITY + CREDENTIALS
+  # ===================================================================
+  device_name: soundmachine
+  device_friendly_name: Sound Machine
+  ap_ssid: "Soundmachine Setup"
+
+  # ---- Credentials (injected, NOT stored here) ----
+  # This config is designed to be pulled as a remote ESPHome package, and remote
+  # packages may not contain `!secret` lookups. So credentials are substitutions
+  # instead: the local device YAML on Home Assistant overrides each of these with
+  # `!secret ...` from its own secrets.yaml (a local substitution wins over the
+  # package's). The values below are PLACEHOLDERS - a real build must override
+  # them. See soundmachine.min.yaml / secrets.example.yaml.
+  wifi_ssid: "set-in-local-secrets"
+  wifi_password: "set-in-local-secrets"
+  ap_password: "set-in-local-secrets"
+  ota_password: "set-in-local-secrets"
+  # Must be a valid 32-byte base64 key or even a bare `esphome config` fails
+  # format validation before the local override lands. This is a throwaway key.
+  api_key: "kreOUJQZbPUFn1efUReXwEbfhkZzuGGXk1t2AKESiVs="
+
+  # ===================================================================
+  # 2. BUSES AND PINS
+  # HARDWARE.md holds the authoritative map and the wiring cautions; these are
+  # the values the firmware actually uses.
+  # ===================================================================
+
+  # ---- I2C: ONE bus, everything hangs off it ----
+  pin_i2c_sda: GPIO5                 # D4 on the XIAO/Flex breakout
+  pin_i2c_scl: GPIO6                 # D5
+  # 100 kHz, not the 400 kHz default: slower edges tolerate the extra cable
+  # capacitance and pull-ups of the STEMMA sensor chain, which was starving the
+  # timing-sensitive XVF3800. If it is still flaky with everything reconnected,
+  # try 10kHz. EVERY package that adds I2C traffic is written to respect how
+  # narrow this bus is - see the knob indicator and the display dedup.
+  i2c_frequency: 100kHz
+  # Room for the XVF3800 to clock-stretch while its firmware boots; without it
+  # setup logs "I2C transaction timeout".
+  i2c_timeout: 1ms
+
+  # ---- I2C addresses (no conflicts; confirm against the boot scan) ----
+  i2c_addr_codec: "0x18"             # AIC3104 codec on the Flex
+  i2c_addr_ambient_light: "0x23"     # BH1750
+  i2c_addr_tof: "0x29"               # VL53L0X
+  i2c_addr_xvf3800: "0x2C"           # ReSpeaker XVF3800 voice front-end
+  i2c_addr_seesaw: "0x36"            # rotary encoder + its NeoPixel
+  i2c_addr_amp: "0x58"               # TPA2016 amplifier
+  i2c_addr_rtc: "0x68"               # DS3231 real-time clock
+  i2c_addr_seg7: "0x70"              # HT16K33 7-seg (alternative display)
+
+  # ---- I2S (pins fixed by the Flex's internal routing - do not change) ----
+  pin_i2s_ws: GPIO7                  # D8, LRCLK
+  pin_i2s_bclk: GPIO8                # D9
+  pin_i2s_din: GPIO43                # D6, mic data in
+  pin_i2s_dout: GPIO44               # D7, speaker data out
+
+  # ---- Remaining GPIO ----
+  pin_crescent_data: GPIO1           # D0, SK6812 data. Verify D0 is exposed and
+                                     # unused on the Flex breakout pads.
+  touch_pin: GPIO4                   # capacitive preset pad (D3; D2 = GPIO3).
+                                     # ESP32-S3 touch channels are GPIO1..14.
+
+  # ===================================================================
+  # 3. AMBIENT LIGHT - the shared auto-dim level
+  # The BH1750 produces ONE abstract level, 0..15 (`ambient_level`), consumed by
+  # both the display service and the knob indicator. Deliberately weighted dark:
+  # the level sits at the floor for anything up to a dim room and only climbs
+  # into the top half in real daylight, because this device is 60cm from a face
+  # at 3am.
+  # ===================================================================
+  ambient_update_interval: 5s
+  ambient_lux_dark: "3"              # at/below this lux -> ambient_level_min
+  ambient_lux_bright: "500"          # at/above this lux -> ambient_level_max
+  ambient_level_min: "0"             # the HT16K33's hardware floor (1/16 duty)
+  ambient_level_max: "14"
+  # Curve shape between the two anchors. >1 holds the low end down; 1.0 would be
+  # a straight log ramp, which leaves an ordinary lamp-lit room too bright.
+  ambient_dim_gamma: "1.8"
+  # Per-reading slew toward the target level (0..1). Stops a visible step when
+  # someone walks past the sensor. 1.0 = snap.
+  ambient_slew: "0.35"
+
+  # ===================================================================
+  # 4. DISPLAY SERVICE (packages/api/display.yaml)
+  # Display-AGNOSTIC settings: they apply whether the matrix or the 7-seg is
+  # loaded. Per-device settings are in sections 5 and 6.
+  # ===================================================================
+  # One heartbeat drives everything the display does: expiring timed channels,
+  # advancing a scroll, and picking up the minute rolling over. It is safe to
+  # tick this fast because the driver skips the I2C write when the resolved frame
+  # is unchanged - an idle tick costs a short string and a hash.
+  display_tick_ms: "250"
+  clock_24h_mode: "false"            # true = 24h; the leading zero is blanked
+                                     # either way
+
+  # How long a transient CODE ("L1", "S3", "OFF", a volume percentage) stays up.
+  display_code_seconds: "2"
+
+  # ---- The 4-CHARACTER BUDGET for compact channels (status + alert) ----
+  # The matrix draws a compact message inside a SINGLE panel (the right-hand
+  # one) so it can never straddle the physical inter-panel gap, which would eat
+  # a column of whichever glyph landed on the seam. In the 3x5 font that is a
+  # 4-character budget (4 chars = 15px inside 16 columns). Longer strings still
+  # work - they fall back to scrolling the full width - but a scrolling pass
+  # takes far longer than the few seconds a status is meant to occupy. The 7-seg
+  # alternative has 4 digits, so the same budget happens to apply there. KEEP
+  # THE STRINGS BELOW TO 4 CHARACTERS.
+  #
+  # Power-source announcements, raised when External Power flips (charger in or
+  # out). Gated on ups_confirm_time, so the message lands ~30s after the plug
+  # moves, not instantly - that debounce is what stops a full pack's idle
+  # current excursions announcing a false mains loss.
+  power_msg_mains: "CHG"
+  power_msg_battery: "BATT"
+  power_msg_seconds: "3"
+  # The sticky low-battery alert. Short and STATIC on purpose: this one persists
+  # for as long as the pack is low, and a permanently scrolling word at a
+  # bedside at night is worse than no warning at all.
+  alert_msg_low_battery: "LOW"
+
+  # ---- Home Assistant authored message (packages/behavior/message.yaml) ----
+  display_message_duration_default: "20"  # seconds the custom text stays up
+  display_message_duration_min: "3"
+  display_message_duration_max: "300"
+  # Horizontal scroll rate, used for any text too wide for its channel's budget.
+  display_scroll_ms_per_px_default: "250"  # lower = faster
+  display_scroll_ms_per_px_min: "30"
+  display_scroll_ms_per_px_max: "1000"
+  display_scroll_ms_per_px_step: "10"
+
+  # ===================================================================
+  # 5. MATRIX DRIVER - IS31FL3731 charlieplex 16x9 panels
+  # Bring up ONE panel first, then set matrix_panels to 2 for the full 32x9
+  # clock. In single mode the second address is never touched, so an unwired
+  # board causes no I2C errors.
+  # ===================================================================
+  matrix_panels: "2"                 # 1 = single (bring-up); 2 = dual, tiled
+  matrix_address: "0x74"             # panel 0 (left)
+  matrix_address_2: "0x75"           # panel 1 (right); set the 2nd board's ADDR
+                                     # jumper to a free address (0x75/76/77)
+  # Physical dead columns between adjacent panels. Two panels butted together
+  # are NOT seamless; the driver lays content out in physical columns that
+  # include this gap and maps back to logical columns at draw time.
+  matrix_panel_gap: "1"
+  matrix_pwm_on: "40"                # lit-pixel PWM at full ambient (0..255)
+  matrix_pwm_min: "3"                # lit-pixel PWM floor at the darkest end.
+                                     # Never 0 - digits must stay readable.
+
+  # ===================================================================
+  # 6. 7-SEGMENT DRIVER - HT16K33 (the alternative display)
+  # Only read when packages/hw/seg7.yaml is the loaded display.
+  # ===================================================================
+  # Brightness sent during the power-on sequence, before the first ambient
+  # reading lands. 0xE0 | level, so 0xE7 is mid scale.
+  seg7_boot_brightness: "0xE7"
+
+  # ===================================================================
+  # 7. AUDIO CHAIN
+  # ===================================================================
+  # The audio stack is not safe to drive until well after setup: starting the
+  # noise generator during setup dereferenced an uninitialized event group and
+  # crashed. api/sound.yaml waits this long at boot priority -100, then raises
+  # on_audio_ready.
+  audio_ready_delay: 2s
+
+  # ---- TPA2016 amplifier ----
+  # gain_db is the CEILING, not the operating point - volume lives in the
+  # AIC3104 upstream. Was 6 dB (~1W full-scale); raised to 9 dB (~2W) because
+  # the mix was a touch quiet. That is near the physical ceiling of a 5V/4-ohm
+  # amp (the limiter parks at ~2.5W), so there is little clean headroom left.
+  # Going much past 9 pushes normal peaks into the limiter, which distorts AND
+  # makes the DAC->speaker path non-linear again - the exact thing running with
+  # AGC off is protecting for the XVF3800's echo canceller. If you hear it clip
+  # or "breathe" before the knob maxes out, come back down.
+  amp_gain_db: "9"
+  # 9.0 dBV is the top of the range (~2.5W into 4 ohm), just under the clipping
+  # point at 5V. It should NEVER engage in normal use - it is a fault stop, not
+  # a dynamics tool.
+  amp_limiter_dbv: "9.0"
+
+  # ---- Noise generator ----
+  noise_gain: "30%"                  # base amplitude; leaves headroom so noise
+                                     # plus a TTS reply cannot clip
+  noise_fade_length: "2s"
+  noise_high_pass_hz: "160"
+  noise_high_pass_makeup: "4.0"      # tune by ear against white at one volume
+
+  # ---- Volume ----
+  volume_floor_pct: "55%"            # media_player volume_min: below this the
+                                     # mix is inaudible over a quiet room
+  volume_ceiling_pct: "100%"
+  # Knob step curve: step = volume_step_at_zero - volume_step_falloff * volume.
+  # Bigger steps when quiet, finer when loud - ~9% per click near the bottom,
+  # ~2% near the top - so the usable range isn't crossed in three clicks.
+  volume_step_at_zero: "0.09"
+  volume_step_falloff: "0.07"
+
+  # ---- Voice assistant + ducking ----
+  wake_word_model: okay_nabu
+  # 0.9, down from the 0.97 default: a bit more forgiving, especially once
+  # background sound resumes after a turn.
+  wake_word_cutoff: "0.9"
+  mic_mute_update_interval: 60s      # was 1s - quieter logs, still functional
+  duck_decibels: "15"                # dip applied to background sound for a turn
+  duck_ramp: 0.3s                    # ramp INTO the dip
+  unduck_ramp: 0.5s                  # ramp back out
+  # The duck watchdog waits for the spoken reply to start, then to finish. Both
+  # waits are bounded so a stuck announcement state cannot leave sound ducked
+  # forever.
+  duck_reply_start_timeout: 10s
+  duck_reply_end_timeout: 30s
+
+  # ===================================================================
+  # 8. CRESCENT LIGHT - SK6812 strip, presets, sunrise, alarm
+  # NOTE: the pixel COUNT and row layout are NOT here. They are derived from the
+  # enclosure geometry and live in packages/hw/crescent.yaml, checked by
+  # 3d-print/check_docs.py. See the coupling note in CLAUDE.md.
+  # ===================================================================
+  # Gamma 1.0 = linear brightness, so low values still light. SK6812s otherwise
+  # blank out below ~20% at the default 2.8 gamma. Raise toward 2.8 for a more
+  # perceptual fade, at the cost of the dim end.
+  led_gamma: "1.0"
+  # Hard current ceiling, as a % of full-white output. Caps max PWM
+  # (color_correct) so the strip PHYSICALLY cannot exceed it whatever HA asks.
+  # BUDGET (5V rail = Waveshare UPS 3S, 5A):
+  #   48 SK6812 RGBW at full all-channel white ~= 2.9A
+  #   TPA2016 into 2x 4ohm at clipping           ~= 1.3A
+  #   Flex + XVF3800 + ESP32-S3 + sensors        ~= 0.5A
+  # 65% of 2.9A = ~1.9A for the strip, ~3.7A of 5A total. Also keeps the sealed
+  # dome from cooking. Raise only after measuring actual draw.
+  led_max_pct: "65%"
+  crescent_transition: 1s            # default fade between light states
+
+  # ---- Static presets ----
+  # A second brightness layer on top of led_max_pct: cap what a preset may
+  # command so nothing even approaches the current ceiling. Fractions (0..1).
+  nightlight_brightness: "0.12"      # deep amber, minimum useful glow
+  nightlight_red: "1.0"
+  nightlight_green: "0.30"
+  nightlight_blue: "0.0"
+  morning_brightness: "0.60"         # the brightest STATIC preset
+  morning_red: "1.0"
+  morning_green: "0.55"
+  morning_blue: "0.15"
+  # How many ON presets the cycle walks (1..N). Off is reached by a long-press,
+  # not by cycling through it.
+  light_preset_count: "3"
+
+  # ---- Circadian Sunrise (the one dynamic preset) ----
+  sunrise_default_minutes: "30"      # dawn ramp length. 30 min is the typical
+                                     # dawn-simulation protocol in the research.
+  sunrise_default_hold: "10"         # bright hold, in minutes, before auto-off
+  sunrise_max_brightness: "0.70"     # caps the sunrise's peak output
+  sunrise_update_interval: 100ms     # effect repaint rate
+  sunrise_edge_softness: "0.15"      # vertical width of the sun's glowing edge,
+                                     # as a fraction of the crescent's height
+
+  # ---- Alarm (starts the Sunrise preset) ----
+  alarm_default_time: "06:30:00"
+
+  # ---- Capacitive touch pad ----
+  touch_setup_mode: "false"          # flip to true ONCE, watch the logs for this
+                                     # pad's raw value untouched vs touched, then
+                                     # set the threshold below
+  touch_threshold: "700000"          # ESP32-S3 raw threshold - TODO: CALIBRATE
+  touch_debounce: 40ms
+
+  # ===================================================================
+  # 9. KNOB INDICATOR + PROXIMITY
+  # ===================================================================
+  # ---- The NeoPixel inside the rotary encoder ----
+  # Colour = volume (blue quiet -> green mid -> red loud), lit by turning the
+  # knob and pre-lit by the ToF sensor.
+  # The PIN is a SEESAW GPIO, not an ESP one: 6 on the Adafruit I2C QT Rotary
+  # Encoder (#4991 - the same board whose switch is on seesaw pin 24). Other
+  # seesaw boards differ; check the pinout.
+  knob_led_pin: "6"
+  knob_switch_pin: "24"              # seesaw GPIO for the encoder's push switch
+  knob_led_fade_ms: "50"             # fade tick = 20 Hz. This is also the HARD
+                                     # ceiling on how often the pixel is written
+                                     # over I2C - do not raise it much (see the
+                                     # rationale in packages/api/indicator.yaml).
+  knob_led_hold_ms: "1500"           # stay at full this long after the LAST
+                                     # volume change, then start fading
+  knob_led_rise_active_ms: "120"     # knob turn -> essentially instant
+  knob_led_rise_near_ms: "700"       # hand approaches -> ease it on gently
+  knob_led_fade_out_ms: "1400"       # gradual fade to black once done
+  knob_led_near_level: "0.45"        # ToF pre-illumination level (0..1) - a
+                                     # findable glow, clearly below "in use"
+  # Brightness ceiling, as a fraction of full pixel output, at the two ends of
+  # the shared ambient auto-dim. Deliberately low at the dark end: this pixel is
+  # at arm's length in a bedroom.
+  knob_led_min: "0.10"               # darkest room
+  knob_led_max: "0.60"               # daylight
+  knob_led_gamma: "1.8"              # >1 = perceptually even fade
+
+  # ---- VL53L0X time-of-flight (knob pre-illumination) ----
+  # Thresholds in METRES - that is what the sensor publishes. near/far differ on
+  # purpose: hysteresis, so a hovering hand doesn't chatter the pixel.
+  tof_update_interval: "250ms"       # every read is I2C traffic on a bus this
+                                     # build keeps deliberately quiet - 4/s is
+                                     # plenty responsive for "a hand is coming"
+  tof_near_m: "0.20"                 # <= this asserts "hand near" (~8 in)
+  tof_far_m: "0.30"                  # must go beyond this to release (~12 in)
+  tof_max_valid_m: "1.2"             # above this, treat as no target at all
+  tof_confirm_samples: "2"           # consecutive near readings to assert
+  tof_release_samples: "3"           # consecutive far readings to release.
+                                     # Slower to release on purpose: a single
+                                     # dropped reading must not blink the pixel.
+
+  # ===================================================================
+  # 10. POWER / UPS MONITORING - Waveshare UPS Module 3S (3x 18650 series)
+  # ===================================================================
+  # !! PLACEHOLDER !! The monitor chip's address is UNCONFIRMED. Run the boot
+  # I2C scan with the UPS connected and look for an address that isn't already
+  # in section 2. Waveshare's UPS boards normally carry an INA219 at 0x40-0x43;
+  # if the scan turns up 0x40 that is almost certainly it. If the readings come
+  # back nonsense the part may be an INA226 instead - change `platform: ina219`
+  # to `platform: ina226` in packages/hw/power.yaml.
+  ups_i2c_address: "0x41"
+  # Series shunt on the UPS board. ALSO UNCONFIRMED - 0.01 ohm is the usual
+  # value for a 5A-class board. If reported current is 10x off, this is why.
+  ups_shunt_ohms: "0.01 ohm"
+  ups_max_voltage: 16.0V             # 3S tops out at 12.6V; 16V range covers it
+  ups_max_current: 5.0A              # matches the board's 5V/5A output rating
+
+  # How often the monitor is read. Everything downstream (SOC, the EMA, the
+  # charge/mains debounce) is derived from this cadence, so keep it well under
+  # ups_confirm_time.
+  ups_poll_interval: "10s"
+
+  # Pack internal resistance in OHMS, used to recover open-circuit voltage from
+  # the loaded bus voltage: V_oc = V_bus - (I x R). 0.20 suits 3x 18650 in
+  # series plus wiring. THIS IS THE ONE VALUE WORTH TUNING - watch Battery
+  # Compensated Voltage (a diagnostic entity) while a big load starts or stops:
+  #   Level DROPS when load applied -> resistance too LOW, raise it
+  #   Level RISES when load applied -> too HIGH, lower it
+  #   Level barely moves            -> about right
+  ups_internal_resistance: "0.20"
+
+  # EMA smoothing on the compensated voltage. 1.0 = no smoothing, lower =
+  # steadier but slower to react.
+  ups_ema_alpha: "0.2"
+
+  # Current deadband in AMPS, deliberately ASYMMETRIC.
+  # Above +50mA the cells are genuinely absorbing charge.
+  ups_charge_threshold_a: "0.05"
+  # Below -200mA the pack is genuinely carrying the load. Sits in the gap
+  # between a full pack's idle excursions on mains (tens of mA, spiking to
+  # ~180mA) and a real mains loss (several hundred mA from the first sample).
+  # Lower it only if this device draws far less than expected on battery.
+  ups_discharge_threshold_a: "0.20"
+
+  # How long a charge/mains state change must hold before it is believed.
+  # Rejects one-off sensor noise; at a 10s poll this is ~3 readings.
+  ups_confirm_time: "30s"
+
+  # SOC at/below this counts as "low battery". The pack VOLTAGE thresholds are
+  # not settings: they are the endpoints of a measured lithium-ion rest-voltage
+  # curve, documented next to that curve in packages/hw/power.yaml.
+  battery_low_pct: "15"
+  # Hysteresis gap, in SOC points, before the low-battery latch clears. Without
+  # a gap this chatters every time the sunrise ramps and the pack sags across
+  # the threshold.
+  battery_low_clear_gap: "10"
+
+  # ===================================================================
+  # 11. GESTURES - shared by the knob switch and the touch pad, so both
+  # physical controls feel the same. Read by packages/hw/{knob,touch}.yaml.
+  # ===================================================================
+  gesture_tap_max: 0.8s              # a press shorter than this is a tap
+  gesture_tap_gap: 0.2s              # release must hold this long to count
+  gesture_hold_min: 1s               # a press longer than this is a hold
+
+  # ===================================================================
+  # 12. MEDIA SOURCES
+  # ===================================================================
+  # ESPHome resolves a LOCAL `file:` path against the config dir of whatever
+  # machine runs the build. When this config is pulled onto Home Assistant as a
+  # remote package that dir is HA's, not this repo - so a bare `sounds/...` path
+  # would not be found there even though the file lives in the repo. A value
+  # starting with http(s):// is instead downloaded at build time, so the URL
+  # default just works everywhere. For LOCAL/offline dev with the repo checked
+  # out, override this with the repo-relative path: sounds/La-la-sad.mp3
+  la_la_sad_source: "https://raw.githubusercontent.com/astoker/sound-machine/main/sounds/La-la-sad.mp3"
+
+  # ===================================================================
+  # 13. LOGGING
+  # ===================================================================
+  log_level: DEBUG                   # drop to INFO once everything is stable
+  # The ToF sensor logs every reading. WARN hides that per-reading spam; set to
+  # DEBUG to see every distance while fine-tuning (CONFIG keeps just the boot
+  # dump).
+  tof_log_level: "WARN"

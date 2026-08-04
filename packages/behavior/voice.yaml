@@ -1,0 +1,115 @@
+# =====================================================================
+# BEHAVIOR: wake word and voice assistant  [layer: behavior]
+#
+# The voice feature and its one hard problem: a voice turn has to be audible over
+# whatever the device is already playing, and the ducking has to end again even
+# when the pipeline does not tell us it finished.
+#
+# THE DUCKING CONTRACT
+#   wake word detected -> dip both background channels, remember that WE dipped
+#                         them, and start the watchdog
+#   watchdog           -> wait for the spoken reply to start, then to end, then
+#                         restore
+#   error / no reply   -> restore anyway, on a timeout
+# `sound_ducked` exists so a restore only un-dips sound that this file dipped;
+# without it a stray error path could raise a volume the user had deliberately
+# lowered.
+#
+# WHY THE WATCHDOG WATCHES is_announcing AND NOT idle: the TTS reply is played as
+# an ANNOUNCEMENT (the voice assistant calls set_announcement(true)) on its own
+# mixer channel, while a looping media file keeps running on the media channel.
+# So is_announcing follows only the reply and ignores the loop's seams. The
+# player's idle state is unreliable behind the mixer, which is why there is no
+# on_idle hook anywhere in this config.
+#
+# DEFINES  sound_ducked (global), resume_if_ducked, duck_watchdog, mww, va.
+# CONSUMES api/sound (sound_duck, sound_unduck), i2s_mics +
+#          external_media_player (hw/audio_chain).
+# =====================================================================
+globals:
+  # Did WE duck the background sound for a voice turn? Guards the restore.
+  - id: sound_ducked
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
+script:
+  - id: resume_if_ducked
+    then:
+      - if:
+          condition:
+            lambda: 'return id(sound_ducked);'
+          then:
+            - script.execute: sound_unduck
+            - lambda: 'id(sound_ducked) = false;'
+
+  # Watches a voice turn and restores the ducked sound when the spoken reply
+  # finishes. Launched from on_wake_word_detected right after ducking.
+  - id: duck_watchdog
+    mode: restart
+    then:
+      # Wait for the reply to start. If none starts in the window (a no-reply or
+      # error turn), fall through and restore anyway.
+      - wait_until:
+          condition:
+            media_player.is_announcing: external_media_player
+          timeout: ${duck_reply_start_timeout}
+      # Then wait for it to finish playing, buffer included. Bounded with a
+      # timeout so a stuck announcement state cannot leave sound ducked forever.
+      - wait_until:
+          condition:
+            not:
+              media_player.is_announcing: external_media_player
+          timeout: ${duck_reply_end_timeout}
+      - script.execute: resume_if_ducked
+
+micro_wake_word:
+  id: mww
+  microphone:
+    microphone: i2s_mics
+    channels: 0                 # 0 = the XVF3800's clean beamformed output
+  stop_after_detection: true    # yield the mic to the pipeline on detect; it is
+                                # restarted in the voice assistant's on_end
+  models:
+    - model: ${wake_word_model}
+      probability_cutoff: ${wake_word_cutoff}
+  on_wake_word_detected:
+    - script.execute: sound_duck
+    - lambda: 'id(sound_ducked) = true;'
+    - script.execute: duck_watchdog
+    - voice_assistant.start:
+
+voice_assistant:
+  id: va
+  microphone:
+    microphone: i2s_mics
+    channels: 0
+  # Linking the mww instance here is what makes Home Assistant's "Wake word" /
+  # "Wake word 2" selects work. HA fetches the satellite config over the API and
+  # voice_assistant answers from micro_wake_word's model list; with this key
+  # absent that pointer is null, so it reports zero available wake words and
+  # max_active_wake_words = 0 - HA still creates both selects (it always makes
+  # two) but they hold only "no wake word" and render as UNAVAILABLE.
+  # Detection itself never needed this: the wiring above
+  # (on_wake_word_detected -> voice_assistant.start) is local, which is why it
+  # worked anyway.
+  # Side effect: HA now OWNS which models are enabled - on connect it disables
+  # every model and re-enables only what the selects name, and that enable bit is
+  # persisted in flash. Set the select to "Okay Nabu" after flashing.
+  micro_wake_word: mww
+  media_player: external_media_player
+  noise_suppression_level: 0    # the XVF3800 already does this in hardware
+  # --- wake-word lifecycle (the manual pattern) ---
+  on_client_connected:
+    - micro_wake_word.start:
+  on_client_disconnected:
+    - voice_assistant.stop:
+    - micro_wake_word.stop:
+  # Restart wake-word listening at the end of each turn. Un-ducking is NOT done
+  # here: duck_watchdog keys off the reply announcement, which outlasts the
+  # pipeline-end event.
+  on_end:
+    - micro_wake_word.start:
+  on_error:
+    - script.execute: resume_if_ducked
+    - micro_wake_word.start:

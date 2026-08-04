@@ -95,7 +95,7 @@ LED-body-to-diffuser-edge gap is **2.95 mm**.
 > vertical structure needs re-checking against this**, the Circadian Sunrise
 > especially. Row 5 is 4 px, so there is no single-pixel apex.
 
-`packages/lighting.yaml` carries `num_leds: 48` and
+`packages/hw/crescent.yaml` carries `num_leds: 48` and
 `leds_per_row[] = {10, 10, 9, 8, 7, 4}`. `enclosure_geom.crescent_rows()` is the
 source of truth; `gen_drawing.py` prints the table on every run.
 
@@ -111,7 +111,7 @@ source of truth; `gen_drawing.py` prints the table on every run.
 
 | Block | Part | Notes |
 |-------|------|-------|
-| Clock | **Adafruit HT16K33 4-digit 7-segment** ([#1002](https://www.adafruit.com/product/1002)) | I2C `0x70`. **Now an OPTIONAL alternative** to the matrix display — the matrix is the active clock (see Optional/experimental). Driven by **raw I2C writes** (init + rendering both in `packages/display.yaml`), not a stock ESPHome display platform. Auto-dims from the BH1750. Load `display` *or* `matrix`, never both. |
+| Clock | **Adafruit HT16K33 4-digit 7-segment** ([#1002](https://www.adafruit.com/product/1002)) | I2C `0x70`. **Now an OPTIONAL alternative** to the matrix display — the matrix is the active clock (see Optional/experimental). Driven by **raw I2C writes** (init + rendering both in `packages/hw/seg7.yaml`), not a stock ESPHome display platform. Auto-dims from the BH1750. Load `hw/seg7.yaml` *or* `hw/matrix.yaml`, never both. |
 
 **Power note (open item):** the HT16K33 is a 5V part on a shared 3.3V-logic I2C
 bus. Best practice is to power it from a **dedicated 3.3V LDO off the 5V rail**,
@@ -124,10 +124,10 @@ as-built wiring matches this.
 
 | Sensor | Part | Address | Status |
 |--------|------|---------|--------|
-| Ambient light | **BH1750** | `0x23` | **Implemented** — feeds display auto-dim (`packages/display.yaml`). Mounted rear, behind a light pipe **centred in the back wall** (see the enclosure drawing). |
-| Rotary encoder | **Adafruit seesaw rotary encoder** | `0x36` | **Implemented** — volume knob + push (tap/hold) via the vendored `seesaw` component. Its built-in **NeoPixel** (seesaw GPIO **6**, `knob_led_pin`) is also live: colour = volume, blue → green → red (`packages/knob.yaml`). |
+| Ambient light | **BH1750** | `0x23` | **Implemented** — publishes the shared `ambient_level` that auto-dims the display and the knob pixel (`packages/hw/ambient_light.yaml`). Mounted rear, behind a light pipe **centred in the back wall** (see the enclosure drawing). |
+| Rotary encoder | **Adafruit seesaw rotary encoder** | `0x36` | **Implemented** — volume knob + push (tap/hold) via the vendored `seesaw` component. Its built-in **NeoPixel** (seesaw GPIO **6**, `knob_led_pin`) is also live: colour = volume, blue → green → red (`packages/hw/knob.yaml` for the inputs, `packages/api/indicator.yaml` for the pixel). |
 | Real-time clock | **DS3231** (driven as `ds1307`) | `0x68` | **Implemented** — battery-backed time source; HA syncs it when connected. |
-| Time-of-flight | **VL53L0X** | `0x29` | **Implemented, in a limited role** (`packages/knob.yaml`) — a hand within `tof_near_m` pre-lights the knob NeoPixel, and that is *all* it does. The historical **touchless wake** gesture is still not built. Thresholds are guesses, not measurements: watch the **Knob Proximity** binary sensor and tune. Mounts on the **crown, just right of the volume knob**, board turned longwise front-to-back to clear the encoder breakout — see the enclosure drawing. |
+| Time-of-flight | **VL53L0X** | `0x29` | **Implemented, in a limited role** (`packages/hw/proximity.yaml`) — a hand within `tof_near_m` pre-lights the knob NeoPixel, and that is *all* it does. The historical **touchless wake** gesture is still not built. Thresholds are guesses, not measurements: watch the **Knob Proximity** binary sensor and tune. Mounts on the **crown, just right of the volume knob**, board turned longwise front-to-back to clear the encoder breakout — see the enclosure drawing. |
 
 > The BH1750, seesaw, DS3231 and VL53L0X are all live in the config. The ToF is
 > deliberately **non-essential**: if it is unwired or fails its probe, the knob
@@ -177,7 +177,7 @@ what that changed about the dome.
 |-------|------|-------|
 | Pack / UPS | **Waveshare UPS Module 3S** (3× 18650 in series) | **60 × 93 mm board**, M3 mounting holes, cells in holders on the board. Provides the **5V / 5A** rail; runs charge + discharge simultaneously (true UPS). **93 mm will not lie down in a 59 mm interior, so the board STANDS VERTICALLY against the rear wall** (~24 mm deep — confirm with cells fitted). That also puts its barrel jack on the wall that has the cutout. |
 | Charge input | **DC barrel jack** on the UPS board, **12.6 V 2 A** | **Not USB-C.** The only USB-C on the build is the XIAO's own flashing port, which is internal (see the flashing caveat above). The enclosure therefore needs a barrel-jack cutout in the rear wall, not a USB opening. Jack body clearance and its height on the board are **UNCONFIRMED** — measure the as-built. |
-| Monitor | **INA219** (assumed) | I2C — **address is an UNCONFIRMED placeholder** (`ups_i2c_address`, currently `0x41`). Waveshare boards usually carry an INA219 at `0x40–0x43`; if readings are nonsense the part may be an **INA226** (swap `platform: ina219` → `ina226` in `packages/battery.yaml`). |
+| Monitor | **INA219** (assumed) | I2C — **address is an UNCONFIRMED placeholder** (`ups_i2c_address`, currently `0x41`). Waveshare boards usually carry an INA219 at `0x40–0x43`; if readings are nonsense the part may be an **INA226** (swap `platform: ina219` → `ina226` in `packages/hw/power.yaml`). |
 | Shunt | series shunt on the UPS board | **UNCONFIRMED** (`ups_shunt_ohms`, currently `0.01 Ω`). If reported current is ~10× off, this value is why. |
 
 **Pack thresholds (3S, pack volts = per-cell × 3):**
@@ -298,13 +298,13 @@ everything reconnected, drop toward 10 kHz.
 
 - **IS31FL3731 charlieplex 16×9 matrix** (`0x74`, STEMMA QT / I2C): **now the
   active clock display** (the HT16K33 7-seg is kept as a drop-in alternative —
-  see the Display section). No native ESPHome component, so `packages/matrix.yaml`
+  see the Display section). No native ESPHome component, so `packages/hw/matrix.yaml`
   drives it with raw-I2C register writes. Pixel `(x,y)` → LED `x + y*16`; PWM byte
   at `0x24 + LED` (144 LEDs); enable regs `0x00–0x11`; bank select via command
   reg `0xFD` (`0x00` = frame 0, `0x0B` = function/config). It renders, in priority
   order, a low-battery **"LO"** warning → transient **preset code** (S1–S3 / L1–L3
   / OFF) → the live **RTC clock** (12h, blank leading zero, solid colon), driven
-  by the shared 1s tick in `ambient.yaml` and auto-dimmed via `display_brightness`.
+  by the shared tick in `api/display.yaml` and auto-dimmed via `ambient_level`.
   A "Matrix: redraw" button forces a re-init after a glitch.
   - **Single vs dual:** the package tiles N panels side-by-side into one logical
     framebuffer (16·N wide × 9). `matrix_panels: "1"` brings up the left panel

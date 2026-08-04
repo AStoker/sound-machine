@@ -1,0 +1,235 @@
+# =====================================================================
+# API: THE DISPLAY SERVICE  [layer: api]
+#
+# The one and only way anything in this device puts something on the clock
+# display. Nothing outside this file names a display id, a font, a panel or a
+# pixel; nothing outside the loaded DRIVER touches the display's I2C address.
+#
+#          behavior/*  ->  display_show_* (here)  ->  display_paint (driver)
+#
+# WHAT THIS LAYER OWNS
+#   * the four content CHANNELS below and their priority,
+#   * expiring the timed ones,
+#   * building the clock (so 12h/24h formatting exists in ONE place, not once
+#     per display driver, which is how the two drivers used to drift),
+#   * the single heartbeat that keeps all of the above honest.
+#
+# WHAT A DRIVER OWNS
+#   * one script, `display_paint`, which renders the resolved FRAME below and
+#     nothing else. It makes no decisions about what to show.
+#
+# THE CHANNELS, highest priority first:
+#   message  timed, WIDE     Home Assistant authored text (behavior/message.yaml)
+#   status   timed, COMPACT  a device announcement, e.g. "CHG"  (any behavior)
+#   alert    STICKY, COMPACT a condition that persists, e.g. "LOW"
+#   code     timed, WIDE     a short code from a user action: "L1", "S3", "42"
+#   clock    always          the fallback
+#
+# Why status outranks alert: plugging in while the pack is flat is exactly when
+# you want to see "CHG" rather than "LOW" - and the alert is cleared a moment
+# later anyway. Why message outranks everything: it was explicitly asked for.
+#
+# THE FRAME - the driver's entire input:
+#   display_frame_text   text to render; EMPTY means render the clock
+#   display_frame_scope  0 = WIDE: may use the whole display and the roomy font
+#                        1 = COMPACT: must fit the 4-character budget, static,
+#                            and must not straddle a physical panel seam
+#   display_frame_clock  4 chars, '_' = blank slot, e.g. "_930". EMPTY means the
+#                        clock is not readable and the driver should say so.
+#   display_frame_level  0..15 brightness, from the ambient auto-dim
+#   display_scroll_ms    ms per pixel for any text too wide for its scope
+#
+# DEFINES  the channel globals, the frame globals, display_show_message,
+#          display_show_status, display_show_code, display_set_alert,
+#          display_set_scroll_speed, display_refresh, and the display tick.
+# CONSUMES ds3231_time (hw/rtc), ambient_level (hw/ambient_light),
+#          display_paint (the loaded display driver).
+# =====================================================================
+globals:
+  # ---- channel state ----
+  # Each timed channel is an expiry STAMP rather than a running timer, so a
+  # second event simply overwrites it (last one wins) with no script
+  # cancellation to reason about. The resolve step CLEARS a channel it finds
+  # expired, which is what keeps the signed-difference compare below safe past
+  # the ~24.8 day mark where a stale deadline would otherwise read as future.
+  - id: display_message_text
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+  - id: display_message_until_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+  - id: display_status_text
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+  - id: display_status_until_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+  - id: display_code_text
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+  - id: display_code_until_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+  # The sticky channel: no expiry. Set to "" to clear.
+  - id: display_alert_text
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+
+  # ---- the resolved frame (the driver's input; see the header) ----
+  - id: display_frame_text
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+  - id: display_frame_scope
+    type: int
+    restore_value: no
+    initial_value: '0'
+  - id: display_frame_clock
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+  - id: display_frame_level
+    type: int
+    restore_value: no
+    initial_value: '9'      # mid default until the first ambient reading
+  # Scroll rate for overflowing text. Persisted because it is a user preference.
+  - id: display_scroll_ms
+    type: int
+    restore_value: yes
+    initial_value: '${display_scroll_ms_per_px_default}'
+
+script:
+  # ---- the public API: four ways to put something on the display ----
+  # Each one stamps its channel and repaints immediately, so feedback is instant
+  # rather than waiting up to one tick.
+
+  # A Home Assistant authored message. WIDE scope: long text scrolls.
+  - id: display_show_message
+    parameters:
+      text: string
+      seconds: int
+    then:
+      - lambda: |-
+          id(display_message_text) = text;
+          id(display_message_until_ms) = millis() + (uint32_t) (seconds > 0 ? seconds : 1) * 1000u;
+      - script.execute: display_refresh
+
+  # A device announcement. COMPACT scope - keep it to 4 characters, see
+  # settings.yaml section 4 for why.
+  - id: display_show_status
+    parameters:
+      text: string
+      seconds: int
+    then:
+      - lambda: |-
+          id(display_status_text) = text;
+          id(display_status_until_ms) = millis() + (uint32_t) (seconds > 0 ? seconds : 1) * 1000u;
+      - script.execute: display_refresh
+
+  # A short code from a user action ("L1", "S3", "OFF", a volume percentage).
+  # Fixed duration - callers never need to care how long it lingers.
+  - id: display_show_code
+    parameters:
+      text: string
+    then:
+      - lambda: |-
+          id(display_code_text) = text;
+          id(display_code_until_ms) = millis() + (uint32_t) ${display_code_seconds} * 1000u;
+      - script.execute: display_refresh
+
+  # Raise or clear the sticky alert. Pass "" to clear.
+  - id: display_set_alert
+    parameters:
+      text: string
+    then:
+      - lambda: 'id(display_alert_text) = text;'
+      - script.execute: display_refresh
+
+  - id: display_set_scroll_speed
+    parameters:
+      milliseconds: int
+    then:
+      - lambda: |-
+          int ms = milliseconds;
+          if (ms < ${display_scroll_ms_per_px_min}) ms = ${display_scroll_ms_per_px_min};
+          if (ms > ${display_scroll_ms_per_px_max}) ms = ${display_scroll_ms_per_px_max};
+          id(display_scroll_ms) = ms;
+
+  # ---- resolve + paint ----
+  # Turns the channels into the frame, then hands the frame to the driver. This
+  # is the ONLY caller of display_paint.
+  - id: display_refresh
+    then:
+      - lambda: |-
+          const uint32_t now_ms = millis();
+
+          // A timed channel is live while it holds text AND its stamp is still
+          // in the future. Expired text is cleared here rather than merely
+          // ignored - see the note on the globals above.
+          auto live = [&](std::string &text, uint32_t until) {
+            if (text.empty()) return false;
+            if ((int32_t) (until - now_ms) > 0) return true;
+            text.clear();
+            return false;
+          };
+
+          if (live(id(display_message_text), id(display_message_until_ms))) {
+            id(display_frame_text)  = id(display_message_text);
+            id(display_frame_scope) = 0;                        // WIDE
+          } else if (live(id(display_status_text), id(display_status_until_ms))) {
+            id(display_frame_text)  = id(display_status_text);
+            id(display_frame_scope) = 1;                        // COMPACT
+          } else if (!id(display_alert_text).empty()) {
+            id(display_frame_text)  = id(display_alert_text);
+            id(display_frame_scope) = 1;                        // COMPACT
+          } else if (live(id(display_code_text), id(display_code_until_ms))) {
+            // WIDE on purpose: on a dual panel a 2-character code lands one
+            // glyph per panel with the seam between them, which reads well.
+            id(display_frame_text)  = id(display_code_text);
+            id(display_frame_scope) = 0;
+          } else {
+            id(display_frame_text).clear();                     // -> clock
+            id(display_frame_scope) = 0;
+          }
+
+          // The clock, built once for whichever driver is loaded. '_' marks a
+          // blank slot; an empty string means the RTC has nothing valid to show.
+          const bool use_24h = ${clock_24h_mode};
+          std::string clock;
+          auto now = id(ds3231_time).now();
+          if (now.is_valid()) {
+            int hour = now.hour;
+            if (!use_24h) { hour = hour % 12; if (hour == 0) hour = 12; }
+            const int minute = now.minute;
+            clock.push_back(hour >= 10 ? (char) ('0' + hour / 10) : '_');  // blank leading zero
+            clock.push_back((char) ('0' + hour % 10));
+            clock.push_back((char) ('0' + minute / 10));
+            clock.push_back((char) ('0' + minute % 10));
+          }
+          id(display_frame_clock) = clock;
+
+          int level = id(ambient_level);
+          if (level < 0)  level = 0;
+          if (level > 15) level = 15;
+          id(display_frame_level) = level;
+      - script.execute: display_paint
+
+interval:
+  # THE display heartbeat, and the only one. It expires timed channels, advances
+  # a scroll, and notices the minute rolling over.
+  #
+  # It is safe to run this several times a second because display_paint hashes
+  # the frame it is about to draw and returns before touching I2C when nothing
+  # visible changed. An idle tick costs a short string and an FNV hash; a real
+  # repaint costs ~300 bytes on a 100kHz bus, which is why the dedup is the
+  # driver's responsibility rather than something callers must think about.
+  - interval: ${display_tick_ms}ms
+    then:
+      - script.execute: display_refresh

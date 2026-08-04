@@ -801,7 +801,7 @@ if __name__ == "__main__":
     print(f"             aspect {W/H:.2f}:1 -- flattening is the ONLY lever on "
           f"height, since H = CRES_Y + k*W/2")
     print(f"\nCRESCENT  {dt(CRES_R)} x {dt(CRES_RY)} ellipse, {crescent_px()} px "
-          f"(fixed) -- ROW LAYOUT for packages/lighting.yaml:")
+          f"(fixed) -- ROW LAYOUT for packages/hw/crescent.yaml:")
     print("   row      y     chord    px   strip run   end margin")
     for (w, c, run), yy in zip(crescent_rows(), crescent_row_ys()):
         print(f"        {yy:6.1f}  {w:7.1f}   {c:3d}   {run:7.1f}     {(w-run)/2:7.1f}")

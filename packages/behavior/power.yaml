@@ -1,0 +1,74 @@
+# =====================================================================
+# BEHAVIOR: what the device says about its power  [layer: behavior]
+#
+# Two policies, both on top of the two facts hw/power.yaml publishes:
+#
+#   1. ANNOUNCE a change of power source - "CHG" when the charger goes in,
+#      "BATT" when the device starts running off the pack.
+#   2. RAISE a sticky low-battery alert, but not while on mains.
+#
+# THE FIRST PUBLISH IS SWALLOWED ON PURPOSE. external_power has no state until the
+# monitor reports and the debounce settles, so its first publish is "here is the
+# power source", not "the power source changed" - without the latch every boot
+# would open with a message. power_announced is never reset, so only genuine
+# transitions after that are announced.
+#
+# THE LATCH IS ARMED BY external_power ALONE, which matters because this handler
+# is shared: battery_low also raises it, and battery_low settles FIRST (it needs
+# only the SOC chain, ~10s, while external_power carries a 30s debounce). Arm the
+# latch on any publish and battery_low's first one would arm it with a default
+# power source, making external_power's own first publish look like a transition
+# and announcing "CHG" on every mains boot. Hence the has_state() guard.
+#
+# THE ALERT GATES ON external_power, NOT battery_charging. A pack that has
+# finished charging tapers to near-zero current and battery_charging correctly
+# goes false, which would bring the warning back while still plugged in. See the
+# note on the two sensors in hw/power.yaml. battery_low itself has hysteresis;
+# mains presence just clears the on-screen nag immediately.
+#
+# IMPLEMENTS the hardware input contract from hw/power.yaml:
+#   on_power_state_changed
+#
+# DEFINES  power_announced, power_was_external (globals),
+#          on_power_state_changed.
+# CONSUMES api/display (display_show_status, display_set_alert), and reads
+#          external_power + battery_low (hw/power).
+# =====================================================================
+globals:
+  # Latch: has this device ever seen a settled power state? Blocks the
+  # boot-time announcement described above.
+  - id: power_announced
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  # The last power source we announced, so a repeated publish of the same state
+  # (battery_low also triggers this handler) does not re-announce.
+  - id: power_was_external
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
+script:
+  - id: on_power_state_changed
+    then:
+      - lambda: |-
+          const bool have_source = id(external_power).has_state();
+          const bool on_mains = have_source && id(external_power).state;
+
+          // 1. Announce a genuine change of source - see the note on the latch.
+          if (have_source) {
+            if (id(power_announced) && on_mains != id(power_was_external)) {
+              id(display_show_status)->execute(
+                  on_mains ? std::string("${power_msg_mains}")
+                           : std::string("${power_msg_battery}"),
+                  ${power_msg_seconds});
+            }
+            id(power_was_external) = on_mains;
+            id(power_announced) = true;
+          }
+
+          // 2. Re-evaluate the sticky alert. Passing "" clears it, so this one
+          // call handles both raising and clearing and cannot get out of step.
+          const bool warn = id(battery_low).state && !on_mains;
+          id(display_set_alert)->execute(warn ? std::string("${alert_msg_low_battery}")
+                                              : std::string(""));

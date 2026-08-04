@@ -1,0 +1,110 @@
+# =====================================================================
+# BEHAVIOR: the Home Assistant authored message  [layer: behavior]
+#
+# Type a string in Home Assistant, press a button, and it appears on the display
+# for a configurable time, scrolling if it does not fit. Four entities, no
+# hardware: the text is handed to api/display.yaml's message channel, which is why
+# this works unchanged on either display (the 7-seg simply truncates to four
+# characters - see hw/seg7.yaml).
+#
+# The entity NAMES still say "Matrix" for continuity: renaming them would change
+# their Home Assistant entity_ids and break anyone's dashboard or automation. The
+# feature itself is display-agnostic.
+#
+# DEFINES  display_message_pending, display_message_duration_s (globals),
+#          display_message_input, display_message_duration, display_scroll_speed,
+#          display_message_show.
+# CONSUMES api/display (display_show_message, display_set_scroll_speed).
+# =====================================================================
+globals:
+  # The composed, filtered text, waiting for the Show button. Kept separate from
+  # api/display's live channel so editing the text does not disturb whatever is
+  # currently on screen.
+  - id: display_message_pending
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+  - id: display_message_duration_s
+    type: int
+    restore_value: yes
+    initial_value: '${display_message_duration_default}'
+
+text:
+  - platform: template
+    name: "Matrix Message"
+    id: display_message_input
+    icon: "mdi:message-text-outline"
+    optimistic: true
+    mode: text
+    max_length: 64
+    set_action:
+      - lambda: |-
+          // Fold to upper case and drop anything the fonts cannot draw, replacing
+          // it with a space rather than silently deleting it - so the text stays
+          // the length the user typed and the omission is visible. The allowed set
+          // mirrors the glyph tables in hw/matrix.yaml.
+          std::string filtered;
+          filtered.reserve(x.size());
+          for (char ch : x) {
+            if (ch >= 'a' && ch <= 'z') ch = (char) (ch - 'a' + 'A');
+            const bool allowed =
+              (ch >= 'A' && ch <= 'Z') ||
+              (ch >= '0' && ch <= '9') ||
+              ch == ' ' || ch == '-' || ch == '_' || ch == '.' ||
+              ch == '!' || ch == '?' || ch == ':';
+            filtered.push_back(allowed ? ch : ' ');
+          }
+          while (!filtered.empty() && filtered.back() == ' ') filtered.pop_back();
+          id(display_message_pending) = filtered;
+
+number:
+  - platform: template
+    name: "Matrix Message Duration"
+    id: display_message_duration
+    icon: "mdi:timer-outline"
+    entity_category: config
+    optimistic: true
+    restore_value: true
+    min_value: ${display_message_duration_min}
+    max_value: ${display_message_duration_max}
+    step: 1
+    mode: box
+    initial_value: ${display_message_duration_default}
+    set_action:
+      - lambda: |-
+          int seconds = (int) x;
+          if (seconds < ${display_message_duration_min}) seconds = ${display_message_duration_min};
+          if (seconds > ${display_message_duration_max}) seconds = ${display_message_duration_max};
+          id(display_message_duration_s) = seconds;
+
+  # Scroll rate for any text too wide for its channel. Owned by api/display.yaml
+  # because the drivers need it; this is just the knob for it.
+  - platform: template
+    name: "Matrix Scroll ms per px"
+    id: display_scroll_speed
+    icon: "mdi:arrow-left-right"
+    entity_category: config
+    optimistic: true
+    restore_value: true
+    min_value: ${display_scroll_ms_per_px_min}
+    max_value: ${display_scroll_ms_per_px_max}
+    step: ${display_scroll_ms_per_px_step}
+    mode: box
+    initial_value: ${display_scroll_ms_per_px_default}
+    set_action:
+      - script.execute:
+          id: display_set_scroll_speed
+          milliseconds: !lambda 'return (int) x;'
+
+button:
+  - platform: template
+    name: "Show Matrix Message"
+    id: display_message_show
+    icon: "mdi:message-flash-outline"
+    on_press:
+      # An empty message is a valid press: it hands "" to the channel, which
+      # clears anything currently showing and falls back to the clock.
+      - script.execute:
+          id: display_show_message
+          text: !lambda 'return id(display_message_pending);'
+          seconds: !lambda 'return id(display_message_duration_s);'

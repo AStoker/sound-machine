@@ -1,0 +1,94 @@
+# =====================================================================
+# HARDWARE: VL53L0X time-of-flight sensor (I2C)  [layer: hw]
+#
+# Mounted on the crown just right of the knob, looking up (see HARDWARE.md).
+# Reports METRES. Its whole job is answering one question - "is a hand over the
+# knob?" - which is hardware interpretation, so the debounce lives here. What to
+# DO about a nearby hand is policy and lives in behavior/light.yaml.
+#
+# NOTHING DEPENDS ON THIS SENSOR. If the board is absent or unwired the component
+# marks itself failed at setup, publishes nothing, hand_near stays false, and
+# every other feature carries on unchanged. Dropping this package from the
+# manifest is likewise safe: on_hand_near_changed simply never fires.
+#
+# INPUT EVENT RAISED
+#   on_hand_near_changed  - fired only on a genuine transition. Read hand_near
+#                           for the new verdict.
+#
+# DEFINES  knob_distance (sensor), knob_proximity (binary_sensor),
+#          hand_near (global) + its two sample counters.
+# CONSUMES internal_i2c (device core), the tof_* settings.
+# REQUIRES script on_hand_near_changed (behavior/light.yaml).
+# =====================================================================
+globals:
+  # The debounced verdict. This, not the raw distance, is what consumers read.
+  - id: hand_near
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  # Consecutive-sample counters behind hand_near.
+  - id: hand_near_count
+    type: int
+    restore_value: no
+    initial_value: '0'
+  - id: hand_far_count
+    type: int
+    restore_value: no
+    initial_value: '0'
+
+sensor:
+  - platform: vl53l0x
+    id: knob_distance
+    name: "Knob Distance"
+    address: ${i2c_addr_tof}
+    update_interval: ${tof_update_interval}
+    long_range: false          # short range = tighter timing budget and far less
+                               # ambient-IR trouble; a hand at <30cm needs no reach
+    on_value:
+      - lambda: |-
+          // Debounce in BOTH axes before believing "a hand is here":
+          //   * distance hysteresis - it takes tof_near_m to assert but
+          //     tof_far_m to release, so a hand hovering at the boundary does
+          //     not chatter;
+          //   * consecutive samples - assert on tof_confirm_samples, release on
+          //     tof_release_samples (slower to release, so one dropped reading
+          //     cannot blink the pixel).
+          // Out-of-range readings come back NaN, and every comparison against
+          // NaN is false, so they fall through to the "far" branch by design.
+          float distance_m = x;
+          float threshold = id(hand_near) ? ${tof_far_m}f : ${tof_near_m}f;
+          bool near_now = (distance_m > 0.0f) &&
+                          (distance_m < ${tof_max_valid_m}f) &&
+                          (distance_m <= threshold);
+
+          // Counters are clamped at their thresholds rather than left to climb:
+          // nothing reads them past that, and an unbounded counter on a sensor
+          // ticking 4x a second forever is just an overflow waiting to happen.
+          const bool was_near = id(hand_near);
+          if (near_now) {
+            id(hand_far_count) = 0;
+            if (++id(hand_near_count) >= ${tof_confirm_samples}) {
+              id(hand_near_count) = ${tof_confirm_samples};
+              id(hand_near) = true;
+            }
+          } else {
+            id(hand_near_count) = 0;
+            if (++id(hand_far_count) >= ${tof_release_samples}) {
+              id(hand_far_count) = ${tof_release_samples};
+              id(hand_near) = false;
+            }
+          }
+
+          // Edge-triggered, not level-triggered: the handler runs twice per
+          // hand, not four times a second forever.
+          if (id(hand_near) != was_near) id(on_hand_near_changed)->execute();
+
+binary_sensor:
+  # Exposed mainly so the thresholds can be sanity-checked from Home Assistant:
+  # wave a hand and watch this flip. Reads the debounced global, so it costs no
+  # extra I2C.
+  - platform: template
+    name: "Knob Proximity"
+    id: knob_proximity
+    device_class: presence
+    lambda: 'return id(hand_near);'

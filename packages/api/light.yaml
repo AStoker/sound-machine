@@ -1,0 +1,67 @@
+# =====================================================================
+# API: THE CRESCENT LIGHT  [layer: api]
+#
+# Every write to the LED crescent goes through one of three verbs. Nothing
+# outside this file names `crescent` or builds a LightCall, so a behavior package
+# describes a preset in terms of colour and brightness and never has to know that
+# "no effect" is spelled set_effect("None").
+#
+# THE VERBS
+#   crescent_off()
+#   crescent_static(red, green, blue, brightness)   0..1 each; cancels any effect
+#   crescent_effect(name)                           turn on with a named effect
+#
+# The Crescent Light entity itself stays exposed in Home Assistant for ad-hoc
+# colour and brightness, which is deliberate: this api owns the DEVICE's writes,
+# not the user's.
+#
+# DEFINES  crescent_off, crescent_static, crescent_effect, and the sunrise
+#          auto-off tick.
+# CONSUMES crescent + sunrise_done (hw/crescent).
+# =====================================================================
+script:
+  - id: crescent_off
+    then:
+      - lambda: |-
+          // Also cancels any pending sunrise auto-off: whatever turned the light
+          // off has superseded it.
+          id(sunrise_done) = false;
+          id(crescent).turn_off().perform();
+
+  # A flat colour at a fixed brightness. set_effect("None") is what makes this
+  # safe to call while a dynamic effect is running.
+  - id: crescent_static
+    parameters:
+      red: float
+      green: float
+      blue: float
+      brightness: float
+    then:
+      - lambda: |-
+          auto call = id(crescent).turn_on();
+          call.set_effect("None");
+          call.set_brightness(brightness);
+          call.set_rgb(red, green, blue);
+          call.perform();
+
+  # Start a named effect from the light's `effects:` list (hw/crescent.yaml).
+  - id: crescent_effect
+    parameters:
+      name: string
+    then:
+      - lambda: |-
+          auto call = id(crescent).turn_on();
+          call.set_effect(name);
+          call.perform();
+
+interval:
+  # Deferred sunrise auto-off. The effect cannot turn its own light off from
+  # inside its render lambda, so it raises sunrise_done and this picks it up.
+  # 1s is plenty for something that happens once, tens of minutes in.
+  - interval: 1s
+    then:
+      - if:
+          condition:
+            lambda: 'return id(sunrise_done);'
+          then:
+            - script.execute: crescent_off

@@ -1,0 +1,82 @@
+# =====================================================================
+# HARDWARE: Adafruit seesaw rotary encoder (I2C)  [layer: hw]
+#
+# One knob, three things on it: a quadrature encoder, a push switch, and a
+# NeoPixel. This file owns the seesaw hub and the two INPUTS. The NeoPixel is
+# owned by api/indicator.yaml, which is its only writer.
+#
+# INPUT EVENTS RAISED (the contract behavior/sound.yaml must implement):
+#   on_knob_turn(clicks)  - clicks is the SIGNED change in encoder detents since
+#                           the last reading. Sign is raw hardware; deciding
+#                           which way is "up" is the handler's job.
+#   on_knob_tap           - a short press
+#   on_knob_hold          - a long press
+#
+# This package deliberately contains no idea of what a turn or a press MEANS.
+# Raw position -> detent delta is hardware interpretation and lives here; detent
+# delta -> volume is policy and lives in behavior/sound.yaml. That split is what
+# lets the knob be remapped without touching anything that talks I2C.
+#
+# DEFINES  seesaw_hub, volume_knob (encoder sensor), knob_press (switch),
+#          knob_position_last / knob_position_seeded (globals, internal).
+# CONSUMES internal_i2c (device core), the gesture_* and knob_switch_pin
+#          settings.
+# REQUIRES scripts on_knob_turn / on_knob_tap / on_knob_hold
+#          (behavior/sound.yaml).
+# =====================================================================
+globals:
+  # Delta tracking for the encoder. The seesaw reports an absolute, freely
+  # wrapping position; only the change between readings is meaningful.
+  - id: knob_position_last
+    type: int
+    restore_value: no
+    initial_value: '0'
+  # The encoder sensor publishes once at setup. That first reading only seeds the
+  # baseline - acting on it would move the volume at every boot.
+  - id: knob_position_seeded
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
+seesaw:
+  id: seesaw_hub
+  address: ${i2c_addr_seesaw}
+
+sensor:
+  - platform: seesaw
+    type: encoder
+    id: volume_knob
+    name: "Volume Knob"
+    on_value:
+      - lambda: |-
+          int position = (int) x;
+          if (!id(knob_position_seeded)) {
+            id(knob_position_last) = position;
+            id(knob_position_seeded) = true;
+            return;
+          }
+          int clicks = position - id(knob_position_last);
+          id(knob_position_last) = position;
+          if (clicks == 0) return;
+          // Raised from inside the lambda, past both early returns, so it fires
+          // only on a genuine movement. An action on the trigger itself would
+          // also fire for the setup reading.
+          id(on_knob_turn)->execute(clicks);
+
+binary_sensor:
+  - platform: seesaw
+    pin: ${knob_switch_pin}
+    id: knob_press
+    name: "Knob Press"
+    # Tap and hold timings are shared with the touch pad (see settings.yaml
+    # section 11) so both physical controls feel the same.
+    on_multi_click:
+      - timing:
+          - ON for at most ${gesture_tap_max}
+          - OFF for at least ${gesture_tap_gap}
+        then:
+          - script.execute: on_knob_tap
+      - timing:
+          - ON for at least ${gesture_hold_min}
+        then:
+          - script.execute: on_knob_hold

@@ -1,0 +1,151 @@
+# =====================================================================
+# API: THE SOUND SUBSYSTEM  [layer: api]
+#
+# Every write to the audio chain goes through one of the verbs below. Nothing
+# outside this file calls noise.start(), touches the mixer, or makes a
+# media_player call - so "what can happen to the sound" is this file's list of
+# scripts, and nothing longer.
+#
+# Reading is unrestricted: external_media_player->volume and
+# media_player.is_announcing are state, and behavior packages read them freely
+# (see the layer rules in packages/README.md).
+#
+# THE VERBS
+#   noise_play(color_index)   0 = white, 1 = pink, 2 = brown. Sets the colour and
+#                             starts the generator.
+#   noise_stop()
+#   media_play_la_la()        play the flashed file. One verb per flashed track -
+#                             a media_file id cannot be a script parameter.
+#   media_stop()              stop playback and clear repeat
+#   media_set_repeat(loop)
+#   volume_apply(fraction)    absolute volume, 0..1, clamped
+#   sound_duck() / sound_unduck()   dip BOTH background channels for a voice turn
+#
+# BOOT ORDER IS A REAL CONSTRAINT. The audio stack is not safe to drive until
+# well after setup - starting the noise generator during setup dereferenced an
+# uninitialized event group and crashed the device. So:
+#   * every verb that starts audio is gated on `audio_ready`, and
+#   * the boot hook below waits audio_ready_delay at priority -100, sets the
+#     flag, and raises on_audio_ready so behavior can re-apply whatever sound
+#     was persisted.
+# A verb called before that point is a silent no-op by design, not a bug: the
+# restore that follows on_audio_ready is what makes it right.
+#
+# DEFINES  audio_ready (global), volume_pct (sensor), all the verbs above.
+# CONSUMES noise, external_media_player, noise_mixing_input,
+#          media_mixing_input, la_la_sad (hw/audio_chain).
+# REQUIRES script on_audio_ready (behavior/sound.yaml).
+# =====================================================================
+esphome:
+  on_boot:
+    - priority: -100
+      then:
+        - delay: ${audio_ready_delay}
+        - lambda: 'id(audio_ready) = true;'
+        - script.execute: on_audio_ready
+
+globals:
+  - id: audio_ready
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
+script:
+  # ---- noise generator ----
+  - id: noise_play
+    parameters:
+      color_index: int
+    then:
+      - lambda: |-
+          // The colour is set unconditionally, even before the stack is ready, so
+          // that a restore at boot lands on the right colour the moment
+          // on_audio_ready starts the generator.
+          id(noise).set_color_index((uint8_t) color_index);
+          if (id(audio_ready)) id(noise).start();
+
+  - id: noise_stop
+    then:
+      - lambda: 'if (id(audio_ready)) id(noise).stop();'
+
+  # ---- media ----
+  - id: media_set_repeat
+    parameters:
+      loop: bool
+    then:
+      - if:
+          condition:
+            lambda: 'return loop;'
+          then:
+            - media_player.repeat_one:
+          else:
+            - media_player.repeat_off:
+
+  # One verb per flashed track. Looping follows whatever media_set_repeat was
+  # last told, and relies on the decoder's own end-of-file detection - the
+  # player's idle state is unreliable behind the mixer.
+  - id: media_play_la_la
+    then:
+      - media_player.speaker.play_on_device_media_file:
+          media_file: la_la_sad
+          announcement: false
+
+  - id: media_stop
+    then:
+      - media_player.repeat_off:
+      - media_player.stop:
+
+  # ---- volume ----
+  # The single place volume is written. Callers pass an absolute fraction; how a
+  # knob click maps to a fraction is policy and lives in behavior/sound.yaml.
+  - id: volume_apply
+    parameters:
+      fraction: float
+    then:
+      - lambda: |-
+          float target = fraction;
+          if (!(target >= 0.0f)) target = 0.0f;        // nan guard
+          if (target > 1.0f) target = 1.0f;
+          auto call = id(external_media_player)->make_call();
+          call.set_volume(target);
+          call.perform();
+          id(volume_pct).publish_state(target * 100.0f);
+
+  # ---- ducking ----
+  # Both background channels are always dipped together. Noise and media are
+  # independent and can play at once, so dipping both is correct; dipping a
+  # silent channel is a harmless no-op. The spoken reply rides the third
+  # (announcement) channel and stays at full volume.
+  - id: sound_duck
+    then:
+      - mixer_speaker.apply_ducking:
+          id: noise_mixing_input
+          decibel_reduction: ${duck_decibels}
+          duration: ${duck_ramp}
+      - mixer_speaker.apply_ducking:
+          id: media_mixing_input
+          decibel_reduction: ${duck_decibels}
+          duration: ${duck_ramp}
+
+  - id: sound_unduck
+    then:
+      - mixer_speaker.apply_ducking:
+          id: noise_mixing_input
+          decibel_reduction: 0
+          duration: ${unduck_ramp}
+      - mixer_speaker.apply_ducking:
+          id: media_mixing_input
+          decibel_reduction: 0
+          duration: ${unduck_ramp}
+
+sensor:
+  # Volume as a percentage, for Home Assistant. Pushed by volume_apply on every
+  # change; the poll is a slow backstop in case HA or the web UI moves the
+  # player's volume without going through the verb above.
+  - platform: template
+    name: "Volume"
+    id: volume_pct
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    icon: "mdi:volume-high"
+    update_interval: 5s
+    lambda: 'return id(external_media_player)->volume * 100.0f;'

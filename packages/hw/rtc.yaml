@@ -1,0 +1,26 @@
+# =====================================================================
+# HARDWARE: DS3231 real-time clock (I2C)  [layer: hw]
+#
+# The battery-backed time source. It is the PRIMARY clock on purpose: the
+# display must show the right time through a power cut and a WiFi outage, which
+# a Home-Assistant-only time source cannot do. Home Assistant is the corrector -
+# whenever HA connects and hands us a synced time, it is written back into the
+# DS3231's own registers.
+#
+# DEFINES  ds3231_time - read by api/display.yaml to build the clock frame.
+#          Nothing else reads it: the display DRIVERS never touch the RTC, so
+#          12h/24h formatting lives in exactly one place.
+# CONSUMES internal_i2c (device core).
+# =====================================================================
+time:
+  - platform: ds1307            # the DS3231 is register-compatible with the DS1307
+    id: ds3231_time
+    address: ${i2c_addr_rtc}
+    update_interval: 10s        # cheap 7-byte read; keeps the shown minute honest
+  - platform: homeassistant
+    id: ha_time
+    on_time_sync:
+      # Push HA's (NTP-backed) time into the RTC so the RTC stays the accurate
+      # offline source. Also handles DST changes without touching the hardware.
+      - ds1307.write_time:
+          id: ds3231_time

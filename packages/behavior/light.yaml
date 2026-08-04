@@ -1,0 +1,148 @@
+# =====================================================================
+# BEHAVIOR: the light presets and the alarm  [layer: behavior]
+#
+# What the crescent is FOR: three presets, a gesture to cycle them, and an alarm
+# that starts the sunrise. Colours and brightnesses come from settings.yaml and
+# are applied through api/light.yaml verbs, so nothing here names the strip.
+#
+# THE DISPATCHER PATTERN, same as sound: the "Crescent Preset" select is the one
+# place a preset is applied. The touch pad and the alarm just drive that select.
+#
+# ADDING A PRESET: add the option name, add a branch to the set_action, and bump
+# light_preset_count so the cycle reaches it. Static presets are a one-line
+# crescent_static() call; a dynamic one needs an effect in hw/crescent.yaml and a
+# "(Dynamic)" name prefix by convention.
+#
+# IMPLEMENTS the hardware input contract from hw/touch.yaml:
+#   on_touch_tap / on_touch_hold
+#
+# DEFINES  light_preset, light_preset_last (globals), light_preset_select,
+#          light_next, light_off, alarm_time, alarm_enabled, and the touch
+#          handlers.
+# CONSUMES api/light (crescent_off, crescent_static, crescent_effect),
+#          api/display (display_show_code).
+# =====================================================================
+globals:
+  # Which preset is active: 0 = Off, 1 = Sunrise (dynamic), 2 = Nightlight,
+  # 3 = Morning Light. Persisted so a reboot can resume.
+  - id: light_preset
+    type: int
+    restore_value: yes
+    initial_value: '0'
+  # Last non-off preset, so turning the light back on restores what was showing.
+  - id: light_preset_last
+    type: int
+    restore_value: yes
+    initial_value: '1'
+
+script:
+  # ---- touch pad ----
+  - id: on_touch_tap
+    then:
+      - script.execute: light_next
+  - id: on_touch_hold
+    then:
+      - script.execute: light_off
+
+  # Tap: advance among the ON presets (1..light_preset_count). From Off it
+  # RESUMES the last one rather than restarting at 1. Off is only reachable by a
+  # hold, so cycling never lands on darkness by accident.
+  - id: light_next
+    then:
+      - lambda: |-
+          const int current = id(light_preset);
+          id(light_preset) = (current < 1) ? id(light_preset_last)
+                                           : (current % ${light_preset_count}) + 1;
+      - select.set:
+          id: light_preset_select
+          option: !lambda |-
+            switch (id(light_preset)) {
+              case 2: return std::string("Nightlight");
+              case 3: return std::string("Morning Light");
+              default: return std::string("(Dynamic) Sunrise");
+            }
+
+  - id: light_off
+    then:
+      - select.set:
+          id: light_preset_select
+          option: "Off"
+
+select:
+  # Off plus the presets. Dynamic (animated/timed) presets are prefixed
+  # "(Dynamic)". The Crescent Light entity stays available for custom colour and
+  # brightness alongside this.
+  - platform: template
+    name: "Crescent Preset"
+    id: light_preset_select
+    icon: "mdi:weather-sunset-up"
+    optimistic: true
+    restore_value: false          # start Off each boot; never force the light on
+    initial_option: "Off"
+    options:
+      - "Off"
+      - "(Dynamic) Sunrise"
+      - "Nightlight"
+      - "Morning Light"
+    set_action:
+      - lambda: |-
+          const std::string selection = x;
+          std::string code;
+          if (selection == "Off") {
+            id(light_preset) = 0;
+            id(crescent_off)->execute();
+            code = "OFF";
+          } else if (selection == "(Dynamic) Sunrise") {
+            id(light_preset) = 1;
+            id(crescent_effect)->execute("Circadian Sunrise");
+            code = "L1";
+          } else if (selection == "Nightlight") {
+            id(light_preset) = 2;
+            id(crescent_static)->execute(${nightlight_red}f, ${nightlight_green}f,
+                                         ${nightlight_blue}f, ${nightlight_brightness}f);
+            code = "L2";
+          } else if (selection == "Morning Light") {
+            id(light_preset) = 3;
+            id(crescent_static)->execute(${morning_red}f, ${morning_green}f,
+                                        ${morning_blue}f, ${morning_brightness}f);
+            code = "L3";
+          } else {
+            return;                            // unknown option: do nothing
+          }
+          // Remember the last ON preset so a later "turn back on" restores it.
+          if (id(light_preset) > 0) id(light_preset_last) = id(light_preset);
+          id(display_show_code)->execute(code);
+
+# ---------------------------------------------------------------------
+# ALARM - a timed preset trigger. Fires the Sunrise at a set time of day, gated
+# by the "Alarm Enabled" switch. Set the time to (sunrise duration) minutes
+# before the target wake time; the sunrise ramps INTO the alarm, it does not
+# start at it.
+#
+# To add a second timed preset, add another datetime here whose on_time selects
+# that preset. Nothing else needs to change.
+# ---------------------------------------------------------------------
+datetime:
+  - platform: template
+    name: "Alarm Time"
+    id: alarm_time
+    type: time
+    optimistic: true
+    restore_value: true
+    initial_value: "${alarm_default_time}"
+    on_time:
+      - if:
+          condition:
+            switch.is_on: alarm_enabled
+          then:
+            - select.set:
+                id: light_preset_select
+                option: "(Dynamic) Sunrise"
+
+switch:
+  - platform: template
+    name: "Alarm Enabled"
+    id: alarm_enabled
+    icon: "mdi:alarm"
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF

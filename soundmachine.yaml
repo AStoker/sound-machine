@@ -1,296 +1,74 @@
 # =====================================================================
-# SMART SOUND MACHINE - FULL CONFIG (Rev: Flex + HT16K33 clock)
+# SMART SOUND MACHINE - device core and package manifest
 #
-# Hardware map:
-#   ReSpeaker Flex XVF3800 (linear 4-mic) w/ XIAO ESP32-S3 Plus seated
-#   AIC3104 codec (on Flex)  -> line out -> TPA2016 amp -> 2x speakers
-#   HT16K33 7-seg clock display (Adafruit #1002)        [I2C 0x70]
-#   BH1750 light, VL53L0X ToF, DS3231 RTC, seesaw knob
-#   SK6812 GRBW crescent strip (data on GPIO1 / D0), 48 px flattened half-ellipse
-#   Waveshare UPS Module 3S (3x 18650 series) - I2C power monitoring
-#   OPTIONAL: IS31FL3731 charlieplex 9x16 matrix        [I2C 0x74]
+# A bedside sound machine on a ReSpeaker Flex (XVF3800 + XIAO ESP32-S3 Plus):
+# white/pink/brown noise, a voice assistant, an LED-matrix clock, an SK6812
+# sunrise crescent, a rotary knob, and UPS battery monitoring.
 #
-# LAYOUT: this file holds the device core (substitutions, connectivity, I2C,
-# boot). Each feature lives in its own package under packages/ (see the
-# `packages:` block below). Cross-package wiring is by ESPHome id, and every
-# tunable lives in the substitutions block here - that's the one place to edit.
+# THIS FILE HOLDS ONLY THE DEVICE CORE: the platform, connectivity, the single
+# I2C bus, the external components, and the `packages:` manifest below. There is
+# no feature logic and no tunable value here.
+#   * every tunable  -> packages/settings.yaml
+#   * every feature   -> packages/{hw,api,behavior}/
+#   * the layer rules -> packages/README.md   <- READ THIS FIRST
 #
-# PIN MAP (Flex claims I2S; everything else is I2C = zero extra pins):
-#   GPIO7  (D8)  = I2S WS/LRCLK   (fixed by Flex)
-#   GPIO8  (D9)  = I2S BCLK       (fixed by Flex)
-#   GPIO43 (D6)  = I2S mic DIN    (fixed by Flex)
-#   GPIO44 (D7)  = I2S spk DOUT   (fixed by Flex)
-#   GPIO5  (D4)  = I2C SDA        (shared: everything below)
-#   GPIO6  (D5)  = I2C SCL
-#   GPIO1  (D0)  = SK6812 crescent data  << NEW - verify D0 is free/labelled
-#                                           on the Flex breakout pads
-#   No SPI needed anymore - MAX7219 replaced by I2C HT16K33.
-#   No bonus pads required for any of this.
+# THE SHORT VERSION OF THE ARCHITECTURE
+#   hw/       one file per physical part. Owns the component config and the only
+#             register/pin-level talk to that part. No policy.
+#   api/      one file per subsystem. The abstraction layer: everything else
+#             talks to a subsystem THROUGH these scripts, never to its hardware.
+#   behavior/ operational logic. Presets, gestures, announcements, the Home
+#             Assistant control surface. Decides what should happen; calls api/.
 #
-# I2C ADDRESS MAP (no conflicts):
-#   0x18 AIC3104 codec     0x23 BH1750         0x29 VL53L0X
-#   0x2C XVF3800           0x36 seesaw encoder
-#   0x58 TPA2016 amp       0x68 DS3231          0x70 HT16K33 clock
-#   0x4?? UPS monitor  << PLACEHOLDER, see ups_i2c_address in substitutions
-#   0x74 IS31FL3731 (opt)
-#
-# TPA2016 AMP NOTES - ITS I2C IS NOW REQUIRED, NOT OPTIONAL:
-#   - STEREO amp: one 4-ohm speaker per channel. Outputs are BRIDGE-TIED:
-#     every terminal swings, there is no output ground. Do NOT common the
-#     two speakers' negative leads and do NOT tie an output to GND - either
-#     shorts half a bridge and kills the amp.
-#   - Left standalone the amp boots with its AGC ENABLED. That fights the
-#     software volume (turn it down, the AGC ramps it back up), breathes
-#     audibly on steady noise, and - the real problem - makes the echo path
-#     time-varying, which is precisely what the XVF3800's AEC cannot cancel.
-#     Wake-word-over-noise would suffer.
-#   - So the amp is configured once at boot by the custom `tpa2016:` block
-#     in packages/audio.yaml: compression 1:1 (AGC off), one fixed analog gain,
-#     limiter parked high as a pure fault stop. All volume stays in software.
-#   - The chip has no NVM. A glitch on the 5V rail returns it to factory
-#     defaults (AGC back on); id(amp).apply() rewrites it.
+# See HARDWARE.md for the physical part list, pin map, I2C address map and power
+# budget, and SOUNDMACHINE.md for why the device is the way it is.
 # =====================================================================
 
-substitutions:
-  # ============ SINGLE PLACE FOR FLAGS & VALUES ============
-  # Hardware
-  ht16k33_address: "0x70"            # 7-seg clock display (I2C)
-  # IS31FL3731 charlieplex matrix(es). Bring up ONE panel first, then set
-  # matrix_panels to 2 for the full 32x9 clock display (see packages/matrix.yaml).
-  matrix_panels: "2"                 # 1 = single (bring-up); 2 = dual side-by-side
-  matrix_address: "0x74"             # panel 0 (left)
-  matrix_address_2: "0x75"           # panel 1 (right); set 2nd board's ADDR jumper
-  matrix_panel_gap: "1"              # physical dead columns between panels (see
-                                     # packages/matrix.yaml "THE INTER-PANEL GAP")
-  matrix_pwm_on: "40"                # lit-pixel PWM at full ambient (0..255)
-  matrix_pwm_min: "3"                # lit-pixel PWM floor at darkest (bedside night)
-  # Matrix text behavior (custom message + long status strings).
-  matrix_message_duration_default: "20"   # seconds custom text stays active
-  matrix_message_duration_min: "3"
-  matrix_message_duration_max: "300"
-  matrix_scroll_ms_per_px_default: "250"  # lower = faster horizontal scroll
-  matrix_scroll_ms_per_px_min: "30"
-  matrix_scroll_ms_per_px_max: "1000"
-  matrix_scroll_ms_per_px_step: "10"
-  touch_pin: GPIO4                   # capacitive preset pad (D3; D2 = GPIO3)
-  touch_threshold: "700000"          # ESP32-S3 raw touch threshold - CALIBRATE
-
-  # ---- Knob NeoPixel (inside the rotary encoder) ----
-  # Colour = volume (blue quiet -> green mid -> red loud), lit by turning the
-  # knob and pre-lit by the ToF sensor. See packages/knob.yaml.
-  # PIN is a seesaw GPIO, not an ESP one: 6 on the Adafruit I2C QT Rotary
-  # Encoder (#4991 - the same board whose switch is on seesaw pin 24, see the
-  # Knob Press binary_sensor). Other seesaw boards differ; check the pinout.
-  knob_led_pin: "6"
-  knob_led_fade_ms: "50"             # fade tick = 20 Hz. This is also the HARD
-                                     # ceiling on how often the pixel is written
-                                     # over I2C - do not raise it much (see the
-                                     # rationale at the top of knob.yaml).
-  knob_led_hold_ms: "1500"           # stay at full this long after the LAST
-                                     # volume change, then start fading
-  knob_led_rise_active_ms: "120"     # knob turn -> essentially instant
-  knob_led_rise_near_ms: "700"       # hand approaches -> ease it on gently
-  knob_led_fade_out_ms: "1400"       # gradual fade to black once done
-  knob_led_near_level: "0.45"        # ToF pre-illumination level (0..1) - a
-                                     # findable glow, clearly below "in use"
-  # Brightness ceiling, as a fraction of full pixel output, at the two ends of
-  # the shared ambient auto-dim (display_brightness). Deliberately low at the
-  # dark end: this pixel is at arm's length in a bedroom.
-  knob_led_min: "0.10"               # darkest room
-  knob_led_max: "0.60"               # daylight
-  knob_led_gamma: "1.8"              # >1 = perceptually even fade (see led_gamma)
-
-  # ---- VL53L0X time-of-flight (knob pre-illumination) ----
-  # Thresholds in METRES - that is what the sensor publishes. near/far differ on
-  # purpose: hysteresis, so a hovering hand doesn't chatter the pixel.
-  tof_update_interval: "250ms"       # every read is I2C traffic on a bus this
-                                     # build keeps deliberately quiet - 4/s is
-                                     # plenty responsive for "a hand is coming"
-  tof_near_m: "0.20"                 # <= this asserts "hand near" (~8 in)
-  tof_far_m: "0.30"                  # must go beyond this to release (~12 in)
-  tof_max_valid_m: "1.2"             # above this, treat as no target at all
-
-  # Preset system
-  light_preset_count: "3"            # number of ON light presets (1..N); Off is separate
-  preset_code_seconds: "2s"          # how long the display shows e.g. "L1"
-
-  # Sunrise (timed light preset) defaults
-  sunrise_default_minutes: "30"      # dawn ramp length
-  sunrise_default_hold: "10"         # bright hold before auto-off
-
-  # Alarm (starts the Sunrise timed preset)
-  alarm_default_time: "06:30:00"
-
-  # Logging - the ToF sensor logs every reading. WARN hides that per-reading
-  # spam; set to DEBUG to see every distance while fine-tuning (CONFIG keeps
-  # just the boot dump).
-  tof_log_level: "WARN"
-
-  # LEDs: gamma 1.0 = linear brightness so low values still light. SK6812s
-  # otherwise blank out below ~20% at the default 2.8 gamma. Raise toward 2.8
-  # for a more perceptual fade (at the cost of the dim end).
-  led_gamma: "1.0"
-
-  # Hard current ceiling for the crescent, as a % of full-white output. This
-  # caps the max PWM (color_correct) so the strip PHYSICALLY can't exceed it.
-  # BUDGET (5V rail = Waveshare UPS 3S, 5A):
-  #   48 SK6812 RGBW at full all-channel white ~= 2.9A
-  #   TPA2016 into 2x 4ohm at clipping           ~= 1.3A
-  #   Flex + XVF3800 + ESP32-S3 + sensors        ~= 0.5A
-  # 65% of 2.9A = ~1.9A for the strip, total ~3.7A of 5A. Also keeps the
-  # sealed dome from cooking. Raise only after measuring actual draw.
-  led_max_pct: "65%"
-
-  # ---- Waveshare UPS Module 3S (3x 18650 series) power monitoring ----
-  # !! PLACEHOLDER !! The monitor chip's address is UNCONFIRMED. Run the boot
-  # I2C scan (scan: true below) with the UPS connected and look for an address
-  # that isn't already in the map above. Waveshare's UPS boards normally carry
-  # an INA219 at 0x40-0x43; if the scan turns up 0x40 that's almost certainly
-  # it. If the readings come back nonsense, the part may be an INA226 instead -
-  # change `platform: ina219` to `platform: ina226` in packages/battery.yaml.
-  ups_i2c_address: "0x41"
-  # Series shunt on the UPS board. ALSO UNCONFIRMED - 0.01 ohm is the usual
-  # value for a 5A-class board. If reported current is 10x off, this is why.
-  ups_shunt_ohms: "0.01 ohm"
-
-  # How often the INA219 is read. Everything downstream (SOC, the EMA, the
-  # charge/mains debounce) is derived from this cadence, so keep it well under
-  # ups_confirm_time.
-  ups_poll_interval: "10s"
-
-  # Pack internal resistance in OHMS, used to recover open-circuit voltage from
-  # the loaded bus voltage: V_oc = V_bus - (I x R). 0.20 suits 3x 18650 in
-  # series plus wiring. THIS IS THE ONE VALUE WORTH TUNING - watch Battery
-  # Compensated Voltage (a diagnostic entity) while a big load starts or stops:
-  #   Level DROPS when load applied -> resistance too LOW, raise it
-  #   Level RISES when load applied -> too HIGH, lower it
-  #   Level barely moves           -> about right
-  ups_internal_resistance: "0.20"
-
-  # EMA smoothing on the compensated voltage. 1.0 = no smoothing, lower =
-  # steadier but slower to react.
-  ups_ema_alpha: "0.2"
-
-  # Current deadband in AMPS. Deliberately ASYMMETRIC - see battery.yaml.
-  # Above +50mA the cells are genuinely absorbing charge.
-  ups_charge_threshold_a: "0.05"
-  # Below -200mA the pack is genuinely carrying the load. Sits in the gap
-  # between a full pack's idle excursions on mains (tens of mA, spiking to
-  # ~180mA) and a real mains loss (several hundred mA from the first sample).
-  # Lower it only if this device draws far less than expected on battery.
-  ups_discharge_threshold_a: "0.20"
-
-  # How long a charge/mains state change must hold before it is believed.
-  # Rejects one-off sensor noise; at a 10s poll this is ~3 readings.
-  ups_confirm_time: "30s"
-
-  # ---- Power-source change announcements (see packages/battery.yaml) ----
-  # Shown on the display when External Power flips, i.e. when the charger is
-  # plugged in or pulled out. Note this is gated on ups_confirm_time, so the
-  # message lands ~30s after the plug moves, not instantly - that debounce is
-  # what stops a full pack's idle current excursions announcing false mains loss.
-  #
-  # WIDTH: KEEP THESE TO 4 CHARACTERS. The matrix draws a status message inside
-  # a SINGLE panel (the right-hand one) so it can never straddle the physical
-  # inter-panel gap, which would eat a column of whichever glyph landed on the
-  # seam. In the compact 3x5 font that is a 4-character budget. Longer strings
-  # still work - they scroll across the full width - but a scrolling pass takes
-  # far longer than a few seconds, so 5+ chars stops being a glance-able status.
-  # (The 7-seg alternative display has 4 digits, so the same budget applies.)
-  power_msg_mains: "CHG"
-  power_msg_battery: "BATT"
-  power_msg_seconds: "3"
-
-  # 3S pack thresholds, PACK volts (per-cell x3).
-  battery_full_v: "12.6"      # 4.20 V/cell
-  battery_low_v: "10.2"       # 3.40 V/cell - start warning
-  battery_empty_v: "9.0"      # 3.00 V/cell - protection cutoff is just below
-  battery_low_pct: "15"       # SOC at/below this = "low battery"
-
-  # ---- Clock display auto-dim curve (HT16K33, 16 levels) ----
-  # Deliberately weighted dark: level sits at the floor for anything up to a
-  # dim room, and only climbs into the top half in real daylight.
-  display_lux_dark: "3"       # at/below this lux -> display_level_min
-  display_lux_bright: "500"   # at/above this lux -> display_level_max
-  display_level_min: "0"      # HT16K33 hardware floor (1/16 duty)
-  display_level_max: "14"
-  # Curve shape. >1 holds the low end down; 1.0 would be a straight log ramp.
-  display_dim_gamma: "1.8"
-
-  # Second layer: cap how bright individual presets can command, so nothing
-  # even approaches the color_correct ceiling. Fractions (0..1).
-  preset_max_brightness: "0.60"     # brightest STATIC preset (Morning Light)
-  sunrise_max_brightness: "0.70"    # caps the Circadian Sunrise's peak output
-
-  # ---- On-device media source ----
-  # ESPHome resolves a LOCAL `file:` path against the config dir of whatever
-  # machine runs the build. When this config is pulled onto Home Assistant as a
-  # remote package that dir is HA's, not this repo - so a bare `sounds/...` path
-  # would not be found there even though the file lives in the repo. A value
-  # starting with http(s):// is instead downloaded at build time, so the URL
-  # default just works everywhere. For LOCAL/offline dev with the repo checked
-  # out, override this with the repo-relative path: sounds/La-la-sad.mp3
-  la_la_sad_source: "https://raw.githubusercontent.com/astoker/sound-machine/main/sounds/La-la-sad.mp3"
-
-  # ---- Credentials (injected, NOT stored here) ----
-  # This config is designed to be pulled as a remote ESPHome package, and remote
-  # packages may not contain `!secret` lookups. So credentials are substitutions
-  # instead: the local device YAML on Home Assistant overrides each of these with
-  # `!secret ...` from its own secrets.yaml (a local substitution wins over the
-  # package's). The values below are PLACEHOLDERS - a real build must override
-  # them. See soundmachine.min.yaml / secrets.example.yaml.
-  wifi_ssid: "set-in-local-secrets"
-  wifi_password: "set-in-local-secrets"
-  ap_password: "set-in-local-secrets"
-  ota_password: "set-in-local-secrets"
-  # Must be a valid 32-byte base64 key or even a bare `esphome config` fails
-  # format validation before the local override lands. This is a throwaway key.
-  api_key: "kreOUJQZbPUFn1efUReXwEbfhkZzuGGXk1t2AKESiVs="
-
-# ---------------------------------------------------------------------
-# FEATURE PACKAGES - each is a self-contained slice of the device. See the
-# header comment in each file for the ids it defines and consumes.
-# ---------------------------------------------------------------------
 packages:
-  audio: !include packages/audio.yaml
-  lighting: !include packages/lighting.yaml
-  battery: !include packages/battery.yaml
-  # Knob feedback: the encoder's NeoPixel (coloured by volume) + the VL53L0X
-  # that pre-lights it when a hand comes near. Needs `audio` (seesaw + media
-  # player) and `ambient` (auto-dim + the display's preset-code path).
-  knob: !include packages/knob.yaml
-  # Display substrate (auto-dim + preset-code state + the 1s render tick). Always
-  # loaded; it drives whichever DISPLAY package is active below via render_display.
-  ambient: !include packages/ambient.yaml
-  # DISPLAY - load exactly ONE. The matrix is active; the HT16K33 7-seg is kept
-  # as a drop-in alternative (both define render_display, so never both at once).
-  matrix: !include packages/matrix.yaml
-  # display: !include packages/display.yaml   # <- 7-seg: swap for `matrix` to use it
+  # ---- Tunables. Loaded first by convention; ESPHome merges every package
+  # before it expands substitutions, so order does not actually matter. ----
+  settings: !include packages/settings.yaml
+
+  # ---- HARDWARE: the parts. One file per physical device. ----
+  hw_rtc: !include packages/hw/rtc.yaml
+  hw_ambient_light: !include packages/hw/ambient_light.yaml
+  hw_audio_chain: !include packages/hw/audio_chain.yaml
+  hw_crescent: !include packages/hw/crescent.yaml
+  hw_knob: !include packages/hw/knob.yaml
+  hw_touch: !include packages/hw/touch.yaml
+  hw_proximity: !include packages/hw/proximity.yaml
+  hw_power: !include packages/hw/power.yaml
+  # DISPLAY DRIVER - load exactly ONE. Both provide `display_paint`, so loading
+  # both collides. The matrix is the active display; the 7-seg is a drop-in
+  # alternative kept working for anyone who built the earlier revision.
+  hw_display: !include packages/hw/matrix.yaml
+  # hw_display: !include packages/hw/seg7.yaml
+
+  # ---- API: the abstraction layer. The only writers of their hardware. ----
+  api_display: !include packages/api/display.yaml
+  api_sound: !include packages/api/sound.yaml
+  api_light: !include packages/api/light.yaml
+  api_indicator: !include packages/api/indicator.yaml
+
+  # ---- BEHAVIOR: operational logic and the Home Assistant surface. ----
+  behavior_sound: !include packages/behavior/sound.yaml
+  behavior_light: !include packages/behavior/light.yaml
+  behavior_voice: !include packages/behavior/voice.yaml
+  behavior_power: !include packages/behavior/power.yaml
+  behavior_message: !include packages/behavior/message.yaml
 
 esphome:
-  name: soundmachine
-  friendly_name: Sound Machine
-  on_boot:
-    # NOTE: the HT16K33 7-seg power-on sequence used to live here; it moved into
-    # packages/display.yaml so it only runs when that display package is loaded.
-    # The active matrix display self-inits inside render_display.
-    # ---- deferred noise resume ----
-    # Runs LATE (priority -100) + a short delay so the mixer/speaker stack is
-    # fully initialized before we start the noise generator (starting it during
-    # setup dereferenced an uninitialized event group -> crash).
-    - priority: -100
-      then:
-        - delay: 2s
-        - lambda: 'id(booted) = true;'
-        # Re-apply the restored sound now the audio stack is up: drives the
-        # Sound select's set_action, which starts the generator + updates HA.
-        - select.set:
-            id: sound_select
-            option: !lambda 'return id(sound_option);'
+  name: ${device_name}
+  friendly_name: ${device_friendly_name}
+  # No on_boot here. Boot work belongs to whichever package owns the thing being
+  # brought up, so that dropping the package drops its boot step too:
+  #   api/sound.yaml   waits for the audio stack, then raises on_audio_ready
+  #   hw/seg7.yaml     runs the HT16K33 power-on sequence (only if loaded)
+  #   hw/matrix.yaml   self-initialises inside display_paint
 
 esp32:
   board: esp32-s3-devkitc-1
-  flash_size: 8MB # 8MB for regular, 16 for Plus
+  flash_size: 8MB   # 8MB for the regular XIAO ESP32-S3, 16MB for the Plus
   framework:
     type: esp-idf
 
@@ -299,33 +77,32 @@ psram:
   speed: 80MHz
 
 logger:
-  level: DEBUG    # drop to INFO once everything is stable
+  level: ${log_level}
   logs:
-    vl53l0x: ${tof_log_level}   # quiet the per-reading ToF spam (see substitutions)
+    vl53l0x: ${tof_log_level}   # quiet the per-reading ToF spam
 
 api:
   encryption:
-    key: ${api_key}          # injected from local secrets (see substitutions)
+    key: ${api_key}             # injected from local secrets - see settings.yaml
 
 ota:
   - platform: esphome
-    password: ${ota_password}    # injected from local secrets (see substitutions)
+    password: ${ota_password}   # injected from local secrets
 
 wifi:
   ssid: ${wifi_ssid}
   password: ${wifi_password}
   ap:
-    ssid: "Soundmachine Setup"
+    ssid: ${ap_ssid}
     password: ${ap_password}
 
 captive_portal:
 
 # ---------------------------------------------------------------------
-# WEB SERVER - standalone control when Home Assistant is down.
-# Point a browser at http://soundmachine.local/ (or the device IP) on the
-# same WiFi. version 3 = modern UI; local: true embeds it in flash so it works
-# with NO internet at all (you have ~1.6 MB flash free, so this is affordable).
-# Uncomment auth to require a login.
+# WEB SERVER - standalone control when Home Assistant is down. Point a browser
+# at http://soundmachine.local/ (or the device IP) on the same WiFi. version 3 =
+# modern UI; local: true embeds it in flash so it works with NO internet at all
+# (there is ~1.6 MB of flash free, so this is affordable).
 # ---------------------------------------------------------------------
 web_server:
   port: 80
@@ -336,22 +113,20 @@ web_server:
   #   password: ${web_password}    # - remote packages can't use !secret directly
 
 # ---------------------------------------------------------------------
-# I2C - one bus, everything lives here
+# I2C - ONE bus; every sensor, the codec, the amp, the RTC and the display all
+# hang off it. Addresses and the frequency rationale are in settings.yaml
+# section 2; the wiring cautions are in HARDWARE.md.
 # ---------------------------------------------------------------------
 i2c:
   id: internal_i2c
-  sda: GPIO5
-  scl: GPIO6
-  scan: true
-  frequency: 100kHz   # dropped from 100kHz: slower edges tolerate the extra
-                     # cable capacitance / pull-ups from the STEMMA sensor chain,
-                     # which was starving the timing-sensitive XVF3800. If it's
-                     # still flaky with everything reconnected, try 10kHz.
-  timeout: 1ms       # give the XVF3800 room to clock-stretch while its
-                     # firmware boots; avoids "I2C transaction timeout" at setup
+  sda: ${pin_i2c_sda}
+  scl: ${pin_i2c_scl}
+  scan: true              # the boot scan is how you confirm the UPS address
+  frequency: ${i2c_frequency}
+  timeout: ${i2c_timeout}
 
 # ---------------------------------------------------------------------
-# External components
+# EXTERNAL COMPONENTS
 # ---------------------------------------------------------------------
 external_components:
   # FormatBCE I2S fork + XVF3800/AIC3104 drivers (audio)
@@ -367,7 +142,8 @@ external_components:
       ref: main
     components: [ respeaker_xvf3800, aic3104 ]
     refresh: 0s
-  # ssieb seesaw (rotary encoder)
+  # ssieb seesaw (rotary encoder) - superseded by the vendored copy below, which
+  # carries a patched dump_summary() for ESPHome 2026.7.x. Kept for provenance.
   # - source:
   #     type: git
   #     url: https://github.com/ssieb/esphome_components
@@ -375,31 +151,9 @@ external_components:
   #   refresh: 1d
   # Custom components pulled from THIS repo by git, so they resolve the same way
   # whether built locally or pulled remotely onto Home Assistant. (A `type: local`
-  # source would resolve against the local config dir, which the HA side doesn't
+  # source would resolve against the local config dir, which the HA side does not
   # have.) For local component development, push first, then build - or
   # temporarily switch this back to `type: local, path: components`.
   - source: github://astoker/sound-machine@main
     components: [ noise_source, seesaw, tpa2016 ]
     refresh: 0s
-
-# ---------------------------------------------------------------------
-# TIME - DS3231 is battery-backed source, HA is the fallback that syncs when loaded
-# ---------------------------------------------------------------------
-time:
-  - platform: ds1307
-    id: ds3231_time
-    address: 0x68
-    update_interval: 10s
-  - platform: homeassistant
-    id: ha_time
-    on_time_sync:
-      - ds1307.write_time:
-          id: ds3231_time
-
-# =====================================================================
-# IS31FL3731 charlieplex matrix now lives in packages/matrix.yaml - it has no
-# native ESPHome component, so it is driven with raw-I2C register writes. It
-# renders the live RTC clock (refreshed every 1s, auto-dimmed with the 7-seg).
-# It tiles N panels into one logical framebuffer: bring up a single panel
-# (matrix_panels: "1") first, then flip to "2" for the full 32x9 clock.
-# =====================================================================

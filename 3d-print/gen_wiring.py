@@ -245,7 +245,7 @@ def build():
     nl("g   INA219 address 0x41 is a PLACEHOLDER. Waveshare boards usually sit "
        "at 0x40-0x43; confirm against the boot I2C scan, and if the")
     nl("    readings are nonsense the part may be an INA226 (swap the platform "
-       "in packages/battery.yaml).")
+       "in packages/hw/power.yaml).")
     nl("h   BOTH TOUCH PADS SHARE GPIO4/D3. Self-capacitance sensing measures "
        "the whole electrode net, so two pads on one net behave as")
     nl("    one electrode split in two - touching either half gives the same "

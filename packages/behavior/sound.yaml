@@ -1,0 +1,237 @@
+# =====================================================================
+# BEHAVIOR: sound, media, and the knob  [layer: behavior]
+#
+# What the device DOES about sound: which colours exist, what a knob turn means,
+# what a tap means, that noise and media are mutually exclusive, and what the user
+# gets told about it. All of it expressed in api verbs - this file contains no
+# hardware access.
+#
+# THE DISPATCHER PATTERN. The "Sound" select is the single place a sound change
+# happens. Everything else - a knob tap, a long press, the boot restore, Home
+# Assistant - drives that select with select.set and lets it do the work. That is
+# why the code flash and the mutual exclusion can live in one place and still be
+# guaranteed to run whatever triggered the change.
+#
+# IMPLEMENTS the hardware input contract from hw/knob.yaml:
+#   on_knob_turn(clicks) / on_knob_tap / on_knob_hold
+# and from hw/proximity.yaml:
+#   on_hand_near_changed
+# and from api/sound.yaml:
+#   on_audio_ready
+#
+# DEFINES  sound_option, sound_option_last (globals), sound_select, media_select,
+#          media_loop, sound_next, sound_off, volume_feedback,
+#          indicator_hue_from_volume, and the event handlers above.
+# CONSUMES api/sound (noise_play, noise_stop, media_*, volume_apply),
+#          api/display (display_show_code), api/indicator (set_hue, flash,
+#          glow_set), and reads external_media_player->volume + hand_near.
+# =====================================================================
+globals:
+  # The current selection, persisted. This - not the select's .state - is the
+  # source of truth, because reading a select's state from a lambda at boot is
+  # unreliable and the restore path needs it before the entity is settled.
+  - id: sound_option
+    type: std::string
+    restore_value: yes
+    initial_value: '"Off"'
+  # Last non-off sound, so turning sound back on resumes what was playing rather
+  # than always starting at White.
+  - id: sound_option_last
+    type: std::string
+    restore_value: yes
+    initial_value: '"White"'
+
+script:
+  # ---- knob: rotation = volume ----
+  - id: on_knob_turn
+    parameters:
+      clicks: int
+    then:
+      - lambda: |-
+          const float current = id(external_media_player)->volume;
+          // Bigger steps when quiet, finer when loud, so the usable range is not
+          // crossed in three clicks near the bottom.
+          const float step = ${volume_step_at_zero}f - ${volume_step_falloff}f * current;
+          // MINUS the delta: that is what makes clockwise mean louder on this
+          // encoder. Flip the sign here if the knob is wired the other way round -
+          // it is the only place the direction is decided.
+          id(volume_apply)->execute(current - clicks * step);
+      - script.execute: volume_feedback
+
+  # ---- knob: press = sound ----
+  - id: on_knob_tap
+    then:
+      - script.execute: sound_next
+  - id: on_knob_hold
+    then:
+      - script.execute: sound_off
+
+  # ---- proximity: pre-light the knob so it can be found in the dark ----
+  # The hue is refreshed first: a glow can be the FIRST thing that ever lights the
+  # pixel (nobody has touched the volume since boot), and it should still show the
+  # current volume's colour rather than the initial one.
+  - id: on_hand_near_changed
+    then:
+      - script.execute: indicator_hue_from_volume
+      - script.execute:
+          id: indicator_glow_set
+          enabled: !lambda 'return id(hand_near);'
+
+  # The one place volume is turned into a colour: hue 240 (blue) when quiet,
+  # through 120 (green), to 0 (red) at full.
+  - id: indicator_hue_from_volume
+    then:
+      - lambda: |-
+          float volume = id(external_media_player)->volume;
+          if (!(volume >= 0.0f)) volume = 0.0f;       // nan guard
+          if (volume > 1.0f) volume = 1.0f;
+          id(indicator_set_hue)->execute(240.0f * (1.0f - volume));
+
+  # ---- boot: re-apply the sound that was playing before the reboot ----
+  # Raised by api/sound.yaml once the audio stack is safe to drive. Goes through
+  # the select so the entity in Home Assistant agrees with what is playing.
+  - id: on_audio_ready
+    then:
+      - select.set:
+          id: sound_select
+          option: !lambda 'return id(sound_option);'
+
+  # ---- the two sound gestures ----
+  # Tap: advance Off -> (last sound) -> Pink -> Brown -> White -> ...
+  # From Off it RESUMES rather than restarting the cycle.
+  - id: sound_next
+    then:
+      - select.set:
+          id: sound_select
+          option: !lambda |-
+            const std::string current = id(sound_option);
+            if (current == "Off")   return id(sound_option_last);
+            if (current == "White") return std::string("Pink");
+            if (current == "Pink")  return std::string("Brown");
+            return std::string("White");     // Brown -> White
+  # Long press: silence.
+  - id: sound_off
+    then:
+      - select.set:
+          id: sound_select
+          option: "Off"
+
+  # ---- user feedback for a volume change ----
+  # Two channels, both shared with the rest of the device: the knob pixel takes a
+  # hue and a flash, and the volume percentage goes out as a display code. Neither
+  # call knows what hardware is on the other end.
+  - id: volume_feedback
+    then:
+      - script.execute: indicator_hue_from_volume
+      - script.execute: indicator_flash
+      - lambda: |-
+          float volume = id(external_media_player)->volume;
+          if (!(volume >= 0.0f)) volume = 0.0f;       // nan guard
+          if (volume > 1.0f) volume = 1.0f;
+          id(display_show_code)->execute(std::to_string((int) lroundf(volume * 100.0f)));
+
+select:
+  # SOUND = Off plus the noise colours. Replaces what used to be an on/off switch
+  # and a separate type select.
+  - platform: template
+    name: "Sound"
+    id: sound_select
+    icon: "mdi:waveform"
+    optimistic: true
+    restore_value: false          # persistence lives in the sound_option global
+    initial_option: "Off"
+    options:
+      - "Off"
+      - "White"
+      - "Pink"
+      - "Brown"
+    set_action:
+      - lambda: |-
+          const std::string selection = x;
+          id(sound_option) = selection;                 // remember (persisted)
+          const bool off = (selection == "Off");
+          if (!off) id(sound_option_last) = selection;  // remember the last real one
+
+          int color_index = 0, code_number = 1;
+          if (selection == "Pink")       { color_index = 1; code_number = 2; }
+          else if (selection == "Brown") { color_index = 2; code_number = 3; }
+
+          if (off) id(noise_stop)->execute();
+          else     id(noise_play)->execute(color_index);
+
+          id(display_show_code)->execute(
+              off ? std::string("OFF")
+                  : std::string("S") + std::to_string(code_number));
+      # Noise and media are mutually exclusive: turning ON a colour stops any
+      # playing media and syncs the Media Preset select to Off. publish_state (not
+      # select.set) so it does not re-enter the media set_action or flash a second
+      # code - it just updates the shown state.
+      - if:
+          condition:
+            lambda: 'return x != "Off";'
+          then:
+            - script.execute: media_stop
+            - lambda: 'id(media_select).publish_state("Off");'
+
+  # MEDIA PRESET = Off plus the playable tracks. Each track is either a file
+  # flashed into the ESP (offline-capable) or a URL played to the same media
+  # player. Looping follows the Media Loop switch. Stop with "Off" here or with
+  # the media player controls in Home Assistant.
+  - platform: template
+    name: "Media Preset"
+    id: media_select
+    icon: "mdi:music"
+    optimistic: true
+    restore_value: false
+    initial_option: "Off"
+    options:
+      - "Off"
+      - "La La"
+      # - "Rain (HA)"      # example URL-based track (see the commented branch)
+    set_action:
+      # The other half of the mutual exclusion. sound_option_last is left intact,
+      # so a later knob tap can still resume the previous colour.
+      - if:
+          condition:
+            lambda: 'return x != "Off";'
+          then:
+            - script.execute: noise_stop
+            - lambda: |-
+                id(sound_option) = "Off";
+                id(sound_select).publish_state("Off");
+      - if:
+          condition:
+            lambda: 'return x == "Off";'
+          then:
+            - script.execute: media_stop
+      - if:
+          condition:
+            lambda: 'return x == "La La";'
+          then:
+            - script.execute:
+                id: media_set_repeat
+                loop: !lambda 'return id(media_loop).state;'
+            - script.execute: media_play_la_la
+      # ----- URL / Home Assistant track (uncomment + edit to use) -----
+      # Add the option name above, then a branch here. A URL track needs a real
+      # network path, so it is not offline-capable the way a flashed file is.
+      # - if:
+      #     condition:
+      #       lambda: 'return x == "Rain (HA)";'
+      #     then:
+      #       - script.execute:
+      #           id: media_set_repeat
+      #           loop: !lambda 'return id(media_loop).state;'
+      #       - media_player.play_media:
+      #           id: external_media_player
+      #           media_url: "http://homeassistant.local:8123/local/rain.mp3"
+
+switch:
+  # Loop mode for MEDIA tracks (on = repeat, off = play once). Read by the Media
+  # Preset select and by anything triggered from Home Assistant.
+  - platform: template
+    name: "Media Loop"
+    id: media_loop
+    icon: "mdi:repeat"
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_ON

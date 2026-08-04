@@ -26,7 +26,7 @@ choices (see "Remote-hosting constraints" below). Repo slug: `astoker/sound-mach
 
 > **The enclosure geometry and the firmware are coupled, and the coupling is
 > one-way.** `3d-print/enclosure_geom.py` is the source of truth for the LED
-> crescent — pixel count, row layout, row pitch. `packages/lighting.yaml` carries
+> crescent — pixel count, row layout, row pitch. `packages/hw/crescent.yaml` carries
 > a *copy* of that output (`num_leds` and `leds_per_row[]`). **If you change the
 > crescent, re-run `gen_drawing.py` and re-sync those two values**, or the
 > firmware will address pixels that are not there. Currently **48 px**,
@@ -64,29 +64,45 @@ choices (see "Remote-hosting constraints" below). Repo slug: `astoker/sound-mach
 
 ## Architecture
 
-**`soundmachine.yaml` is the entry point** and holds only the device core:
-the `substitutions:` block (the single source of truth for every tunable),
-the `packages:` includes, and shared infrastructure (esphome/boot, esp32, wifi/
-api/ota, `i2c` bus, `external_components`, `time`). It is intentionally kept
-small; feature logic lives in packages.
+**Read [`packages/README.md`](packages/README.md) first** — it is the
+authoritative map of the layer scheme, the two rules, the event-script contracts,
+and a "where do I add a thing" table. The summary below is orientation only.
 
-**Feature packages** in `packages/` — `audio`, `lighting`, `battery`, `ambient`
-(the display substrate), plus **one** display package: `matrix` (IS31FL3731
-charlieplex, the active default) or `display` (HT16K33 7-seg, kept as a drop-in
-alternative) — are each a self-contained slice. Every package file starts with a
-header documenting the ids it **defines** vs **consumes**. Read those headers
-before editing: after ESPHome merges all packages, **all ids are global**, so
-cross-package references (e.g. the Sound select setting the display's
-`preset_code`) work but each id must be defined exactly once. Top-level list keys
-(`sensor:`, `binary_sensor:`, `script:`, `globals:`, etc.) concatenate across
-packages.
+**Three layers, plus a core and a settings file:**
 
-**The display is pluggable.** `ambient.yaml` owns the display-agnostic layer —
-the BH1750 auto-dim (`display_brightness`), the `preset_code`/`showing_preset`
-state, `show_preset_code`, and the single 1s render tick — and calls a
-`render_display` script that the active *display* package provides. Load exactly
-one display package (`matrix` **or** `display`); both define `render_display`, so
-loading both collides. Swap them in the `packages:` block of `soundmachine.yaml`.
+| Path | Holds |
+| --- | --- |
+| `soundmachine.yaml` | device core only: platform, wifi/api/ota, the `i2c` bus, `external_components`, and the `packages:` manifest. No tunables, no feature logic, no `on_boot`. |
+| `packages/settings.yaml` | **every tunable in the build**, grouped into 13 documented sections. The single place to change a value. |
+| `packages/hw/*.yaml` | one file per physical part. Component config, register-level talk, and *hardware interpretation* (lux → level, metres → "hand near", volts → SOC). No policy. |
+| `packages/api/*.yaml` | one file per subsystem. The abstraction layer, and the **only writer** of the hardware behind it. Everything else calls its verbs. |
+| `packages/behavior/*.yaml` | operational logic: presets, gestures, announcements, boot restores, and the Home Assistant control surface. Decides; never touches hardware. |
+
+Every file starts with a header listing what it **DEFINES**, what it
+**CONSUMES**, and what it **REQUIRES**. Read those before editing: after ESPHome
+merges all packages **all ids are global**, so cross-package references work but
+each id must be defined exactly once. Top-level list keys (`sensor:`, `script:`,
+`globals:`, `interval:`, `esphome.on_boot:` …) concatenate across packages.
+
+**The two rules** (details in `packages/README.md`):
+
+1. **Writes go through the api; reads do not.** A behavior package calls
+   `noise_play(1)` rather than `id(noise).start()`, but reads
+   `external_media_player->volume` or `id(battery_low).state` freely — ESPHome
+   scripts can't return values, so routing reads through them buys nothing.
+2. **Hardware raises events; behavior implements them.** `hw/knob.yaml` calls
+   `on_knob_turn(clicks)`; `behavior/sound.yaml` defines it. Same for
+   `on_touch_tap`/`on_touch_hold`, `on_hand_near_changed`,
+   `on_power_state_changed`, `on_audio_ready`. Script ids resolve at validate
+   time, so an unmet contract is a build error, by design.
+
+**The display is pluggable.** `api/display.yaml` owns the whole display-agnostic
+layer — four content channels and their priority, expiring the timed ones,
+formatting the clock, and the single tick — and resolves them into a *frame*
+(`display_frame_*` globals). The active driver provides one script,
+`display_paint`, which renders that frame and makes no decisions. Load exactly
+one driver (`hw/matrix.yaml` **or** `hw/seg7.yaml`); both define `display_paint`,
+so loading both collides. Swap the `hw_display:` line in the manifest.
 
 **Custom C++ components** in `components/` (`noise_source`, `seesaw`, `tpa2016`)
 follow standard ESPHome layout (`__init__.py` codegen + `.h`/`.cpp`). `seesaw`
@@ -100,38 +116,44 @@ VL53L0X ToF (knob proximity), plus an ESP32 native capacitive touch pad
 (light-preset cycle). See `HARDWARE.md` for the full map.
 
 > **Gotcha:** the **VL53L0X** (`0x29`) is now live, but only in
-> `packages/knob.yaml` and only to pre-light the knob NeoPixel. The
+> `packages/hw/proximity.yaml` and only to pre-light the knob NeoPixel. The
 > **touchless-wake** gesture the hardware notes describe is still *not*
 > implemented — don't assume any behavior beyond the knob pixel reads it.
 
 **The knob NeoPixel is driven from a lambda, not the seesaw `light:` platform,
-on purpose.** `packages/knob.yaml` calls the component's `color_neopixel()`
-directly from a 20 Hz interval that writes only on a change. Going through the
-`light:` platform would instead write the pixel over I2C once per *main-loop
-iteration* for the whole of every transition — hundreds of writes/second onto
-the bus this build already had to slow to 100 kHz to stop starving the XVF3800.
-If you switch it to the stock platform, that regression is what you are buying.
+on purpose.** `packages/api/indicator.yaml` calls the component's
+`color_neopixel()` directly from a 20 Hz interval that writes only on a change.
+Going through the `light:` platform would instead write the pixel over I2C once
+per *main-loop iteration* for the whole of every transition — hundreds of
+writes/second onto the bus this build already had to slow to 100 kHz to stop
+starving the XVF3800. If you switch it to the stock platform, that regression is
+what you are buying.
 
 Cross-file invariants worth knowing before changing behavior:
-- **Display is single-owner.** The active display package's `render_display`
-  (`packages/matrix.yaml` today, or `packages/display.yaml` for the 7-seg) is the
-  ONLY writer of the display. It renders one thing, in priority order:
-  HA-authored message → device status message → low-battery warning → transient
-  preset code → clock. Other packages never write the display directly; they go
-  through one of the two transient channels in `ambient.yaml`:
-  - `preset_code`/`showing_preset` + `show_preset_code` — short codes ("L1",
-    "S3", "OFF") from a user turning a knob or picking a select.
-  - `show_status_message(text, seconds)` — short announcements from device events
-    (today: `battery.yaml` announcing "CHG"/"BATT" when External Power flips).
-    Keep new callers here, **not** on a display-specific id, or the documented
-    matrix ↔ 7-seg swap stops compiling.
-- **4 characters is the static budget for a status message.** The matrix draws it
-  inside a SINGLE panel (the right-hand one) in the compact 3x5 font, so it can
-  never straddle the inter-panel gap — which is why no seam-alignment logic is
-  needed for it. 4 chars = 15px inside 16 columns. Longer strings still work but
-  fall back to scrolling the full width, and a pass takes far longer than the few
-  seconds a status is meant to occupy. The 7-seg alternative has 4 digits, so the
-  same budget happens to apply there.
+- **Display is single-owner, in two stages.** `api/display.yaml` is the only
+  caller of `display_paint`, and the loaded driver
+  (`packages/hw/matrix.yaml` today, or `packages/hw/seg7.yaml` for the 7-seg) is
+  the only code that touches the display's I2C address. Priority lives in the api
+  layer, once, rather than being re-implemented per driver: **message → status →
+  alert → code → clock**. Nothing else writes the display; callers use a channel:
+  - `display_show_code(text)` — short codes ("L1", "S3", "OFF", a volume
+    percentage) from a user action.
+  - `display_show_status(text, seconds)` — timed device announcements (today:
+    `behavior/power.yaml` announcing "CHG"/"BATT" when External Power flips).
+  - `display_set_alert(text)` — a *sticky* condition; pass `""` to clear (today:
+    the low-battery warning).
+  - `display_show_message(text, seconds)` — Home-Assistant-authored text.
+- **Drivers must self-throttle.** The api ticks at `display_tick_ms` (250 ms) and
+  calls `display_paint` every time; each driver hashes or compares what it is
+  about to draw and returns before touching I2C when nothing changed. ~300 bytes
+  on this 100 kHz bus is ~30 ms of bus time.
+- **4 characters is the budget for the COMPACT channels** (status and alert). The
+  matrix draws them inside a SINGLE panel (the right-hand one) in the compact 3x5
+  font, so they can never straddle the inter-panel gap — which is why no
+  seam-alignment logic is needed. 4 chars = 15px inside 16 columns. Longer strings
+  still work but fall back to scrolling the full width, and a pass takes far
+  longer than the few seconds a status is meant to occupy. The 7-seg alternative
+  has 4 digits, so the same budget happens to apply there.
 - **The matrix has a physical inter-panel gap.** Two tiled panels aren't
   seamless — there's a ~1px dead column between them (`matrix_panel_gap`). The
   matrix lays content out in *physical* columns that include the gap and maps
@@ -175,5 +197,5 @@ HA's ESPHome folder: it injects secrets as substitutions and pulls
 ## Hardware placeholders
 
 The UPS monitor I2C address (`ups_i2c_address`) and shunt (`ups_shunt_ohms`) in
-`soundmachine.yaml` substitutions are UNCONFIRMED placeholders — confirm against
-the boot I2C scan. INA219 vs INA226 may need swapping in `packages/battery.yaml`.
+`packages/settings.yaml` are UNCONFIRMED placeholders — confirm against the boot
+I2C scan. INA219 vs INA226 may need swapping in `packages/hw/power.yaml`.

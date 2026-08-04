@@ -1,0 +1,40 @@
+# =====================================================================
+# HARDWARE: ESP32-S3 capacitive touch pad  [layer: hw]
+#
+# A single native touch channel, no extra chip. Uses the same tap/hold timings as
+# the knob switch, so the two controls feel identical.
+#
+# INPUT EVENTS RAISED (the contract behavior/light.yaml must implement):
+#   on_touch_tap   - a short press
+#   on_touch_hold  - a long press
+#
+# CALIBRATION: the threshold is a raw capacitance count and is build-specific -
+# it depends on the pad, the wire length and the enclosure. Set touch_setup_mode
+# to true once, watch the logs for this pad's value untouched vs touched, pick a
+# value between the two, then set it back to false.
+#
+# DEFINES  preset_touch (binary_sensor).
+# CONSUMES the touch_* and gesture_* settings.
+# REQUIRES scripts on_touch_tap / on_touch_hold (behavior/light.yaml).
+# =====================================================================
+esp32_touch:
+  setup_mode: ${touch_setup_mode}
+
+binary_sensor:
+  - platform: esp32_touch
+    name: "Preset Touch"
+    id: preset_touch
+    pin: ${touch_pin}
+    threshold: ${touch_threshold}
+    filters:
+      - delayed_on: ${touch_debounce}   # debounce the pad against electrical noise
+    on_multi_click:
+      - timing:
+          - ON for at most ${gesture_tap_max}
+          - OFF for at least ${gesture_tap_gap}
+        then:
+          - script.execute: on_touch_tap
+      - timing:
+          - ON for at least ${gesture_hold_min}
+        then:
+          - script.execute: on_touch_hold

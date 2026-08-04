@@ -2,7 +2,7 @@
 """DOC SYNC CHECK -- does the prose still match the geometry?
 
 The repo carries the same numbers in five places: `enclosure_geom.py` (the source
-of truth), `packages/lighting.yaml` (the firmware's copy of the LED layout), and
+of truth), `packages/hw/crescent.yaml` (the firmware's copy of the LED layout), and
 three markdown docs that describe the build. Geometry changes ripple, and prose
 does not fail a unit test -- so every previous rework left a trail of documents
 describing a machine that no longer existed. The 258-wide split enclosure was
@@ -56,7 +56,7 @@ def load(rel):
 DOCS = {r: load(r) for r in (
     "HARDWARE.md", "SOUNDMACHINE.md", "CLAUDE.md",
     "3d-print/README.md", "3d-print/WIP-NOTES.md",
-    "packages/lighting.yaml",
+    "packages/hw/crescent.yaml",
 )}
 
 
@@ -85,10 +85,10 @@ row_re = re.escape(str(rows).replace("[", "{").replace("]", "}"))
 # ---------------------------------------------------------------- firmware
 # The one place a stale number does more than mislead: ESPHome will happily
 # address pixels that do not physically exist.
-must("packages/lighting.yaml", rf"num_leds:\s*{g.CRES_PX}\b", "num_leds")
-must("packages/lighting.yaml", rf"leds_per_row\[\] = {row_re}", "row array")
-must("packages/lighting.yaml", rf"{g.LED_PITCH}mm", "measured LED pitch")
-must("packages/lighting.yaml", rf"{g.LED_ROW_PITCH}, NOT", "row pitch")
+must("packages/hw/crescent.yaml", rf"num_leds:\s*{g.CRES_PX}\b", "num_leds")
+must("packages/hw/crescent.yaml", rf"leds_per_row\[\] = {row_re}", "row array")
+must("packages/hw/crescent.yaml", rf"{g.LED_PITCH}mm", "measured LED pitch")
+must("packages/hw/crescent.yaml", rf"{g.LED_ROW_PITCH}, NOT", "row pitch")
 
 # ------------------------------------------------------------------- docs
 must("HARDWARE.md", rf"\*\*{g.CRES_PX} pixels\*\*", "pixel count")

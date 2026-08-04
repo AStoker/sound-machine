@@ -1,0 +1,181 @@
+# =====================================================================
+# HARDWARE: the audio chain  [layer: hw]
+#
+# Everything the sound physically travels through, and nothing about what to
+# play. Signal path:
+#
+#   noise_source ---\
+#   media files  ----> mixer -> I2S -> XVF3800 -> AIC3104 -> TPA2016 -> 2 speakers
+#   TTS reply    ---/
+#   4 mics -------> I2S in -> XVF3800 beamformer -> wake word / voice assistant
+#
+# DEFINES  amp, i2s_output, i2s_input, aic3104_dac, i2s_mics, i2s_audio_speaker,
+#          announcement_resampling_speaker, media_resampling_speaker,
+#          mixing_speaker + its three inputs (announcement/media/noise), noise,
+#          la_la_sad (flashed media file), external_media_player, respeaker,
+#          mic_mute_switch.
+# CONSUMES internal_i2c (device core), the audio settings.
+# WRITTEN BY api/sound.yaml ONLY. Nothing else starts, stops, ducks or
+#          re-levels this chain; behavior packages go through that api. Reading
+#          state (external_media_player->volume, is_announcing) is allowed
+#          anywhere - see the layer rules in packages/README.md.
+#
+# ---------------------------------------------------------------------
+# THE AMP'S I2C IS REQUIRED, NOT OPTIONAL
+#   * STEREO amp, one 4-ohm speaker per channel. Outputs are BRIDGE-TIED: every
+#     terminal swings, there is no output ground. Do NOT common the two
+#     speakers' negative leads and do NOT tie an output to GND - either shorts
+#     half a bridge and kills the amp.
+#   * Left standalone the amp boots with its AGC ENABLED. That fights the
+#     software volume (turn it down, the AGC ramps it back up), breathes audibly
+#     on steady noise, and - the real problem - makes the echo path
+#     time-varying, which is precisely what the XVF3800's echo canceller cannot
+#     cancel. Wake-word-over-noise is the exact case that would fail.
+#   * So the amp is configured ONCE at boot by the `tpa2016:` block below:
+#     compression 1:1 (AGC off), one fixed analog gain, limiter parked high as a
+#     pure fault stop. All volume lives in software, in the AIC3104 upstream.
+#   * ORDER OF THE REGISTER WRITES MATTERS and is handled inside the component:
+#     compression must reach 1:1 BEFORE the gain is set, because disabling
+#     compression narrows the legal gain range from -28..30 dB to 0..30 dB. Set
+#     gain first and it gets clamped - people end up with a silent amp this way.
+#   * The chip has no NVM. A glitch on the 5V rail returns it to factory
+#     defaults (AGC back on); id(amp).apply() rewrites it.
+# ---------------------------------------------------------------------
+tpa2016:
+  id: amp
+  address: ${i2c_addr_amp}
+  i2c_id: internal_i2c
+  compression: "1:1"          # AGC OFF. Do not change without re-testing AEC.
+  gain_db: ${amp_gain_db}
+  limiter: true
+  limiter_level: ${amp_limiter_dbv}
+  noise_gate: false
+
+# ---------------------------------------------------------------------
+# I2S to/from the XVF3800. The pins are fixed by the Flex's routing, and the
+# clock pins are shared between the input and output buses - hence
+# allow_other_uses on both.
+# ---------------------------------------------------------------------
+i2s_audio:
+  - id: i2s_output
+    i2s_lrclk_pin:
+      number: ${pin_i2s_ws}
+      allow_other_uses: true
+    i2s_bclk_pin:
+      number: ${pin_i2s_bclk}
+      allow_other_uses: true
+  - id: i2s_input
+    i2s_lrclk_pin:
+      number: ${pin_i2s_ws}
+      allow_other_uses: true
+    i2s_bclk_pin:
+      number: ${pin_i2s_bclk}
+      allow_other_uses: true
+
+audio_dac:
+  - platform: aic3104
+    id: aic3104_dac
+    address: ${i2c_addr_codec}
+    i2c_id: internal_i2c
+
+microphone:
+  - platform: i2s_audio
+    id: i2s_mics
+    i2s_din_pin: ${pin_i2s_din}
+    adc_type: external
+    pdm: false
+    sample_rate: 48000
+    bits_per_sample: 32bit
+    i2s_mode: secondary        # the XVF3800 is the I2S master
+    i2s_audio_id: i2s_input
+    channel: stereo
+
+speaker:
+  - platform: i2s_audio
+    id: i2s_audio_speaker
+    sample_rate: 48000
+    i2s_mode: secondary
+    i2s_dout_pin: ${pin_i2s_dout}
+    bits_per_sample: 32bit
+    i2s_audio_id: i2s_output
+    dac_type: external
+    channel: stereo
+    timeout: never             # never tear the stream down; noise runs for hours
+    buffer_duration: 100ms
+    audio_dac: aic3104_dac
+  # Resamplers in front of the mixer: HA-supplied audio and flashed files arrive
+  # at whatever rate they were encoded at; the mixer needs one common rate.
+  - platform: resampler
+    id: announcement_resampling_speaker
+    output_speaker: announcement_mixing_input
+    sample_rate: 48000
+    bits_per_sample: 16
+  - platform: resampler
+    id: media_resampling_speaker
+    output_speaker: media_mixing_input
+    sample_rate: 48000
+    bits_per_sample: 16
+  # THREE independent inputs, which is what makes ducking possible: the two
+  # background channels can be dipped while the spoken reply stays at full
+  # volume on its own channel.
+  - platform: mixer
+    id: mixing_speaker
+    output_speaker: i2s_audio_speaker
+    num_channels: 2
+    source_speakers:
+      - id: announcement_mixing_input
+        num_channels: 1
+        timeout: never
+      - id: media_mixing_input
+        num_channels: 1
+        timeout: never
+      - id: noise_mixing_input
+        num_channels: 1
+        timeout: never
+
+# The noise generator (custom component, components/noise_source). Colour is
+# selected at runtime through api/sound.yaml, never here.
+noise_source:
+  id: noise
+  speaker: noise_mixing_input
+  sample_rate: 48000
+  gain: ${noise_gain}
+  fade_length: ${noise_fade_length}
+  high_pass_frequency: ${noise_high_pass_hz}
+  high_pass_makeup: ${noise_high_pass_makeup}
+
+media_player:
+  - platform: speaker
+    id: external_media_player
+    name: None                 # the device's own media player entity in HA
+    internal: false
+    announcement_pipeline:
+      speaker: announcement_resampling_speaker
+    media_pipeline:
+      speaker: media_resampling_speaker
+    volume_min: ${volume_floor_pct}
+    volume_max: ${volume_ceiling_pct}
+    # On-device files baked into flash, playable with no HA and no network.
+    # Encode mono, 48 kHz, 16-bit MP3 (matches media_mixing_input).
+    #
+    # ADDING A TRACK: add an entry here AND a `media_play_<name>` script in
+    # api/sound.yaml - a media_file id cannot be passed as a script parameter,
+    # so each flashed track needs its own one-line api verb.
+    files:
+      - id: la_la_sad
+        file: ${la_la_sad_source}
+    # NOTE: no on_idle hook. The mixer keeps this player from reporting idle
+    # reliably, so voice-turn un-ducking is driven by the announcement state
+    # instead (see behavior/voice.yaml). Looping uses media_player.repeat_one,
+    # which relies on the decoder's own end-of-file detection rather than the
+    # (broken) idle state.
+
+# The XVF3800 voice front-end: 4-mic beamforming, noise suppression and the echo
+# canceller that the amp's AGC-off setting exists to protect.
+respeaker_xvf3800:
+  id: respeaker
+  address: ${i2c_addr_xvf3800}
+  mute_switch:
+    id: mic_mute_switch
+    name: "Microphone Mute"
+    update_interval: ${mic_mute_update_interval}
