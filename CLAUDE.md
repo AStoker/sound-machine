@@ -38,12 +38,23 @@ choices (see "Remote-hosting constraints" below). Repo slug: `astoker/sound-mach
 
 ```sh
 # Validate the full merged config (packages + git external_components + media):
-esphome config soundmachine.yaml
+./scripts/esphome config soundmachine.yaml
 
 # Build + upload:
-esphome run soundmachine.yaml
+./scripts/esphome run soundmachine.yaml
 ```
 
+- **On macOS, always go through `./scripts/esphome`, not bare `esphome`.** macOS
+  26/27 has a bug in Network.framework's `pthread_atfork` child handler that
+  segfaults forked children before `exec`, so ESPHome steps fail intermittently
+  with `returncode=-11` — most often the ESP-IDF Python-env check ("Can't create
+  Python virtual environment for ESP-IDF"), but any of the ~20 subprocesses a
+  build spawns can hit it. The wrapper loads
+  `scripts/macos-forkfix/sitecustomize.py`, which routes `subprocess` through
+  `posix_spawn` (no atfork handlers, so the crash can't happen); that file
+  documents the mechanism and how to verify whether the OS bug is still present.
+  A bare `esphome` invocation is not wrong, just unprotected — if one fails with
+  `-11`, it's this bug, not the config.
 - `esphome config` needs **no** local `secrets.yaml` — credentials are
   substitutions with valid placeholder defaults (see below). It *does* need
   network + the GitHub repo to exist, because it clones the custom components

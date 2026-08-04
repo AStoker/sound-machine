@@ -1,0 +1,26 @@
+#!/bin/sh
+# Run the real esphome with the macOS fork+exec crash workaround loaded.
+#
+# On macOS 26/27, forked children of a process that has touched Apple networking
+# can segfault in Network.framework's atfork handler before exec, which shows up
+# as an ESPHome step failing with returncode=-11 (see
+# scripts/macos-forkfix/sitecustomize.py for the full story). Putting that
+# directory on PYTHONPATH makes CPython import it at startup, which routes
+# subprocess launches through posix_spawn instead of fork.
+#
+# Usage: ./scripts/esphome compile soundmachine.yaml   (same args as esphome)
+#
+# On anything other than Darwin this is a plain pass-through: the shim
+# self-disables, so the wrapper is safe to use everywhere.
+set -e
+
+FORKFIX_DIR=$(cd "$(dirname "$0")/macos-forkfix" && pwd)
+
+if [ -n "$PYTHONPATH" ]; then
+    PYTHONPATH="$FORKFIX_DIR:$PYTHONPATH"
+else
+    PYTHONPATH="$FORKFIX_DIR"
+fi
+export PYTHONPATH
+
+exec esphome "$@"
