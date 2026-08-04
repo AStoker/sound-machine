@@ -347,10 +347,16 @@ substitutions:
   tof_release_samples: "3"           # consecutive far readings to release.
                                      # Slower to release on purpose: a single
                                      # dropped reading must not blink the pixel.
-  # The sensor publishes NaN for "nothing in range", which reaches Home
-  # Assistant as 'unknown'. The hw package rewrites NaN to this value instead,
-  # so the entity always holds a number that reads as "no target". MUST stay
-  # above tof_max_valid_m or a no-target reading would be treated as a hand.
+  # "Nothing there" arrives in two encodings: NaN (target beyond ~8.19m, which
+  # reaches Home Assistant as 'unknown') and 0 (a measurement the chip could not
+  # resolve - the ESPHome component publishes the range register without checking
+  # the range-status byte beside it). The hw package rewrites both to
+  # tof_no_target_m so the entity always holds one number meaning "no target"
+  # instead of flapping between the two. tof_no_target_m MUST stay above
+  # tof_max_valid_m, or a no-target reading would be treated as a hand.
+  tof_min_valid_m: "0.03"            # at/below this, no real target - the chip's
+                                     # own usable minimum is ~30-50mm, and a hand
+                                     # is never closer than tof_near_m anyway
   tof_no_target_m: "2.0"
   tof_publish_delta_m: "0.02"        # only publish the entity when the distance
                                      # actually moved 2cm. The debounce runs off

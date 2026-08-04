@@ -51,19 +51,23 @@ sensor:
     long_range: false          # short range = tighter timing budget and far less
                                # ambient-IR trouble; a hand at <30cm needs no reach
     # WHY THE PUBLISHED VALUE IS FILTERED BUT THE DEBOUNCE IS NOT
-    # The component publishes NaN whenever there is no target in range - which
-    # is most of the time on a bedside table. NaN reaches Home Assistant as
-    # 'unknown', so an idle sensor sat there flapping the entity to unknown 4x a
-    # second. The debounce below still needs those samples (that is how a hand
-    # leaving gets noticed), so the two paths are split: filters clean up what
-    # the entity sees, and the debounce hangs off on_raw_value, upstream of them.
+    # There is no target in range most of the time on a bedside table, and the
+    # component reports that in two different ways: NaN when the target is past
+    # ~8.19m, and 0 when a measurement failed, because it publishes the range
+    # register without consulting the range-status byte next to it. Raw, that is
+    # an entity alternating between 'unknown' and 0.00m 4x a second. The debounce
+    # below still needs those samples (that is how a hand leaving gets noticed),
+    # so the two paths are split: filters clean up what the entity sees, and the
+    # debounce hangs off on_raw_value, upstream of them.
     filters:
-      # "No target" is a fact, not an absence of one. Publish it as a distance
-      # past anything this sensor can legitimately see.
-      - lambda: 'return std::isnan(x) ? ${tof_no_target_m}f : x;'
-      # With NaN mapped to a constant, an idle sensor now publishes the same
-      # number forever. Only forward real movement - HA retains the last state,
-      # and nothing on-device reads knob_distance.state.
+      # Collapse both "nothing there" encodings into one. "No target" is a fact,
+      # not an absence of one - publish it as a distance past anything this
+      # sensor can legitimately see.
+      - lambda: |-
+          return (std::isnan(x) || x <= ${tof_min_valid_m}f) ? ${tof_no_target_m}f : x;
+      # With no-target pinned to a constant, an idle sensor now publishes the
+      # same number forever. Only forward real movement - HA retains the last
+      # state, and nothing on-device reads knob_distance.state.
       - delta: ${tof_publish_delta_m}
     # Fires on every sample, before the filters above - NaN included.
     on_raw_value:
@@ -75,12 +79,13 @@ sensor:
           //   * consecutive samples - assert on tof_confirm_samples, release on
           //     tof_release_samples (slower to release, so one dropped reading
           //     cannot blink the pixel).
-          // This is the RAW value, so out-of-range readings arrive as NaN. Every
-          // comparison against NaN is false, so they fall through to the "far"
-          // branch by design - which is exactly what "no target" means here.
+          // This is the RAW value, so no-target readings arrive unfiltered, as
+          // NaN or as 0. Every comparison against NaN is false, and 0 is below
+          // tof_min_valid_m, so both fall through to the "far" branch by design -
+          // which is exactly what "no target" means here.
           float distance_m = x;
           float threshold = id(hand_near) ? ${tof_far_m}f : ${tof_near_m}f;
-          bool near_now = (distance_m > 0.0f) &&
+          bool near_now = (distance_m > ${tof_min_valid_m}f) &&
                           (distance_m < ${tof_max_valid_m}f) &&
                           (distance_m <= threshold);
 
