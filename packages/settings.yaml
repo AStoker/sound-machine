@@ -347,6 +347,14 @@ substitutions:
   tof_release_samples: "3"           # consecutive far readings to release.
                                      # Slower to release on purpose: a single
                                      # dropped reading must not blink the pixel.
+  # The sensor publishes NaN for "nothing in range", which reaches Home
+  # Assistant as 'unknown'. The hw package rewrites NaN to this value instead,
+  # so the entity always holds a number that reads as "no target". MUST stay
+  # above tof_max_valid_m or a no-target reading would be treated as a hand.
+  tof_no_target_m: "2.0"
+  tof_publish_delta_m: "0.02"        # only publish the entity when the distance
+                                     # actually moved 2cm. The debounce runs off
+                                     # the raw value, so this is display-only.
 
   # ===================================================================
   # 9. POWER / UPS MONITORING - Waveshare UPS Module 3S (3x 18650 series)

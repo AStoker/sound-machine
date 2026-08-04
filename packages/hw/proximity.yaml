@@ -16,6 +16,11 @@
 #   on_hand_near_changed  - fired only on a genuine transition. Read hand_near
 #                           for the new verdict.
 #
+# The published entity never reports NaN: "no target in range" - the sensor's
+# resting state - becomes tof_no_target_m instead, so it cannot show as
+# 'unknown' in Home Assistant. See the filters block for why the debounce
+# doesn't go through them.
+#
 # DEFINES  knob_distance (sensor), knob_proximity (binary_sensor),
 #          hand_near (global) + its two sample counters.
 # CONSUMES internal_i2c (device core), the tof_* settings.
@@ -45,7 +50,23 @@ sensor:
     update_interval: ${tof_update_interval}
     long_range: false          # short range = tighter timing budget and far less
                                # ambient-IR trouble; a hand at <30cm needs no reach
-    on_value:
+    # WHY THE PUBLISHED VALUE IS FILTERED BUT THE DEBOUNCE IS NOT
+    # The component publishes NaN whenever there is no target in range - which
+    # is most of the time on a bedside table. NaN reaches Home Assistant as
+    # 'unknown', so an idle sensor sat there flapping the entity to unknown 4x a
+    # second. The debounce below still needs those samples (that is how a hand
+    # leaving gets noticed), so the two paths are split: filters clean up what
+    # the entity sees, and the debounce hangs off on_raw_value, upstream of them.
+    filters:
+      # "No target" is a fact, not an absence of one. Publish it as a distance
+      # past anything this sensor can legitimately see.
+      - lambda: 'return std::isnan(x) ? ${tof_no_target_m}f : x;'
+      # With NaN mapped to a constant, an idle sensor now publishes the same
+      # number forever. Only forward real movement - HA retains the last state,
+      # and nothing on-device reads knob_distance.state.
+      - delta: ${tof_publish_delta_m}
+    # Fires on every sample, before the filters above - NaN included.
+    on_raw_value:
       - lambda: |-
           // Debounce in BOTH axes before believing "a hand is here":
           //   * distance hysteresis - it takes tof_near_m to assert but
@@ -54,8 +75,9 @@ sensor:
           //   * consecutive samples - assert on tof_confirm_samples, release on
           //     tof_release_samples (slower to release, so one dropped reading
           //     cannot blink the pixel).
-          // Out-of-range readings come back NaN, and every comparison against
-          // NaN is false, so they fall through to the "far" branch by design.
+          // This is the RAW value, so out-of-range readings arrive as NaN. Every
+          // comparison against NaN is false, so they fall through to the "far"
+          // branch by design - which is exactly what "no target" means here.
           float distance_m = x;
           float threshold = id(hand_near) ? ${tof_far_m}f : ${tof_near_m}f;
           bool near_now = (distance_m > 0.0f) &&
