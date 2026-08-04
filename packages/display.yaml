@@ -8,16 +8,24 @@
 # both (they both define render_display).
 #
 # It provides the display-agnostic contract that packages/ambient.yaml drives:
-#   render_display  - paints the display honouring, in priority order,
-#                     low-battery "LO" -> transient preset code -> clock.
+#   render_display  - paints the display honouring, in priority order, a device
+#                     status message -> low-battery "LO" -> transient preset
+#                     code -> clock.
 # The shared brightness (display_brightness), preset-code state
-# (preset_code / showing_preset), the 1s tick, and show_preset_code all live in
-# packages/ambient.yaml now, so this file is just the 7-seg renderer + its own
-# power-on sequence.
+# (preset_code / showing_preset), status-message state, the 1s tick,
+# show_preset_code and show_status_message all live in packages/ambient.yaml now,
+# so this file is just the 7-seg renderer + its own power-on sequence.
+#
+# FOUR DIGITS IS THE WHOLE BUDGET. There is no scrolling here, so a status
+# message is truncated to its first 4 characters and rendered with whatever
+# 7-segment approximations exist. The shipped strings are 4 chars or fewer for
+# the matrix's own reasons, so they land intact: "CHG" -> "CHG", "BATT" -> "bAtt"
+# (lower-case 'b' and 't' because a 7-segment has no upper-case form for them).
 #
 # Defines ids: render_display. Also brings up the HT16K33 on boot.
 # Consumes: internal_i2c + ds3231_time (main), display_brightness + preset_code
-#   + showing_preset (ambient), battery_low + external_power (battery).
+#   + showing_preset + status_message + status_message_until_ms (ambient),
+#   battery_low + external_power (battery).
 # =====================================================================
 esphome:
   on_boot:
@@ -54,6 +62,35 @@ script:
             {0x3F,0x06,0x5B,0x4F,0x66,0x6D,0x7D,0x07,0x7F,0x6F};
           uint8_t display_bytes[11] = {0x00,0,0,0,0,0,0,0,0,0,0};
 
+          // Segment patterns for the characters a 7-segment can honestly form.
+          // Several are lower-case shapes because there is no 7-segment upper
+          // case for them ('b', 'r', 't') - readable in context, which is all
+          // these short codes need.
+          auto char_to_segments = [](char glyph) -> uint8_t {
+            switch (glyph) {
+              case '0': return 0x3F; case '1': return 0x06; case '2': return 0x5B;
+              case '3': return 0x4F; case '4': return 0x66; case '5': return 0x6D;
+              case '6': return 0x7D; case '7': return 0x07; case '8': return 0x7F;
+              case '9': return 0x6F;
+              case 'L': return 0x38; case 'S': return 0x6D; case 'O': return 0x3F;
+              case 'F': return 0x71; case 'N': return 0x37; case 'H': return 0x76;
+              case 'A': return 0x77; case 'B': return 0x7C; case 'C': return 0x39;
+              case 'E': return 0x79; case 'G': return 0x3D; case 'I': return 0x30;
+              case 'P': return 0x73; case 'R': return 0x50; case 'T': return 0x78;
+              case 'U': return 0x3E; case 'Y': return 0x6E;
+              default:  return 0x00;   // space / unknown -> blank
+            }
+          };
+          // Render up to 4 characters across the four digit slots, blanking the
+          // rest. Anything past the 4th character is dropped - this display has
+          // no room to scroll, so callers keep status strings short and accept
+          // that longer ones are truncated (see show_status_message).
+          const uint8_t digit_slots[4] = {1, 3, 7, 9};
+          auto draw_four = [&](const std::string &s) {
+            for (uint8_t d = 0; d < 4; d++)
+              display_bytes[digit_slots[d]] = (d < s.size()) ? char_to_segments(s[d]) : 0x00;
+          };
+
           // Priority order: a low-battery warning outranks both the transient
           // preset code and the clock. Suppressed while on mains - plugging in
           // at night shouldn't leave "LO" staring back for the hour it takes
@@ -64,7 +101,15 @@ script:
           // finished charging tapers to near-zero current and battery_charging
           // correctly goes false, which would bring the nag back while still
           // plugged in. See battery.yaml.
-          if (id(battery_low).state && !id(external_power).state) {
+          // A transient status message (e.g. the power-source announcements from
+          // battery.yaml) outranks everything, including the low-battery nag:
+          // plugging in while flat is when you most want to see "CHAr". Only the
+          // first 4 characters survive on 4 digits.
+          if (!id(status_message).empty() &&
+              (int32_t) (id(status_message_until_ms) - millis()) > 0) {
+            draw_four(id(status_message).substr(0, 4));
+            display_bytes[5] = 0x00;  // colon OFF - not a time
+          } else if (id(battery_low).state && !id(external_power).state) {
             // "LO", right-aligned in the last two digits so it doesn't sit
             // where the hour normally is. There is no 'W' on a 7-segment
             // display; "LO" reads cleaner than "LOb" would. Colon held OFF so
@@ -77,21 +122,7 @@ script:
           } else if (id(showing_preset)) {
             // Render up to 4 chars of preset_code (e.g. "L1", "S3", "OFF")
             // across the four digit slots.
-            std::string code = id(preset_code);
-            auto char_to_segments = [](char glyph) -> uint8_t {
-              switch (glyph) {
-                case '0': return 0x3F; case '1': return 0x06; case '2': return 0x5B;
-                case '3': return 0x4F; case '4': return 0x66; case '5': return 0x6D;
-                case '6': return 0x7D; case '7': return 0x07; case '8': return 0x7F;
-                case '9': return 0x6F;
-                case 'L': return 0x38; case 'S': return 0x6D; case 'O': return 0x3F;
-                case 'F': return 0x71; case 'N': return 0x37; case 'H': return 0x76;
-                default:  return 0x00;   // space / unknown -> blank
-              }
-            };
-            const uint8_t digit_slots[4] = {1, 3, 7, 9};
-            for (uint8_t d = 0; d < 4; d++)
-              display_bytes[digit_slots[d]] = (d < code.size()) ? char_to_segments(code[d]) : 0x00;
+            draw_four(id(preset_code));
           } else {
             // Normal 12-hour clock from the battery-backed RTC.
             auto now = id(ds3231_time).now();

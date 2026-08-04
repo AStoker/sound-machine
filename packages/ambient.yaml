@@ -11,7 +11,8 @@
 # changes.
 #
 # Defines ids: display_brightness, display_brightness_last, preset_code,
-#   showing_preset, show_preset_code, ambient_light, plus the 1s render tick.
+#   showing_preset, show_preset_code, status_message, status_message_until_ms,
+#   show_status_message, ambient_light, plus the 1s render tick.
 # Consumes: render_display  <-- MUST be provided by the active display package
 #   (packages/matrix.yaml today, or packages/display.yaml for the 7-seg).
 #   Also internal_i2c (main) via the BH1750.
@@ -19,6 +20,12 @@
 # preset_code / showing_preset are set by the Sound and Crescent Preset selects
 # (audio, lighting), which then call show_preset_code. The active display reads
 # them in its render_display.
+#
+# status_message is the OTHER transient channel: whole-word announcements raised
+# by device events rather than by a user turning a knob (today: the power-source
+# change messages in battery.yaml). It lives here, not in the display package,
+# so an event source like battery.yaml never has to reference a display-specific
+# id - which would break the documented matrix <-> 7-seg swap.
 # =====================================================================
 globals:
   - id: display_brightness
@@ -39,6 +46,20 @@ globals:
     type: bool
     restore_value: no
     initial_value: 'false'
+  # Transient STATUS message: a whole word raised by a device event, shown until
+  # status_message_until_ms passes. Deliberately expiry-stamped rather than
+  # script-timed like showing_preset, so a second event can simply overwrite it
+  # (last one wins) with no script cancellation to reason about. The active
+  # display treats it as "live" only while the text is non-empty AND the stamp is
+  # still in the future, so nothing has to clear it.
+  - id: status_message
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+  - id: status_message_until_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
 
 script:
   # Flash preset_code for preset_code_seconds, then revert to the clock.
@@ -53,10 +74,25 @@ script:
       - lambda: 'id(showing_preset) = false;'
       - script.execute: render_display
 
+  # Announce a short word/phrase for `seconds`, then fall back to whatever the
+  # display would otherwise show. Callers pass their own text so this stays
+  # generic; keep the text SHORT - see the note on width in matrix.yaml.
+  # NOTE: the 7-seg display package can only render 4 characters and truncates.
+  - id: show_status_message
+    parameters:
+      text: string
+      seconds: int
+    then:
+      - lambda: |-
+          id(status_message) = text;
+          id(status_message_until_ms) = millis() + (uint32_t) (seconds > 0 ? seconds : 1) * 1000u;
+      - script.execute: render_display
+
 interval:
   # The single display heartbeat. The active display's render_display decides
-  # what to paint (low-battery warning / preset code / clock) and self-throttles
-  # its I2C writes, so ticking every second is cheap.
+  # what to paint (status message / low-battery warning / preset code / clock)
+  # and self-throttles its I2C writes, so ticking every second is cheap. This
+  # tick is also what retires an expired status_message.
   - interval: 1s
     then:
       - script.execute: render_display

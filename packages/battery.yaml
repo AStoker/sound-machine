@@ -1,11 +1,14 @@
 # =====================================================================
 # BATTERY / UPS MONITORING - Waveshare UPS Module 3S (3x 18650 series)
 #
-# Self-contained package. Defines the ids: battery_voltage, battery_current,
-# battery_power, battery_shunt_voltage, battery_oc_voltage, battery_level,
-# battery_cell_voltage, battery_charging, external_power, battery_low. Other
+# Defines the ids: battery_voltage, battery_current, battery_power,
+# battery_shunt_voltage, battery_oc_voltage, battery_level, battery_cell_voltage,
+# battery_charging, external_power, battery_low, power_source_announced. Other
 # packages (display, matrix) read battery_low / external_power by id. All
 # tunables live in the substitutions block of the main config.
+#
+# Consumes: show_status_message (ambient) - to announce power-source changes on
+# whichever display is loaded. That is the ONLY outward call this package makes.
 #
 # !! THE ADDRESS AND SHUNT VALUE ARE PLACEHOLDERS !! See the substitutions
 # block. Boot with the UPS connected, read the I2C scan in the logs, and set
@@ -26,6 +29,15 @@
 # UPS. Anything that wants to know "is the barrel jack live?" must read
 # `external_power`, which is defined as NOT DISCHARGING rather than charging.
 # =====================================================================
+globals:
+  # Latch so the FIRST external_power publish (which is the initial reading, not
+  # a change) doesn't fire a power-source announcement on every boot. See the
+  # on_state trigger below.
+  - id: power_source_announced
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
 sensor:
   - platform: ina219
     address: ${ups_i2c_address}
@@ -192,6 +204,29 @@ binary_sensor:
     filters:
       - delayed_on: ${ups_confirm_time}
       - delayed_off: ${ups_confirm_time}
+    # Announce the power source on the display when it CHANGES: "CHARGING" when
+    # the charger goes in, "BATTERY" when the device starts running off the pack.
+    #
+    # The first publish is swallowed on purpose. This sensor has no state until
+    # the INA219 reports and the debounce settles, so its initial publish is
+    # "here is the power source" rather than "the power source changed" - without
+    # the guard every boot would open with a message. power_source_announced is
+    # never reset, so only genuine transitions after that are announced.
+    #
+    # show_status_message lives in ambient.yaml (always loaded), NOT in a display
+    # package, so this trigger stays valid whichever display is active.
+    on_state:
+      - if:
+          condition:
+            lambda: 'return id(power_source_announced);'
+          then:
+            - script.execute:
+                id: show_status_message
+                text: !lambda |-
+                  return x ? std::string("${power_msg_mains}")
+                           : std::string("${power_msg_battery}");
+                seconds: ${power_msg_seconds}
+      - lambda: 'id(power_source_announced) = true;'
 
   # Latching low-battery flag with hysteresis: trips at battery_low_pct, and
   # will not clear until SOC climbs 10 points past it. Without the gap this

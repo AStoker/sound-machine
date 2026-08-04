@@ -184,6 +184,23 @@ substitutions:
   # Rejects one-off sensor noise; at a 10s poll this is ~3 readings.
   ups_confirm_time: "30s"
 
+  # ---- Power-source change announcements (see packages/battery.yaml) ----
+  # Shown on the display when External Power flips, i.e. when the charger is
+  # plugged in or pulled out. Note this is gated on ups_confirm_time, so the
+  # message lands ~30s after the plug moves, not instantly - that debounce is
+  # what stops a full pack's idle current excursions announcing false mains loss.
+  #
+  # WIDTH: KEEP THESE TO 4 CHARACTERS. The matrix draws a status message inside
+  # a SINGLE panel (the right-hand one) so it can never straddle the physical
+  # inter-panel gap, which would eat a column of whichever glyph landed on the
+  # seam. In the compact 3x5 font that is a 4-character budget. Longer strings
+  # still work - they scroll across the full width - but a scrolling pass takes
+  # far longer than a few seconds, so 5+ chars stops being a glance-able status.
+  # (The 7-seg alternative display has 4 digits, so the same budget applies.)
+  power_msg_mains: "CHG"
+  power_msg_battery: "BATT"
+  power_msg_seconds: "3"
+
   # 3S pack thresholds, PACK volts (per-cell x3).
   battery_full_v: "12.6"      # 4.20 V/cell
   battery_low_v: "10.2"       # 3.40 V/cell - start warning

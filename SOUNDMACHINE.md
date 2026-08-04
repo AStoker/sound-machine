@@ -76,10 +76,26 @@ then holding and auto-off. An **Alarm** datetime fires the sunrise at a set time
 
 ### The display
 
-`packages/display.yaml` owns the HT16K33 7-seg. **`render_display` is the single
-writer**, rendering one of three things in priority order: a low-battery "LO"
+The display is **pluggable**: `packages/ambient.yaml` owns the device-agnostic
+layer (auto-dim, the transient text channels, the 1s tick) and exactly one
+display package provides `render_display`. The active one is
+`packages/matrix.yaml` (two tiled IS31FL3731 16x9 panels, 32x9 logical);
+`packages/display.yaml` keeps the original HT16K33 7-seg as a drop-in
+alternative.
+
+**`render_display` is the single writer**, rendering one thing in priority order:
+a message typed from Home Assistant → a **device status message** → a low-battery
 warning → a transient preset code (e.g. "S3", "L1") → the clock. The BH1750
 ambient-light sensor auto-dims it on a log curve tuned deliberately dark.
+
+Status messages are the channel for things the *device* wants to say rather than a
+code echoing a knob turn — today, "CHG" / "BATT" when the power source changes.
+They are drawn in the compact 3x5 font inside the **right-hand panel only**, which
+keeps them clear of the physical gap between the two panels; a word centred across
+both would lose a column of whichever glyph landed on the seam, and on a 3x5 glyph
+that can be fatal (a 'T' reduced to its top bar). The cost is a four-character
+budget — anything longer falls back to scrolling the full width, which takes far
+longer than anyone wants to watch for a status glance.
 
 ### Power & monitoring
 
@@ -87,6 +103,13 @@ ambient-light sensor auto-dims it on a log curve tuned deliberately dark.
 voltage, current, per-cell voltage, an estimated state-of-charge, a "charging"
 flag, and a latching "low battery" flag (with hysteresis so it can't chatter).
 The display and other logic key off those flags.
+
+"Charging" and "on mains" are **not** the same thing here: a full pack on the
+charger tapers to near-zero current, so the mains detector (`external_power`) is
+defined as *not discharging* rather than as charging. That flag is what drives the
+"CHARGING" / "BATTERY" announcement, so it is debounced by `ups_confirm_time`
+(30s) — the message lands about half a minute after the plug actually moves,
+which is the price of never crying "mains lost" at a healthy full battery.
 
 ### The control surface
 
