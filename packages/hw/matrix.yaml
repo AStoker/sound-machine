@@ -1,17 +1,17 @@
 # =====================================================================
-# HARDWARE: IS31FL3731 charlieplex 16x9 matrix (I2C) - the ACTIVE display driver
+# HARDWARE: IS31FL3731 charlieplex 16x9 matrix (I2C) - the display driver
 # [layer: hw]
 #
 # There is NO native ESPHome component for the IS31FL3731, so this drives it over
-# the shared I2C bus with raw register writes. It is one of two interchangeable
-# DISPLAY DRIVERS (the other is hw/seg7.yaml) - load exactly one, since both
-# provide `display_paint`.
+# the shared I2C bus with raw register writes.
 #
 # THIS FILE MAKES NO DECISIONS. It renders the frame that api/display.yaml
 # resolved, and it is the only place in the build that talks to the matrix.
 #   display_paint  - draw display_frame_text (or the clock, if that is empty)
 #                    at display_frame_level, honouring display_frame_scope.
-# See the FRAME contract at the top of packages/api/display.yaml.
+# See the FRAME contract at the top of packages/api/display.yaml. The frame's
+# values arrive already validated (level clamped, scroll rate bounded), so
+# nothing here re-checks them.
 #
 # SINGLE vs DUAL PANEL --------------------------------------------------------
 # One 16x9 panel is tight for a clock, so N panels are tiled side-by-side into
@@ -36,13 +36,20 @@
 # between them.
 #
 # WHY COMPACT SCOPE EXISTS ----------------------------------------------------
-# A COMPACT frame is drawn inside ONE panel (the right-hand one) rather than
-# centred across the whole display, so it can never straddle the gap. A word
-# centred across both panels loses one column of whichever glyph lands on the
-# dead column, which for a narrow 3x5 glyph can be fatal (a 'T' reduced to its
-# top bar). Nothing here has to know where the gap is. The tradeoff is a
-# 4-character budget - 15px at the 3x5 font's 4px pitch, inside 16 columns.
-# Longer COMPACT text falls back to scrolling the full width.
+# A COMPACT frame that FITS is drawn inside ONE panel (the right-hand one) rather
+# than centred across the whole display, so it cannot straddle the gap. A word
+# sitting STILL across both panels permanently loses one column of whichever glyph
+# lands on the dead column, which for a narrow 3x5 glyph can be fatal - a 'T'
+# reduced to its top bar. That is the whole reason for the scope, and it is why the
+# budget is 4 characters: 15px at the 3x5 font's 4px pitch, inside 16 columns.
+#
+# COMPACT TEXT THAT DOES NOT FIT SCROLLS THE FULL WIDTH, like anything else. The
+# seam stops mattering once the text is moving: each glyph loses its column only
+# while it is crossing the gap, and it is legible on both sides of it. A stationary
+# glyph is mangled for as long as it is up; a moving one is not. (An earlier pass
+# "fixed" this by confining a compact scroll to its own panel. That was a
+# regression - it made long status text crawl through 16 columns instead of 33 for
+# no benefit.) Nothing outside this file has to know where the gap is either way.
 #
 # CHIP MODEL (from Adafruit's Adafruit_IS31FL3731 base 16x9 class):
 #   - pixel (x,y) -> LED number  = x + y*16   (x: 0..15 cols, y: 0..8 rows)
@@ -55,14 +62,22 @@
 #   Function-bank registers: 0x00 config (0x00 = picture mode),
 #       0x01 picture-display-frame, 0x0A shutdown (0 = off, 1 = normal).
 #
-# DEFINES  display_paint (script), matrix_inited (global).
+# SELF-HEALING ----------------------------------------------------------------
+# The IS31FL3731 has no NVM. A glitch on the shared 5V rail returns it to its
+# power-on state: shut down, with every LED disabled. The PWM bursts a repaint
+# sends would then land on a chip that draws none of them, and the display would
+# stay dark for as long as the device stayed up. So the probe interval below reads
+# one enable register back and clears matrix_inited if the panel has forgotten
+# its configuration, which makes the next display_paint re-run the init.
+#
+# DEFINES  display_paint (script), matrix_inited (global), the config probe.
 # CONSUMES internal_i2c (device core), the frame globals from api/display.yaml,
 #          the matrix_* and display_scroll_* settings.
 # =====================================================================
 globals:
   # Panels are configured once, not every frame - a repaint only pushes PWM.
-  # Clearing this flag forces a re-init, which is how the driver recovers if a 5V
-  # glitch resets the chip (it has no NVM).
+  # Cleared by the probe below when a panel is found un-configured, which is what
+  # makes the next paint re-initialise it.
   - id: matrix_inited
     type: bool
     restore_value: no
@@ -106,12 +121,11 @@ script:
           }
 
           // ---- unpack the frame ----
-          // Lit-pixel PWM tracks the ambient auto-dim level (0..15), scaled into
-          // [matrix_pwm_min .. matrix_pwm_on] so the matrix dims at night and
-          // never fully blanks (the floor keeps digits readable).
-          int level = id(display_frame_level);
-          if (level < 0)  level = 0;
-          if (level > 15) level = 15;
+          // Lit-pixel PWM tracks the ambient auto-dim level (0..15, guaranteed by
+          // hw/ambient_light.yaml), scaled into [matrix_pwm_min .. matrix_pwm_on]
+          // so the matrix dims at night and never fully blanks (the floor keeps
+          // digits readable).
+          const int level = id(display_frame_level);
           const uint8_t PMIN = ${matrix_pwm_min};
           const uint8_t PMAX = ${matrix_pwm_on};
           const uint8_t ON = PMIN + (uint8_t)((PMAX - PMIN) * level / 15);
@@ -132,11 +146,12 @@ script:
           const int font_h = (font_w == 5) ? 7 : 5;
           const int pitch  = font_w + 1;               // one blank column between
           const int text_w = text.empty() ? 0 : ((int) text.size() * pitch - 1);
-          // Anything over budget scrolls rather than being clipped.
+          // Anything over budget scrolls rather than being truncated. A COMPACT
+          // frame's budget is one panel, and so is the window it scrolls inside.
           const int budget = compact ? 16 : WP;
           const bool scrolling = !text.empty() && text_w > budget;
-          int scroll_ms = id(display_scroll_ms);
-          if (scroll_ms < ${display_scroll_ms_per_px_min}) scroll_ms = ${display_scroll_ms_per_px_min};
+          // Bounded by display_set_scroll_speed, so it is used as given.
+          const int scroll_ms = id(display_scroll_ms);
           const uint32_t now_ms = millis();
           const int phase = (int) (now_ms / (uint32_t) scroll_ms);
 
@@ -167,7 +182,7 @@ script:
             for (int x = 0; x < 32; x++) fb[y][x] = 0;
 
           // Place a pixel by PHYSICAL column: map physical -> logical, dropping
-          // anything that falls in the inter-panel gap (a dead column).
+          // anything off the display or in the inter-panel gap (a dead column).
           auto set_px = [&](int px, int y) {
             if (px < 0 || px >= WP || y < 0 || y >= H) return;
             int p = px / BLK;
@@ -319,6 +334,10 @@ script:
             const int width = n * 4 - 1;
             draw_text_at(s, 3, 5, (PANELS - 1) * BLK + (16 - width) / 2, (H - 5) / 2);
           };
+          // Scrolls right-to-left across the WHOLE display, whatever the scope.
+          // Anything long enough to need scrolling gets the full width - see the
+          // note on compact scope in the header for why crossing the seam is fine
+          // once the text is moving.
           auto draw_text_scrolling = [&](const std::string &s, int gw, int gh, int step) {
             const int n = (int) s.size();
             if (n == 0) return;
@@ -328,6 +347,8 @@ script:
           };
 
           if (!text.empty()) {
+            // Scrolling wins over scope: once text is too long to sit still it
+            // gets the whole display, compact or not.
             if (scrolling)     draw_text_scrolling(text, font_w, font_h, phase);
             else if (compact)  draw_text_in_panel(text);
             else               draw_text_centered(text, font_w, font_h);
@@ -361,5 +382,40 @@ script:
                 burst[1 + j] = fb[n / 16][p * 16 + (n % 16)];
               }
               id(internal_i2c).write(addr, burst, sizeof(burst));
+            }
+          }
+
+interval:
+  # CONFIG PROBE - the self-healing path described in the header. Reads back the
+  # first LED-enable register (0x00 in frame bank 0, which init sets to 0xFF) and
+  # clears matrix_inited if a panel has forgotten it, so the next display_paint
+  # re-initialises. Without this a chip reset leaves the display dark for good.
+  #
+  # Costs one 1-byte register read per panel. The bank does not need selecting
+  # first: init leaves bank 0 current, and a chip that has reset is back on bank 0
+  # anyway - so either the read lands on the register we mean or the panel needs
+  # re-initialising regardless.
+  #
+  # A BUS ERROR IS NOT A RESET. If the read fails outright the panel is not
+  # answering at all, and re-initialising cannot help; blanket-treating that as
+  # "needs init" would thrash 74 register writes per probe against a dead or
+  # missing board. Only a panel that answers with the WRONG value is repaired.
+  - interval: ${matrix_probe_interval}
+    then:
+      - lambda: |-
+          if (!id(matrix_inited)) return;          // already due for an init
+          const int     PANELS  = ${matrix_panels};
+          const uint8_t ADDR[2] = {(uint8_t)${matrix_address},
+                                   (uint8_t)${matrix_address_2}};
+          for (int p = 0; p < PANELS; p++) {
+            const uint8_t reg = 0x00;              // LED enable, LEDs 0..7
+            uint8_t value = 0;
+            if (id(internal_i2c).write_readv(ADDR[p], &reg, 1, &value, 1) != i2c::ERROR_OK)
+              continue;                            // not answering; see above
+            if (value != 0xFF) {
+              ESP_LOGW("matrix", "panel %d lost its configuration (enable reg = 0x%02X); "
+                                 "re-initialising", p, value);
+              id(matrix_inited) = false;
+              return;
             }
           }

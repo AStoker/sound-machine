@@ -4,11 +4,14 @@
 # Turns lux into ONE abstract brightness level, 0..15, and publishes it as
 # `ambient_level`. That is the whole interface: nothing downstream sees lux.
 #
-# Why an abstract level rather than a percentage: it started as the HT16K33's
-# 4-bit brightness register and stayed, because every consumer wants a coarse
-# "how dark is the room" and none of them share units. The matrix scales it into
-# a PWM range, the 7-seg writes it straight to its register, and the knob
-# indicator scales it into a brightness ceiling.
+# Why an abstract 0..15 level rather than lux or a percentage: every consumer
+# wants a coarse "how dark is the room" and none of them share units. The matrix
+# scales it into a PWM range and the knob indicator scales it into a brightness
+# ceiling; neither should have to know how the other reads the room.
+#
+# THE RANGE IS THE CONTRACT: this file is the only writer, and it clamps to
+# 0..15 before publishing. Consumers may index or scale by it directly - they do
+# not re-clamp, and adding a clamp downstream would just hide a bug here.
 #
 # The lux -> level curve is HARDWARE INTERPRETATION, which is why it lives here
 # and not in a behavior package: it is about how eyes respond to light, not about

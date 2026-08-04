@@ -34,7 +34,7 @@ hardware behind it, which is what makes the invariants enforceable:
 
 | api file | is the only writer of | key verbs |
 |---|---|---|
-| `api/display.yaml`   | the loaded display driver | `display_show_code`, `display_show_status`, `display_set_alert`, `display_show_message` |
+| `api/display.yaml`   | the display driver        | `display_show_code`, `display_show_status`, `display_set_alert`, `display_show_message` |
 | `api/sound.yaml`     | the audio chain           | `noise_play`, `noise_stop`, `media_*`, `volume_apply`, `sound_duck`/`sound_unduck` |
 | `api/light.yaml`     | the crescent strip        | `crescent_off`, `crescent_static`, `crescent_effect` |
 | `api/indicator.yaml` | the knob NeoPixel         | `indicator_set_hue`, `indicator_flash`, `indicator_glow_set` |
@@ -70,12 +70,19 @@ touches anything that talks to a bus.
 | `on_knob_turn(clicks)` / `on_knob_tap` / `on_knob_hold` | `hw/knob.yaml` | `behavior/sound.yaml` |
 | `on_touch_tap` / `on_touch_hold` | `hw/touch.yaml` | `behavior/light.yaml` |
 | `on_hand_near_changed` | `hw/proximity.yaml` | `behavior/sound.yaml` |
-| `on_power_state_changed` | `hw/power.yaml` | `behavior/power.yaml` |
+| `on_external_power_changed` / `on_battery_low_changed` | `hw/power.yaml` | `behavior/power.yaml` |
 | `on_audio_ready` | `api/sound.yaml` | `behavior/sound.yaml` |
 
 These are hard dependencies: ESPHome resolves script ids at validate time, so
 dropping a `behavior/` file whose events are still raised fails the build. That
 is deliberate — it is the compiler telling you a contract is unmet.
+
+**One event per fact, not one event per subsystem.** `hw/power.yaml` raises a
+separate event for each of its two sensors. It used to share one, and the handler
+then had to reconstruct *what* had changed from sensor state — which cost a
+`has_state()` guard, an extra global, and a paragraph of explanation. A
+binary_sensor's `on_state` is already edge-triggered, so one event per sensor
+makes "this changed" the event itself.
 
 ## Things worth knowing before you edit
 
@@ -93,15 +100,26 @@ like any other, so the tiny device YAML on Home Assistant can override any value
 in it. ESPHome merges packages *before* it expands `${...}`, which is why a
 setting defined in one file is usable in all of them.
 
-**Exactly one display driver.** `hw/matrix.yaml` and `hw/seg7.yaml` both provide
-`display_paint`; load one. Swap the `hw_display:` line in the manifest — nothing
-else changes, because no other file knows which display exists.
+**The display is split across two files, and not for pluggability.**
+`api/display.yaml` decides *what* to show — priority between four competing
+sources, expiry, clock formatting — and `hw/matrix.yaml` draws it. There is one
+display and no plan for another; the split earns its keep because those are two
+unrelated problems, and merging them would bury 60 lines of policy in the middle
+of 300 lines of fonts and register bursts.
 
-**The display drivers must self-throttle.** `api/display.yaml` ticks several
-times a second and calls `display_paint` every time. A driver is expected to hash
-or compare what it is about to draw and return before touching I2C when nothing
-changed. ~300 bytes on this 100 kHz bus is ~30 ms of bus time, on a bus that had
-to be slowed down for the XVF3800 in the first place.
+**The driver must self-throttle.** `api/display.yaml` ticks several times a
+second and calls `display_paint` every time. The driver hashes what it is about to
+draw and returns before touching I2C when nothing changed. ~300 bytes on this
+100 kHz bus is ~30 ms of bus time, on a bus that had to be slowed down for the
+XVF3800 in the first place.
+
+**Chips with no NVM repair themselves.** The matrix, the seesaw's NeoPixel and the
+amp all lose their configuration to a glitch on the shared 5V rail, and in every
+case the symptom is silent (a dark display, a dead pixel, an amp with its AGC
+back on). Each one re-asserts: `hw/matrix.yaml` probes an enable register on a
+tick, `api/indicator.yaml` re-sends the pin config whenever the pixel settles at
+black, `hw/audio_chain.yaml` re-writes the amp's four registers on a tick. If you
+add an I2C part that has to be configured, give it one of these.
 
 **The crescent's pixel count is not a setting.** It is derived from the enclosure
 geometry and lives in `hw/crescent.yaml`. `3d-print/check_docs.py` fails the
@@ -114,9 +132,9 @@ build if it drifts from `3d-print/enclosure_geom.py`. See the note in
 |---|---|
 | tune a number | `settings.yaml`, in the matching section |
 | add a sensor or chip | a new `hw/` file; raise events, don't handle them |
-| let something new drive the display | call an `api/display.yaml` verb — never a driver |
-| add a light preset | a branch in `behavior/light.yaml` + bump `light_preset_count` |
+| let something new drive the display | call an `api/display.yaml` verb — never `display_paint` |
+| add a display channel | a row in `api/display.yaml`'s priority table + a setter |
+| add a light preset | an option in `behavior/light.yaml`'s select + a row in its colour table |
 | add a noise colour | an option in `behavior/sound.yaml`'s Sound select |
 | add a flashed track | a `files:` entry in `hw/audio_chain.yaml` + a `media_play_*` verb in `api/sound.yaml` + an option in `behavior/sound.yaml` |
 | change what a button does | the event handler in `behavior/` — the `hw/` file stays put |
-| swap the display | one line in the manifest |

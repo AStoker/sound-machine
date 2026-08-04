@@ -2,7 +2,7 @@
 
 Physical hardware for the Sound Machine (the "Faux Hatch"): a bedside smart
 sound machine inspired by the Hatch Restore form factor — noise, voice
-assistant, sunrise light, 7-seg clock, and environmental sensing.
+assistant, sunrise light, LED-matrix clock, and environmental sensing.
 
 This file is the single reference for *what the parts are and how they connect*.
 For **why the firmware is shaped the way it is**, see [`CLAUDE.md`](CLAUDE.md).
@@ -111,12 +111,32 @@ source of truth; `gen_drawing.py` prints the table on every run.
 
 | Block | Part | Notes |
 |-------|------|-------|
-| Clock | **Adafruit HT16K33 4-digit 7-segment** ([#1002](https://www.adafruit.com/product/1002)) | I2C `0x70`. **Now an OPTIONAL alternative** to the matrix display — the matrix is the active clock (see Optional/experimental). Driven by **raw I2C writes** (init + rendering both in `packages/hw/seg7.yaml`), not a stock ESPHome display platform. Auto-dims from the BH1750. Load `hw/seg7.yaml` *or* `hw/matrix.yaml`, never both. |
+| Clock | **2× IS31FL3731 charlieplex 16×9 matrix** ([#2946](https://www.adafruit.com/product/2946), STEMMA QT / I2C) | `0x74` (left) + `0x75` (right), tiled into one 32×9 display. No native ESPHome component, so `packages/hw/matrix.yaml` drives it with **raw I2C register writes**. Auto-dims from the BH1750 via `ambient_level`. The second board needs its **ADDR jumper** moved off `0x74` (`0x75`/`0x76`/`0x77`) — set `matrix_address_2` to match. |
 
-**Power note (open item):** the HT16K33 is a 5V part on a shared 3.3V-logic I2C
-bus. Best practice is to power it from a **dedicated 3.3V LDO off the 5V rail**,
-*not* the XIAO's 3V3 pin, to avoid loading/level issues on the bus. Confirm the
-as-built wiring matches this.
+**Chip model.** Pixel `(x,y)` → LED `x + y*16`; PWM byte at `0x24 + LED`
+(144 LEDs); LED-enable regs `0x00–0x11`; bank select via command reg `0xFD`
+(`0x00` = frame 0, `0x0B` = function/config).
+
+**Single vs dual.** `matrix_panels: "1"` brings up the left panel alone with a
+compact 3×5 font; `"2"` gives the full 32×9 display with a 5×7 font for a real
+clock. Horizontal tiling: panel *p* owns logical columns `[16p … 16p+15]`. In
+single mode the second address is never touched, so an unwired 2nd board causes
+no I2C errors — bring one panel up first.
+
+**Inter-panel gap.** Two panels butted together leave a physical ~1-pixel dead
+column between them (`matrix_panel_gap`, default 1). The renderer lays content out
+in *physical* columns (gap included) and maps back to logical columns per draw, so
+the clock stays centred across the seam and 2-character codes fall one per panel.
+Adjust `matrix_panel_gap` if your panels sit farther apart or flush.
+
+**No NVM.** A glitch on the shared 5V rail returns the panels to their power-on
+state — shut down, all LEDs disabled — and nothing would report it. The driver
+reads an enable register back every `matrix_probe_interval` and re-initialises any
+panel that has forgotten its configuration.
+
+What it shows, and in what order, is not this file's business: `api/display.yaml`
+owns that (**message → status → alert → code → clock**) and hands the driver a
+resolved frame.
 
 ---
 
@@ -256,7 +276,7 @@ Notes:
   locally to ~1.6 mm behind each pad.
 - **Watch for false triggers:** the shoulders are also where you grip the device
   to move it. If that bites, require a short hold rather than a tap.
-- No SPI is used (the old MAX7219 display was replaced by the I2C HT16K33).
+- No SPI is used (the old MAX7219 display was replaced by the I2C matrix).
 
 ---
 
@@ -266,9 +286,9 @@ Notes:
 |------|--------|-|------|--------|
 | `0x18` | AIC3104 codec | | `0x58` | TPA2016 amp |
 | `0x23` | BH1750 ambient light | | `0x68` | DS3231 RTC |
-| `0x29` | VL53L0X ToF *(planned)* | | `0x70` | HT16K33 clock |
-| `0x2C` | XVF3800 | | `0x41`? | UPS INA219 *(placeholder)* |
-| `0x36` | seesaw encoder | | `0x74` | IS31FL3731 matrix *(optional)* |
+| `0x29` | VL53L0X ToF | | `0x41`? | UPS INA219 *(placeholder)* |
+| `0x2C` | XVF3800 | | `0x74` | IS31FL3731 matrix (left) |
+| `0x36` | seesaw encoder | | `0x75` | IS31FL3731 matrix (right) |
 
 **Bus tuning:** the bus runs at **100 kHz** with a **1 ms timeout**. The slower
 edges tolerate the extra cable capacitance and pull-ups from the STEMMA sensor
@@ -296,29 +316,8 @@ everything reconnected, drop toward 10 kHz.
 
 ## Optional / experimental
 
-- **IS31FL3731 charlieplex 16×9 matrix** (`0x74`, STEMMA QT / I2C): **now the
-  active clock display** (the HT16K33 7-seg is kept as a drop-in alternative —
-  see the Display section). No native ESPHome component, so `packages/hw/matrix.yaml`
-  drives it with raw-I2C register writes. Pixel `(x,y)` → LED `x + y*16`; PWM byte
-  at `0x24 + LED` (144 LEDs); enable regs `0x00–0x11`; bank select via command
-  reg `0xFD` (`0x00` = frame 0, `0x0B` = function/config). It renders, in priority
-  order, a low-battery **"LO"** warning → transient **preset code** (S1–S3 / L1–L3
-  / OFF) → the live **RTC clock** (12h, blank leading zero, solid colon), driven
-  by the shared tick in `api/display.yaml` and auto-dimmed via `ambient_level`.
-  A "Matrix: redraw" button forces a re-init after a glitch.
-  - **Single vs dual:** the package tiles N panels side-by-side into one logical
-    framebuffer (16·N wide × 9). `matrix_panels: "1"` brings up the left panel
-    alone with a compact 3×5 font; `"2"` gives a 32×9 display with a 5×7 font for
-    a real clock. Horizontal tiling: panel *p* owns logical columns
-    `[16p … 16p+15]`. A second board needs its **ADDR jumper** moved off `0x74`
-    (`0x75`/`0x76`/`0x77`) — set `matrix_address_2` to match. In single mode the
-    second address is never touched, so an unwired 2nd board causes no I2C errors.
-  - **Inter-panel gap:** two panels butted together leave a physical ~1-pixel
-    dead column between them (`matrix_panel_gap`, default 1). The renderer lays
-    content out in *physical* columns (gap included) and maps back to logical
-    columns per draw, so the clock stays centred across the seam and 2-char codes
-    fall one-per-panel. Raise/lower `matrix_panel_gap` if your panels sit farther
-    apart or flush.
+*(The IS31FL3731 matrix used to live here as an experiment. It is the shipped
+clock display now — see the Display section.)*
 
 ---
 

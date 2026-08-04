@@ -24,7 +24,7 @@ combines:
   robust enough to be heard *over* playing noise.
 - **A sunrise light** — an SK6812 crescent that simulates dawn to wake you, plus
   static nightlight / reading presets.
-- **A clock** — a 7-segment display that auto-dims to near-black at 3 a.m.
+- **A clock** — a tiled LED matrix that auto-dims to near-black at 3 a.m.
 - **Environmental sensing** — ambient light (live), with a time-of-flight
   touchless wake planned.
 - **A physical control surface** — a rotary encoder (volume + sound) and a
@@ -77,13 +77,12 @@ then holding and auto-off. An **Alarm** datetime fires the sunrise at a set time
 ### The display
 
 The display is **pluggable**: `packages/api/display.yaml` owns the whole
-device-agnostic layer (the content channels and their priority, expiring them,
-formatting the clock, the tick) and resolves all of it into a *frame*. Exactly one
-driver renders that frame by providing `display_paint`. The active one is
-`packages/hw/matrix.yaml` (two tiled IS31FL3731 16x9 panels, 32x9 logical);
-`packages/hw/seg7.yaml` keeps the original HT16K33 7-seg as a drop-in
-alternative — and, because the driver makes no decisions, the swap is one line in
-the package manifest.
+policy layer (the content channels and their priority, expiring them, formatting
+the clock, the tick) and resolves all of it into a *frame*. `packages/hw/matrix.yaml`
+renders that frame by providing `display_paint`, and decides nothing. The split is
+not there so the display can be swapped — it is there because choosing what to
+show and drawing it are unrelated problems, and merging them would bury the
+policy in the middle of 300 lines of fonts and register bursts.
 
 **The api layer is the single writer**, resolving one thing in priority order:
 a message typed from Home Assistant → a **device status message** → a sticky
@@ -237,9 +236,8 @@ knob-pixel feature degrades gracefully to volume-only if the sensor is absent.
 **AEC / channel-assignment bench test.** Wake-word-over-playing-noise still needs
 a proper bench validation with the final channel assignment.
 
-**Confirm as-built power wiring.** The HT16K33 should be powered from a dedicated
-**3.3V LDO off the 5V rail** (not the XIAO 3V3 pin) to avoid loading the shared
-bus; and the brownout-fix bulk capacitance should be confirmed installed.
+**Confirm as-built power wiring.** The brownout-fix bulk capacitance should be
+confirmed installed.
 
 **Enclosure geometry.** The five-part frame is designed, but the **bottom plate
 geometry** was historically blocked on the battery-retention decision — now that

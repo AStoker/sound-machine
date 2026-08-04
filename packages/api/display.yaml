@@ -3,18 +3,25 @@
 #
 # The one and only way anything in this device puts something on the clock
 # display. Nothing outside this file names a display id, a font, a panel or a
-# pixel; nothing outside the loaded DRIVER touches the display's I2C address.
+# pixel; nothing outside the DRIVER touches the display's I2C address.
 #
 #          behavior/*  ->  display_show_* (here)  ->  display_paint (driver)
+#
+# WHY THIS IS A SEPARATE FILE FROM THE DRIVER. Not for pluggability - there is
+# exactly one display and no plan for another. The split is that deciding WHAT to
+# show is a completely different problem from drawing it: priority between four
+# competing sources, expiry, and clock formatting are pure policy over strings,
+# while hw/matrix.yaml is 300 lines of fonts, panel geometry and register
+# bursts. Merged, the policy would be buried in the middle of the renderer and
+# every change to either would be a change to one 500-line file.
 #
 # WHAT THIS LAYER OWNS
 #   * the four content CHANNELS below and their priority,
 #   * expiring the timed ones,
-#   * building the clock (so 12h/24h formatting exists in ONE place, not once
-#     per display driver, which is how the two drivers used to drift),
+#   * building the clock, so 12h/24h formatting lives in one place,
 #   * the single heartbeat that keeps all of the above honest.
 #
-# WHAT A DRIVER OWNS
+# WHAT THE DRIVER OWNS
 #   * one script, `display_paint`, which renders the resolved FRAME below and
 #     nothing else. It makes no decisions about what to show.
 #
@@ -32,18 +39,25 @@
 # THE FRAME - the driver's entire input:
 #   display_frame_text   text to render; EMPTY means render the clock
 #   display_frame_scope  0 = WIDE: may use the whole display and the roomy font
-#                        1 = COMPACT: must fit the 4-character budget, static,
-#                            and must not straddle a physical panel seam
+#                        1 = COMPACT: if it FITS, it must sit still somewhere it
+#                            cannot straddle a physical panel seam. Text past the
+#                            budget scrolls the full width like any other - see
+#                            "WHY COMPACT SCOPE EXISTS" in hw/matrix.yaml. So
+#                            scope is a hint about layout, not a promise about
+#                            width: keep compact strings to 4 characters if you
+#                            want them static.
 #   display_frame_clock  4 chars, '_' = blank slot, e.g. "_930". EMPTY means the
 #                        clock is not readable and the driver should say so.
-#   display_frame_level  0..15 brightness, from the ambient auto-dim
-#   display_scroll_ms    ms per pixel for any text too wide for its scope
+#   display_frame_level  0..15 brightness, from the ambient auto-dim. Already
+#                        clamped - the driver uses it as-is.
+#   display_scroll_ms    ms per pixel for any text too wide for its scope.
+#                        Already bounded by display_set_scroll_speed.
 #
 # DEFINES  the channel globals, the frame globals, display_show_message,
 #          display_show_status, display_show_code, display_set_alert,
 #          display_set_scroll_speed, display_refresh, and the display tick.
 # CONSUMES ds3231_time (hw/rtc), ambient_level (hw/ambient_light),
-#          display_paint (the loaded display driver).
+#          display_paint (hw/matrix.yaml).
 # =====================================================================
 globals:
   # ---- channel state ----
@@ -111,13 +125,19 @@ script:
   # rather than waiting up to one tick.
 
   # A Home Assistant authored message. WIDE scope: long text scrolls.
+  # This is the only channel fed by free text, so it is the only one that trims:
+  # a trailing space is invisible but still occupies a glyph cell, which would
+  # push centred text off-centre. Callers should not have to know that.
   - id: display_show_message
     parameters:
       text: string
       seconds: int
     then:
       - lambda: |-
-          id(display_message_text) = text;
+          std::string trimmed = text;
+          const size_t end = trimmed.find_last_not_of(' ');
+          trimmed = (end == std::string::npos) ? std::string() : trimmed.substr(0, end + 1);
+          id(display_message_text) = trimmed;
           id(display_message_until_ms) = millis() + (uint32_t) (seconds > 0 ? seconds : 1) * 1000u;
       - script.execute: display_refresh
 
@@ -152,6 +172,9 @@ script:
       - lambda: 'id(display_alert_text) = text;'
       - script.execute: display_refresh
 
+  # The one place the scroll rate is bounded, so the driver can use the value
+  # without re-checking it. Repaints like its siblings, so dragging the slider in
+  # Home Assistant changes the speed of a scroll already in progress.
   - id: display_set_scroll_speed
     parameters:
       milliseconds: int
@@ -161,6 +184,7 @@ script:
           if (ms < ${display_scroll_ms_per_px_min}) ms = ${display_scroll_ms_per_px_min};
           if (ms > ${display_scroll_ms_per_px_max}) ms = ${display_scroll_ms_per_px_max};
           id(display_scroll_ms) = ms;
+      - script.execute: display_refresh
 
   # ---- resolve + paint ----
   # Turns the channels into the frame, then hands the frame to the driver. This
@@ -170,33 +194,38 @@ script:
       - lambda: |-
           const uint32_t now_ms = millis();
 
-          // A timed channel is live while it holds text AND its stamp is still
-          // in the future. Expired text is cleared here rather than merely
-          // ignored - see the note on the globals above.
-          auto live = [&](std::string &text, uint32_t until) {
-            if (text.empty()) return false;
-            if ((int32_t) (until - now_ms) > 0) return true;
-            text.clear();
-            return false;
+          // PRIORITY IS THIS LIST, in order. Each entry is (text, expiry, scope);
+          // a null expiry means the channel is sticky and never times out. Adding
+          // a channel is a row here plus a setter above - there is no cascade of
+          // branches to extend and no second place that encodes the order.
+          //
+          // The code channel is WIDE on purpose: on a dual panel a 2-character
+          // code lands one glyph per panel with the seam between them, which
+          // reads well. Status and alert are COMPACT so they stay off the seam.
+          struct Channel { std::string *text; uint32_t *until; int scope; };
+          const Channel channels[] = {
+            {&id(display_message_text), &id(display_message_until_ms), 0},  // WIDE
+            {&id(display_status_text),  &id(display_status_until_ms),  1},  // COMPACT
+            {&id(display_alert_text),   nullptr,                       1},  // COMPACT, sticky
+            {&id(display_code_text),    &id(display_code_until_ms),    0},  // WIDE
           };
 
-          if (live(id(display_message_text), id(display_message_until_ms))) {
-            id(display_frame_text)  = id(display_message_text);
-            id(display_frame_scope) = 0;                        // WIDE
-          } else if (live(id(display_status_text), id(display_status_until_ms))) {
-            id(display_frame_text)  = id(display_status_text);
-            id(display_frame_scope) = 1;                        // COMPACT
-          } else if (!id(display_alert_text).empty()) {
-            id(display_frame_text)  = id(display_alert_text);
-            id(display_frame_scope) = 1;                        // COMPACT
-          } else if (live(id(display_code_text), id(display_code_until_ms))) {
-            // WIDE on purpose: on a dual panel a 2-character code lands one
-            // glyph per panel with the seam between them, which reads well.
-            id(display_frame_text)  = id(display_code_text);
-            id(display_frame_scope) = 0;
-          } else {
-            id(display_frame_text).clear();                     // -> clock
-            id(display_frame_scope) = 0;
+          // Nothing live -> empty text, which the driver reads as "draw the clock".
+          id(display_frame_text).clear();
+          id(display_frame_scope) = 0;
+          for (const Channel &channel : channels) {
+            if (channel.text->empty())
+              continue;
+            // A timed channel is live while its stamp is still in the future.
+            // Expired text is CLEARED rather than merely skipped - see the note
+            // on the globals above for why that matters past 24.8 days of uptime.
+            if (channel.until != nullptr && (int32_t) (*channel.until - now_ms) <= 0) {
+              channel.text->clear();
+              continue;
+            }
+            id(display_frame_text)  = *channel.text;
+            id(display_frame_scope) = channel.scope;
+            break;
           }
 
           // The clock, built once for whichever driver is loaded. '_' marks a
@@ -215,10 +244,9 @@ script:
           }
           id(display_frame_clock) = clock;
 
-          int level = id(ambient_level);
-          if (level < 0)  level = 0;
-          if (level > 15) level = 15;
-          id(display_frame_level) = level;
+          // Passed straight through: hw/ambient_light.yaml is the only writer and
+          // clamps to 0..15 there. Re-clamping here would only hide a bug in it.
+          id(display_frame_level) = id(ambient_level);
       - script.execute: display_paint
 
 interval:

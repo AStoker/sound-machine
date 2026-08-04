@@ -43,7 +43,7 @@ CHAIN = [
     ("TPA2016 amp",     "0x58", _AMP_WHERE,                 "live"),
     ("BH1750 lux",      "0x23", "rear wall, light pipe",    "live"),
     ("seesaw encoder",  "0x36", "crown, under the knob",    "live"),
-    ("VL53L0X ToF",     "0x29", "crown, right of the knob", "PLANNED, no entity"),
+    ("VL53L0X ToF",     "0x29", "crown, right of the knob", "live"),
     ("IS31FL3731 #1",   "0x74", "front module, left panel", "live"),
     ("IS31FL3731 #2",   "0x75", "front module, right panel", "ADDR jumper moved"),
 ]
@@ -262,10 +262,10 @@ def build():
        "per-pad thresholds. GPIO2/D1 (TOUCH2) is kept free as the escape")
     nl("    hatch - splitting to two channels is one wire at the MCU plus a "
        "few lines of YAML. Calibrate with esp32_touch: setup_mode: true.")
-    nl("i   HT16K33 7-seg is the OPTIONAL alternative to the matrix. If you "
-       "fit it, give it a dedicated 3.3 V LDO off the 5 V rail -")
-    nl("    not the XIAO's 3V3 pin - and load the display package instead of "
-       "matrix, never both.")
+    nl("i   Matrix is TWO IS31FL3731 panels on the STEMMA chain, 0x74 and "
+       "0x75 - move the second board's ADDR jumper off 0x74. Bring")
+    nl("    one panel up first (matrix_panels: 1); the second address is "
+       "never touched until then, so an unwired board is harmless.")
     o.append(g("NOTES", L, 60.0, 430.0))
 
     o.append(title_block(

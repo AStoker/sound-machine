@@ -1,7 +1,7 @@
 # =====================================================================
 # SMART SOUND MACHINE - device core and package manifest
 #
-# A bedside sound machine on a ReSpeaker Flex (XVF3800 + XIAO ESP32-S3 Plus):
+# A bedside sound machine on a ReSpeaker Flex (XVF3800 + XIAO ESP32-S3):
 # white/pink/brown noise, a voice assistant, an LED-matrix clock, an SK6812
 # sunrise crescent, a rotary knob, and UPS battery monitoring.
 #
@@ -38,11 +38,10 @@ packages:
   hw_touch: !include packages/hw/touch.yaml
   hw_proximity: !include packages/hw/proximity.yaml
   hw_power: !include packages/hw/power.yaml
-  # DISPLAY DRIVER - load exactly ONE. Both provide `display_paint`, so loading
-  # both collides. The matrix is the active display; the 7-seg is a drop-in
-  # alternative kept working for anyone who built the earlier revision.
-  hw_display: !include packages/hw/matrix.yaml
-  # hw_display: !include packages/hw/seg7.yaml
+  # The display driver: the only thing in the build that talks to the panels.
+  # It provides `display_paint` and nothing else - what to SHOW is decided one
+  # layer up, in api/display.yaml.
+  hw_matrix: !include packages/hw/matrix.yaml
 
   # ---- API: the abstraction layer. The only writers of their hardware. ----
   api_display: !include packages/api/display.yaml
@@ -63,12 +62,13 @@ esphome:
   # No on_boot here. Boot work belongs to whichever package owns the thing being
   # brought up, so that dropping the package drops its boot step too:
   #   api/sound.yaml   waits for the audio stack, then raises on_audio_ready
-  #   hw/seg7.yaml     runs the HT16K33 power-on sequence (only if loaded)
   #   hw/matrix.yaml   self-initialises inside display_paint
 
 esp32:
   board: esp32-s3-devkitc-1
-  flash_size: 8MB   # 8MB for the regular XIAO ESP32-S3, 16MB for the Plus
+  # 8MB matches the standard XIAO ESP32-S3, which is what this build targets (see
+  # HARDWARE.md). Raise to 16MB ONLY if the board is the "Plus" variant.
+  flash_size: 8MB
   framework:
     type: esp-idf
 

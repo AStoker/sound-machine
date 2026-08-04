@@ -95,7 +95,7 @@ light:
     # Hard current ceiling: caps max PWM to led_max_pct of full scale, so the
     # strip physically can't exceed that current no matter what HA commands.
     # Sized against the UPS 5V/5A rail with the amp at full tilt - see the power
-    # budget in settings.yaml section 8.
+    # budget in settings.yaml section 7.
     color_correct:            # block style: ${} can't live inside a [ ] flow list
       - ${led_max_pct}
       - ${led_max_pct}
@@ -112,13 +112,15 @@ light:
       # cool white over an ADJUSTABLE duration (the "Sunrise Duration" number
       # above). Holds the final keyframe when done, then asks for auto-off.
       - addressable_lambda:
-          name: "Circadian Sunrise"
+          # Named from settings so behavior/light.yaml can ask for it without
+          # re-typing the string - a mismatch there is a silent no-op at runtime.
+          name: "${sunrise_effect_name}"
           update_interval: ${sunrise_update_interval}
           lambda: |-
             // ============ THE ROW LAYOUT (see the header warning) ============
             // LEDs per row, DATA-LINE order, BOTTOM row first. Sum == num_leds.
             // FLATTENED half-ellipse crescent, 89 x 62.7 semi-axes. 16.5mm pitch
-            // ALONG a row; rows are 11.0 apart, NOT 16.5 -- the grid is
+            // ALONG a row; rows are 10.4 apart, NOT 16.5 -- the grid is
             // deliberately not square, see the note on the light above. The flat
             // side is down, so the widest row is row 0. Row counts are limited by
             // whichever binds first: the LED body staying inside the diffuser, or

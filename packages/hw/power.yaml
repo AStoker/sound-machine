@@ -11,9 +11,13 @@
 # charge curve, the debounces - is hardware interpretation and belongs here.
 # What to DO about a flat pack or a pulled plug is policy: behavior/power.yaml.
 #
-# INPUT EVENT RAISED
-#   on_power_state_changed  - fired whenever external_power or battery_low
-#                            publishes. Read the two sensors for the new state.
+# INPUT EVENTS RAISED - one per fact, NOT one shared event. Both sensors used to
+# call a single on_power_state_changed, which left the handler unable to tell what
+# had actually happened and reconstructing it from sensor state. A binary_sensor's
+# on_state is already edge-triggered (ESPHome drops a publish that repeats the
+# current state), so one event per sensor means "this changed" is the event.
+#   on_external_power_changed  - the jack went live or dead
+#   on_battery_low_changed     - the low-battery latch tripped or cleared
 #
 # !! THE ADDRESS AND SHUNT VALUE ARE PLACEHOLDERS !! Boot with the UPS connected,
 # read the I2C scan in the logs, and set ups_i2c_address to whatever unclaimed
@@ -44,7 +48,8 @@
 #          battery_shunt_voltage, battery_oc_voltage, battery_level,
 #          battery_cell_voltage, battery_charging, external_power, battery_low.
 # CONSUMES internal_i2c (device core), the ups_* / battery_* settings.
-# REQUIRES script on_power_state_changed (behavior/power.yaml).
+# REQUIRES scripts on_external_power_changed / on_battery_low_changed
+#          (behavior/power.yaml).
 # =====================================================================
 sensor:
   - platform: ina219
@@ -93,7 +98,7 @@ sensor:
   # where SOC dived under load and "recovered" when it stopped.
   #
   # An EMA on top keeps the number from twitching on single noisy samples.
-  # ups_internal_resistance is THE value worth tuning - settings.yaml section 10
+  # ups_internal_resistance is THE value worth tuning - settings.yaml section 9
   # has the procedure.
   - platform: template
     name: "Battery Compensated Voltage"
@@ -212,7 +217,7 @@ binary_sensor:
       - delayed_on: ${ups_confirm_time}
       - delayed_off: ${ups_confirm_time}
     on_state:
-      - script.execute: on_power_state_changed
+      - script.execute: on_external_power_changed
 
   # Latching low-battery flag with hysteresis: trips at battery_low_pct and will
   # not clear until SOC climbs battery_low_clear_gap points past it. Without the
@@ -230,4 +235,4 @@ binary_sensor:
         return pct < (${battery_low_pct} + ${battery_low_clear_gap}.0f);
       return pct <= ${battery_low_pct};
     on_state:
-      - script.execute: on_power_state_changed
+      - script.execute: on_battery_low_changed

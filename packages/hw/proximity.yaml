@@ -4,7 +4,8 @@
 # Mounted on the crown just right of the knob, looking up (see HARDWARE.md).
 # Reports METRES. Its whole job is answering one question - "is a hand over the
 # knob?" - which is hardware interpretation, so the debounce lives here. What to
-# DO about a nearby hand is policy and lives in behavior/light.yaml.
+# DO about a nearby hand is policy and lives in behavior/sound.yaml, with the rest
+# of the knob's behaviour.
 #
 # NOTHING DEPENDS ON THIS SENSOR. If the board is absent or unwired the component
 # marks itself failed at setup, publishes nothing, hand_near stays false, and
@@ -18,7 +19,7 @@
 # DEFINES  knob_distance (sensor), knob_proximity (binary_sensor),
 #          hand_near (global) + its two sample counters.
 # CONSUMES internal_i2c (device core), the tof_* settings.
-# REQUIRES script on_hand_near_changed (behavior/light.yaml).
+# REQUIRES script on_hand_near_changed (behavior/sound.yaml).
 # =====================================================================
 globals:
   # The debounced verdict. This, not the raw distance, is what consumers read.

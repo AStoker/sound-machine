@@ -5,8 +5,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this is
 
 ESPHome firmware for a bedside smart sound machine built on a ReSpeaker Flex
-(XVF3800 + XIAO ESP32-S3): white/pink/brown noise, a voice assistant, a HT16K33
-7-seg clock, an SK6812 sunrise crescent, and Waveshare UPS battery monitoring.
+(XVF3800 + XIAO ESP32-S3): white/pink/brown noise, a voice assistant, an
+IS31FL3731 LED-matrix clock, an SK6812 sunrise crescent, and Waveshare UPS
+battery monitoring.
 
 The config is designed to be **hosted on GitHub and pulled by Home Assistant as
 a remote ESPHome package** — this constraint shapes several non-obvious design
@@ -73,7 +74,7 @@ and a "where do I add a thing" table. The summary below is orientation only.
 | Path | Holds |
 | --- | --- |
 | `soundmachine.yaml` | device core only: platform, wifi/api/ota, the `i2c` bus, `external_components`, and the `packages:` manifest. No tunables, no feature logic, no `on_boot`. |
-| `packages/settings.yaml` | **every tunable in the build**, grouped into 13 documented sections. The single place to change a value. |
+| `packages/settings.yaml` | **every tunable in the build**, grouped into 12 documented sections. The single place to change a value. |
 | `packages/hw/*.yaml` | one file per physical part. Component config, register-level talk, and *hardware interpretation* (lux → level, metres → "hand near", volts → SOC). No policy. |
 | `packages/api/*.yaml` | one file per subsystem. The abstraction layer, and the **only writer** of the hardware behind it. Everything else calls its verbs. |
 | `packages/behavior/*.yaml` | operational logic: presets, gestures, announcements, boot restores, and the Home Assistant control surface. Decides; never touches hardware. |
@@ -93,16 +94,19 @@ each id must be defined exactly once. Top-level list keys (`sensor:`, `script:`,
 2. **Hardware raises events; behavior implements them.** `hw/knob.yaml` calls
    `on_knob_turn(clicks)`; `behavior/sound.yaml` defines it. Same for
    `on_touch_tap`/`on_touch_hold`, `on_hand_near_changed`,
-   `on_power_state_changed`, `on_audio_ready`. Script ids resolve at validate
-   time, so an unmet contract is a build error, by design.
+   `on_external_power_changed`/`on_battery_low_changed`, `on_audio_ready`. Script
+   ids resolve at validate time, so an unmet contract is a build error, by design.
+   Raise **one event per fact**, not one per subsystem — a shared event forces the
+   handler to work out what changed.
 
-**The display is pluggable.** `api/display.yaml` owns the whole display-agnostic
-layer — four content channels and their priority, expiring the timed ones,
-formatting the clock, and the single tick — and resolves them into a *frame*
-(`display_frame_*` globals). The active driver provides one script,
-`display_paint`, which renders that frame and makes no decisions. Load exactly
-one driver (`hw/matrix.yaml` **or** `hw/seg7.yaml`); both define `display_paint`,
-so loading both collides. Swap the `hw_display:` line in the manifest.
+**The display is two files, split by concern rather than for pluggability.**
+`api/display.yaml` decides *what* to show — four content channels and their
+priority, expiring the timed ones, formatting the clock, and the single tick —
+and resolves them into a *frame* (`display_frame_*` globals). `hw/matrix.yaml`
+provides one script, `display_paint`, which renders that frame and makes no
+decisions. There is one display and no plan for another; the split stands because
+policy over strings and 300 lines of fonts/panel geometry/register bursts are
+unrelated problems.
 
 **Custom C++ components** in `components/` (`noise_source`, `seesaw`, `tpa2016`)
 follow standard ESPHome layout (`__init__.py` codegen + `.h`/`.cpp`). `seesaw`
@@ -131,11 +135,11 @@ what you are buying.
 
 Cross-file invariants worth knowing before changing behavior:
 - **Display is single-owner, in two stages.** `api/display.yaml` is the only
-  caller of `display_paint`, and the loaded driver
-  (`packages/hw/matrix.yaml` today, or `packages/hw/seg7.yaml` for the 7-seg) is
-  the only code that touches the display's I2C address. Priority lives in the api
-  layer, once, rather than being re-implemented per driver: **message → status →
-  alert → code → clock**. Nothing else writes the display; callers use a channel:
+  caller of `display_paint`, and `packages/hw/matrix.yaml` is the only code that
+  touches the display's I2C address. Priority is a table in the api layer —
+  **message → status → alert → code → clock** — so adding a channel is a row
+  plus a setter, not a new branch. Nothing else writes the display; callers use
+  a channel:
   - `display_show_code(text)` — short codes ("L1", "S3", "OFF", a volume
     percentage) from a user action.
   - `display_show_status(text, seconds)` — timed device announcements (today:
@@ -143,17 +147,18 @@ Cross-file invariants worth knowing before changing behavior:
   - `display_set_alert(text)` — a *sticky* condition; pass `""` to clear (today:
     the low-battery warning).
   - `display_show_message(text, seconds)` — Home-Assistant-authored text.
-- **Drivers must self-throttle.** The api ticks at `display_tick_ms` (250 ms) and
-  calls `display_paint` every time; each driver hashes or compares what it is
-  about to draw and returns before touching I2C when nothing changed. ~300 bytes
-  on this 100 kHz bus is ~30 ms of bus time.
-- **4 characters is the budget for the COMPACT channels** (status and alert). The
-  matrix draws them inside a SINGLE panel (the right-hand one) in the compact 3x5
-  font, so they can never straddle the inter-panel gap — which is why no
-  seam-alignment logic is needed. 4 chars = 15px inside 16 columns. Longer strings
-  still work but fall back to scrolling the full width, and a pass takes far
-  longer than the few seconds a status is meant to occupy. The 7-seg alternative
-  has 4 digits, so the same budget happens to apply there.
+- **The driver must self-throttle.** The api ticks at `display_tick_ms` (250 ms)
+  and calls `display_paint` every time; the driver hashes what it is about to draw
+  and returns before touching I2C when nothing changed. ~300 bytes on this 100 kHz
+  bus is ~30 ms of bus time.
+- **4 characters is the budget for the COMPACT channels** (status and alert). A
+  compact string that fits sits still inside one panel, where it cannot straddle
+  the inter-panel gap — a stationary glyph on the seam permanently loses a column.
+  Anything longer scrolls the **full width**, like any other overflowing text: the
+  seam stops mattering once the text is moving. So exceeding the budget is not
+  broken, just slow — a scrolling pass takes far longer than the few seconds a
+  status is meant to occupy. Full rationale in `packages/hw/matrix.yaml` under
+  "WHY COMPACT SCOPE EXISTS"; that file is the one place it is spelled out.
 - **The matrix has a physical inter-panel gap.** Two tiled panels aren't
   seamless — there's a ~1px dead column between them (`matrix_panel_gap`). The
   matrix lays content out in *physical* columns that include the gap and maps

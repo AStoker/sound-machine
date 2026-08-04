@@ -40,8 +40,9 @@
 globals:
   # The pixel's pin/length/speed are configured on the seesaw once, then only
   # colour bytes are sent. Cleared on the way to black so a seesaw brownout reset
-  # is repaired on the next wake (the chip has no NVM) - the same self-healing
-  # idea as matrix_inited in hw/matrix.yaml.
+  # is repaired on the next wake (the chip has no NVM). hw/matrix.yaml solves the
+  # same problem the other way round - it probes a register on a tick - because
+  # its display is never idle, so it has no "on the way to black" moment to hook.
   - id: indicator_inited
     type: bool
     restore_value: no
@@ -152,9 +153,8 @@ interval:
 
           // ---- how bright may it get? Follows the same ambient auto-dim the
           //      clock uses, because this pixel sits 60cm from a face at 3am too.
-          int ambient = id(ambient_level);
-          if (ambient < 0) ambient = 0;
-          if (ambient > 15) ambient = 15;
+          //      0..15 is guaranteed by hw/ambient_light.yaml, its only writer.
+          const int ambient = id(ambient_level);
           float ceiling = SCALE_MIN + (SCALE_MAX - SCALE_MIN) * (ambient / 15.0f);
           // NB: named 'intensity', not 'output' - esphome::output is a namespace
           // and main.cpp has `using namespace esphome`, so a local of that name

@@ -5,35 +5,45 @@
 # that starts the sunrise. Colours and brightnesses come from settings.yaml and
 # are applied through api/light.yaml verbs, so nothing here names the strip.
 #
-# THE DISPATCHER PATTERN, same as sound: the "Crescent Preset" select is the one
-# place a preset is applied. The touch pad and the alarm just drive that select.
+# THE SELECT IS THE STATE. "Crescent Preset" is both the one place a preset is
+# applied AND the record of which one is active - its option INDEX is the preset
+# number (0 = Off, 1 = Sunrise, 2 = Nightlight, 3 = Morning Light). The touch pad
+# and the alarm just drive the select.
 #
-# ADDING A PRESET: add the option name, add a branch to the set_action, and bump
-# light_preset_count so the cycle reaches it. Static presets are a one-line
-# crescent_static() call; a dynamic one needs an effect in hw/crescent.yaml and a
-# "(Dynamic)" name prefix by convention.
+# That matters more than it looks. An earlier version kept a `light_preset` int
+# global alongside the select, plus a `light_preset_count` setting, plus an
+# int->name map for the cycle and a name->int map in the set_action: four places
+# encoding one ordered list. They had already drifted - a reboot left the global
+# holding a preset the select and the light itself disagreed with, so the first
+# tap afterwards jumped to Sunrise instead of resuming. The select knows its own
+# options, their order and how many there are, so all four collapse into
+# active_index() / size() / index_of() and the list exists once, below.
+#
+# ADDING A PRESET: add the option name, and a row to PRESETS in the set_action.
+# The cycle, the code shown on the display and resume-from-off all follow. A
+# dynamic (animated/timed) preset also needs an effect in hw/crescent.yaml, a
+# "(Dynamic)" name prefix by convention, and a branch where the sunrise is.
 #
 # IMPLEMENTS the hardware input contract from hw/touch.yaml:
 #   on_touch_tap / on_touch_hold
 #
-# DEFINES  light_preset, light_preset_last (globals), light_preset_select,
-#          light_next, light_off, alarm_time, alarm_enabled, and the touch
-#          handlers.
+# DEFINES  light_preset_last (global), light_preset_select, light_next,
+#          light_off, alarm_time, alarm_enabled, and the touch handlers.
 # CONSUMES api/light (crescent_off, crescent_static, crescent_effect),
 #          api/display (display_show_code).
 # =====================================================================
 globals:
-  # Which preset is active: 0 = Off, 1 = Sunrise (dynamic), 2 = Nightlight,
-  # 3 = Morning Light. Persisted so a reboot can resume.
-  - id: light_preset
-    type: int
-    restore_value: yes
-    initial_value: '0'
-  # Last non-off preset, so turning the light back on restores what was showing.
+  # The last ON preset, as an option index, so turning the light back on restores
+  # what was showing. The CURRENT preset is deliberately not stored here - it is
+  # the select's own index (see the header).
+  #
+  # Not persisted, because the select starts Off every boot and never forces the
+  # light on: a value restored from before the reboot would only describe a light
+  # that is not lit. After a cold boot the first tap opens the default below.
   - id: light_preset_last
     type: int
-    restore_value: yes
-    initial_value: '1'
+    restore_value: no
+    initial_value: '1'          # Sunrise
 
 script:
   # ---- touch pad ----
@@ -44,34 +54,30 @@ script:
     then:
       - script.execute: light_off
 
-  # Tap: advance among the ON presets (1..light_preset_count). From Off it
-  # RESUMES the last one rather than restarting at 1. Off is only reachable by a
-  # hold, so cycling never lands on darkness by accident.
+  # Tap: advance among the ON presets (1..N). From Off it RESUMES the last one
+  # rather than restarting at 1. Off is index 0 and only reachable by a hold, so
+  # cycling never lands on darkness by accident.
   - id: light_next
     then:
       - lambda: |-
-          const int current = id(light_preset);
-          id(light_preset) = (current < 1) ? id(light_preset_last)
-                                           : (current % ${light_preset_count}) + 1;
-      - select.set:
-          id: light_preset_select
-          option: !lambda |-
-            switch (id(light_preset)) {
-              case 2: return std::string("Nightlight");
-              case 3: return std::string("Morning Light");
-              default: return std::string("(Dynamic) Sunrise");
-            }
+          auto *select = id(light_preset_select);
+          const size_t on_count = select->size() - 1;      // every option except Off
+          const size_t current = select->active_index().value_or(0);
+          const size_t next = (current == 0) ? (size_t) id(light_preset_last)
+                                            : (current % on_count) + 1;
+          select->make_call().set_index(next).perform();
 
   - id: light_off
     then:
-      - select.set:
+      - select.set_index:
           id: light_preset_select
-          option: "Off"
+          index: 0
 
 select:
-  # Off plus the presets. Dynamic (animated/timed) presets are prefixed
-  # "(Dynamic)". The Crescent Light entity stays available for custom colour and
-  # brightness alongside this.
+  # Off plus the presets, IN CYCLE ORDER. This list is the source of truth for the
+  # order, the count, and the "L<n>" code each preset shows. Dynamic
+  # (animated/timed) presets are prefixed "(Dynamic)". The Crescent Light entity
+  # stays available for custom colour and brightness alongside this.
   - platform: template
     name: "Crescent Preset"
     id: light_preset_select
@@ -80,38 +86,42 @@ select:
     restore_value: false          # start Off each boot; never force the light on
     initial_option: "Off"
     options:
-      - "Off"
-      - "(Dynamic) Sunrise"
-      - "Nightlight"
-      - "Morning Light"
+      - "Off"                     # 0
+      - "(Dynamic) Sunrise"       # 1
+      - "Nightlight"              # 2
+      - "Morning Light"           # 3
     set_action:
       - lambda: |-
-          const std::string selection = x;
-          std::string code;
-          if (selection == "Off") {
-            id(light_preset) = 0;
+          // index_of(x), not active_index(): the select has not published the new
+          // option yet at this point in the call.
+          const auto slot = id(light_preset_select)->index_of(x);
+          if (!slot.has_value()) return;                   // unknown option
+          const size_t preset = *slot;
+
+          if (preset == 0) {
             id(crescent_off)->execute();
-            code = "OFF";
-          } else if (selection == "(Dynamic) Sunrise") {
-            id(light_preset) = 1;
-            id(crescent_effect)->execute("Circadian Sunrise");
-            code = "L1";
-          } else if (selection == "Nightlight") {
-            id(light_preset) = 2;
-            id(crescent_static)->execute(${nightlight_red}f, ${nightlight_green}f,
-                                         ${nightlight_blue}f, ${nightlight_brightness}f);
-            code = "L2";
-          } else if (selection == "Morning Light") {
-            id(light_preset) = 3;
-            id(crescent_static)->execute(${morning_red}f, ${morning_green}f,
-                                        ${morning_blue}f, ${morning_brightness}f);
-            code = "L3";
-          } else {
-            return;                            // unknown option: do nothing
+            id(display_show_code)->execute("OFF");
+            return;
           }
-          // Remember the last ON preset so a later "turn back on" restores it.
-          if (id(light_preset) > 0) id(light_preset_last) = id(light_preset);
-          id(display_show_code)->execute(code);
+          id(light_preset_last) = (int) preset;
+
+          // Static presets are a colour and a brightness indexed by preset
+          // number, which is why adding one is a row here and nothing else. Rows
+          // 0 and 1 are placeholders so the table lines up with the option list:
+          // 0 is Off and 1 is the dynamic sunrise, and neither reads a colour.
+          static const float PRESETS[][4] = {
+            {0, 0, 0, 0},
+            {0, 0, 0, 0},
+            {${nightlight_red}f, ${nightlight_green}f, ${nightlight_blue}f, ${nightlight_brightness}f},
+            {${morning_red}f,    ${morning_green}f,    ${morning_blue}f,    ${morning_brightness}f},
+          };
+          if (preset == 1)
+            id(crescent_effect)->execute("${sunrise_effect_name}");
+          else
+            id(crescent_static)->execute(PRESETS[preset][0], PRESETS[preset][1],
+                                         PRESETS[preset][2], PRESETS[preset][3]);
+
+          id(display_show_code)->execute("L" + std::to_string(preset));
 
 # ---------------------------------------------------------------------
 # ALARM - a timed preset trigger. Fires the Sunrise at a set time of day, gated

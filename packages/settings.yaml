@@ -15,16 +15,15 @@
 #   1. Device identity + credentials
 #   2. Buses and pins (I2C addresses, I2S, GPIO)
 #   3. Ambient light (the shared auto-dim level)
-#   4. Display service (display-agnostic: channels, clock, message widths)
+#   4. Display service (content channels, clock, message widths)
 #   5. Matrix driver (IS31FL3731)
-#   6. 7-segment driver (HT16K33)
-#   7. Audio chain (amp, noise, volume, ducking, voice)
-#   8. Crescent light (strip, presets, sunrise, alarm)
-#   9. Knob indicator + proximity
-#  10. Power / UPS monitoring
-#  11. Gestures (shared tap/hold timings)
-#  12. Media sources
-#  13. Logging
+#   6. Audio chain (amp, noise, volume, ducking, voice)
+#   7. Crescent light (strip, presets, sunrise, alarm)
+#   8. Knob indicator + proximity
+#   9. Power / UPS monitoring
+#  10. Gestures (shared tap/hold timings)
+#  11. Media sources
+#  12. Logging
 #
 # CONVENTION: a value that is DERIVED from something else (the LED row layout,
 # the IS31FL3731's register map) is NOT a substitution - it lives next to the
@@ -82,7 +81,6 @@ substitutions:
   i2c_addr_seesaw: "0x36"            # rotary encoder + its NeoPixel
   i2c_addr_amp: "0x58"               # TPA2016 amplifier
   i2c_addr_rtc: "0x68"               # DS3231 real-time clock
-  i2c_addr_seg7: "0x70"              # HT16K33 7-seg (alternative display)
 
   # ---- I2S (pins fixed by the Flex's internal routing - do not change) ----
   pin_i2s_ws: GPIO7                  # D8, LRCLK
@@ -107,7 +105,8 @@ substitutions:
   ambient_update_interval: 5s
   ambient_lux_dark: "3"              # at/below this lux -> ambient_level_min
   ambient_lux_bright: "500"          # at/above this lux -> ambient_level_max
-  ambient_level_min: "0"             # the HT16K33's hardware floor (1/16 duty)
+  ambient_level_min: "0"             # floor of the scale; the matrix maps this
+                                     # onto matrix_pwm_min, never to fully dark
   ambient_level_max: "14"
   # Curve shape between the two anchors. >1 holds the low end down; 1.0 would be
   # a straight log ramp, which leaves an ordinary lamp-lit room too bright.
@@ -118,8 +117,7 @@ substitutions:
 
   # ===================================================================
   # 4. DISPLAY SERVICE (packages/api/display.yaml)
-  # Display-AGNOSTIC settings: they apply whether the matrix or the 7-seg is
-  # loaded. Per-device settings are in sections 5 and 6.
+  # What gets SHOWN and for how long. How it is drawn is section 5.
   # ===================================================================
   # One heartbeat drives everything the display does: expiring timed channels,
   # advancing a scroll, and picking up the minute rolling over. It is safe to
@@ -132,15 +130,12 @@ substitutions:
   # How long a transient CODE ("L1", "S3", "OFF", a volume percentage) stays up.
   display_code_seconds: "2"
 
-  # ---- The 4-CHARACTER BUDGET for compact channels (status + alert) ----
-  # The matrix draws a compact message inside a SINGLE panel (the right-hand
-  # one) so it can never straddle the physical inter-panel gap, which would eat
-  # a column of whichever glyph landed on the seam. In the 3x5 font that is a
-  # 4-character budget (4 chars = 15px inside 16 columns). Longer strings still
-  # work - they fall back to scrolling the full width - but a scrolling pass
-  # takes far longer than the few seconds a status is meant to occupy. The 7-seg
-  # alternative has 4 digits, so the same budget happens to apply there. KEEP
-  # THE STRINGS BELOW TO 4 CHARACTERS.
+  # ---- KEEP THE STRINGS BELOW TO 4 CHARACTERS ----
+  # The COMPACT channels (status + alert) get one 16-column panel, which is 4
+  # glyphs of the 3x5 font. Longer strings still work but scroll, and a scrolling
+  # pass takes far longer than the few seconds a status is meant to occupy. The
+  # full rationale - why compact text is confined to one panel at all - is in
+  # packages/hw/matrix.yaml under "WHY COMPACT SCOPE EXISTS".
   #
   # Power-source announcements, raised when External Power flips (charger in or
   # out). Gated on ups_confirm_time, so the message lands ~30s after the plug
@@ -181,17 +176,16 @@ substitutions:
   matrix_pwm_on: "40"                # lit-pixel PWM at full ambient (0..255)
   matrix_pwm_min: "3"                # lit-pixel PWM floor at the darkest end.
                                      # Never 0 - digits must stay readable.
+  # How often the driver checks that the panels still hold the configuration it
+  # wrote them. The IS31FL3731 has no NVM, so a glitch on the 5V rail returns it
+  # to its power-on state - blanked, with every LED disabled - and it would then
+  # sit dark forever while the driver happily kept pushing PWM at it. The probe
+  # is a 1-byte register read per panel, so this is cheap to run often; the
+  # ceiling on how long a reset display could stay dark is this interval.
+  matrix_probe_interval: 10s
 
   # ===================================================================
-  # 6. 7-SEGMENT DRIVER - HT16K33 (the alternative display)
-  # Only read when packages/hw/seg7.yaml is the loaded display.
-  # ===================================================================
-  # Brightness sent during the power-on sequence, before the first ambient
-  # reading lands. 0xE0 | level, so 0xE7 is mid scale.
-  seg7_boot_brightness: "0xE7"
-
-  # ===================================================================
-  # 7. AUDIO CHAIN
+  # 6. AUDIO CHAIN
   # ===================================================================
   # The audio stack is not safe to drive until well after setup: starting the
   # noise generator during setup dereferenced an uninitialized event group and
@@ -213,6 +207,12 @@ substitutions:
   # point at 5V. It should NEVER engage in normal use - it is a fault stop, not
   # a dynamics tool.
   amp_limiter_dbv: "9.0"
+  # How often the amp's registers are re-written. The amp has no NVM, so a glitch
+  # on the 5V rail returns it to factory defaults - AGC back ON, which quietly
+  # breaks the XVF3800's echo canceller and has no other symptom. Four verified
+  # register writes, so this is affordable to repeat; the interval is the longest
+  # the device could run mis-configured.
+  amp_reassert_interval: 60s
 
   # ---- Noise generator ----
   noise_gain: "30%"                  # base amplitude; leaves headroom so noise
@@ -247,7 +247,7 @@ substitutions:
   duck_reply_end_timeout: 30s
 
   # ===================================================================
-  # 8. CRESCENT LIGHT - SK6812 strip, presets, sunrise, alarm
+  # 7. CRESCENT LIGHT - SK6812 strip, presets, sunrise, alarm
   # NOTE: the pixel COUNT and row layout are NOT here. They are derived from the
   # enclosure geometry and live in packages/hw/crescent.yaml, checked by
   # 3d-print/check_docs.py. See the coupling note in CLAUDE.md.
@@ -278,11 +278,15 @@ substitutions:
   morning_red: "1.0"
   morning_green: "0.55"
   morning_blue: "0.15"
-  # How many ON presets the cycle walks (1..N). Off is reached by a long-press,
-  # not by cycling through it.
-  light_preset_count: "3"
+  # NOTE: there is no preset COUNT here. How many presets the tap gesture cycles
+  # is derived from the Crescent Preset select's own option list in
+  # packages/behavior/light.yaml - see the CONVENTION note at the top of this file.
 
   # ---- Circadian Sunrise (the one dynamic preset) ----
+  # The effect's name, shared so that hw/crescent.yaml (which declares the effect)
+  # and behavior/light.yaml (which asks for it by name) cannot drift apart. A
+  # mismatch would otherwise be a silent runtime no-op, not a build error.
+  sunrise_effect_name: "Circadian Sunrise"
   sunrise_default_minutes: "30"      # dawn ramp length. 30 min is the typical
                                      # dawn-simulation protocol in the research.
   sunrise_default_hold: "10"         # bright hold, in minutes, before auto-off
@@ -302,7 +306,7 @@ substitutions:
   touch_debounce: 40ms
 
   # ===================================================================
-  # 9. KNOB INDICATOR + PROXIMITY
+  # 8. KNOB INDICATOR + PROXIMITY
   # ===================================================================
   # ---- The NeoPixel inside the rotary encoder ----
   # Colour = volume (blue quiet -> green mid -> red loud), lit by turning the
@@ -345,7 +349,7 @@ substitutions:
                                      # dropped reading must not blink the pixel.
 
   # ===================================================================
-  # 10. POWER / UPS MONITORING - Waveshare UPS Module 3S (3x 18650 series)
+  # 9. POWER / UPS MONITORING - Waveshare UPS Module 3S (3x 18650 series)
   # ===================================================================
   # !! PLACEHOLDER !! The monitor chip's address is UNCONFIRMED. Run the boot
   # I2C scan with the UPS connected and look for an address that isn't already
@@ -401,7 +405,7 @@ substitutions:
   battery_low_clear_gap: "10"
 
   # ===================================================================
-  # 11. GESTURES - shared by the knob switch and the touch pad, so both
+  # 10. GESTURES - shared by the knob switch and the touch pad, so both
   # physical controls feel the same. Read by packages/hw/{knob,touch}.yaml.
   # ===================================================================
   gesture_tap_max: 0.8s              # a press shorter than this is a tap
@@ -409,7 +413,7 @@ substitutions:
   gesture_hold_min: 1s               # a press longer than this is a hold
 
   # ===================================================================
-  # 12. MEDIA SOURCES
+  # 11. MEDIA SOURCES
   # ===================================================================
   # ESPHome resolves a LOCAL `file:` path against the config dir of whatever
   # machine runs the build. When this config is pulled onto Home Assistant as a
@@ -421,7 +425,7 @@ substitutions:
   la_la_sad_source: "https://raw.githubusercontent.com/astoker/sound-machine/main/sounds/La-la-sad.mp3"
 
   # ===================================================================
-  # 13. LOGGING
+  # 12. LOGGING
   # ===================================================================
   log_level: DEBUG                   # drop to INFO once everything is stable
   # The ToF sensor logs every reading. WARN hides that per-reading spam; set to

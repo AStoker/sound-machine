@@ -2,33 +2,32 @@
 # BEHAVIOR: the Home Assistant authored message  [layer: behavior]
 #
 # Type a string in Home Assistant, press a button, and it appears on the display
-# for a configurable time, scrolling if it does not fit. Four entities, no
-# hardware: the text is handed to api/display.yaml's message channel, which is why
-# this works unchanged on either display (the 7-seg simply truncates to four
-# characters - see hw/seg7.yaml).
+# for a configurable time, scrolling if it does not fit. Four entities and no
+# state of its own: the button reads the other three and hands the text to
+# api/display.yaml's message channel.
+#
+# NOTHING IS MIRRORED INTO A GLOBAL. An earlier version kept a
+# `display_message_pending` global holding a filtered copy of the text and a
+# `display_message_duration_s` global shadowing the (already persisted) number
+# entity, each maintained by a set_action. Both were second copies of state the
+# entities already hold, so they could disagree; the button reads the entities.
+#
+# NEITHER IS THE TEXT FILTERED. It used to be folded to upper case and screened
+# against an allow-list of drawable characters - a list the comment admitted was
+# a copy of the glyph tables in hw/matrix.yaml. That is a driver's business, and
+# the driver already does it: hw/matrix.yaml's glyph lookups fold case on entry
+# and return a blank for anything they cannot draw. Trimming trailing spaces is
+# the one part that mattered (a trailing space still occupies a glyph cell and
+# would push centred text off-centre) and that now lives in display_show_message,
+# where it applies to whatever is drawing.
 #
 # The entity NAMES still say "Matrix" for continuity: renaming them would change
-# their Home Assistant entity_ids and break anyone's dashboard or automation. The
-# feature itself is display-agnostic.
+# their Home Assistant entity_ids and break anyone's dashboard or automation.
 #
-# DEFINES  display_message_pending, display_message_duration_s (globals),
-#          display_message_input, display_message_duration, display_scroll_speed,
+# DEFINES  display_message_input, display_message_duration, display_scroll_speed,
 #          display_message_show.
 # CONSUMES api/display (display_show_message, display_set_scroll_speed).
 # =====================================================================
-globals:
-  # The composed, filtered text, waiting for the Show button. Kept separate from
-  # api/display's live channel so editing the text does not disturb whatever is
-  # currently on screen.
-  - id: display_message_pending
-    type: std::string
-    restore_value: no
-    initial_value: '""'
-  - id: display_message_duration_s
-    type: int
-    restore_value: yes
-    initial_value: '${display_message_duration_default}'
-
 text:
   - platform: template
     name: "Matrix Message"
@@ -37,25 +36,6 @@ text:
     optimistic: true
     mode: text
     max_length: 64
-    set_action:
-      - lambda: |-
-          // Fold to upper case and drop anything the fonts cannot draw, replacing
-          // it with a space rather than silently deleting it - so the text stays
-          // the length the user typed and the omission is visible. The allowed set
-          // mirrors the glyph tables in hw/matrix.yaml.
-          std::string filtered;
-          filtered.reserve(x.size());
-          for (char ch : x) {
-            if (ch >= 'a' && ch <= 'z') ch = (char) (ch - 'a' + 'A');
-            const bool allowed =
-              (ch >= 'A' && ch <= 'Z') ||
-              (ch >= '0' && ch <= '9') ||
-              ch == ' ' || ch == '-' || ch == '_' || ch == '.' ||
-              ch == '!' || ch == '?' || ch == ':';
-            filtered.push_back(allowed ? ch : ' ');
-          }
-          while (!filtered.empty() && filtered.back() == ' ') filtered.pop_back();
-          id(display_message_pending) = filtered;
 
 number:
   - platform: template
@@ -70,15 +50,11 @@ number:
     step: 1
     mode: box
     initial_value: ${display_message_duration_default}
-    set_action:
-      - lambda: |-
-          int seconds = (int) x;
-          if (seconds < ${display_message_duration_min}) seconds = ${display_message_duration_min};
-          if (seconds > ${display_message_duration_max}) seconds = ${display_message_duration_max};
-          id(display_message_duration_s) = seconds;
+    # No set_action: min_value/max_value already bound the entity, and the button
+    # reads .state directly, so there is nothing to copy anywhere or re-clamp.
 
   # Scroll rate for any text too wide for its channel. Owned by api/display.yaml
-  # because the drivers need it; this is just the knob for it.
+  # because the driver needs it; this is just the knob for it.
   - platform: template
     name: "Matrix Scroll ms per px"
     id: display_scroll_speed
@@ -106,5 +82,5 @@ button:
       # clears anything currently showing and falls back to the clock.
       - script.execute:
           id: display_show_message
-          text: !lambda 'return id(display_message_pending);'
-          seconds: !lambda 'return id(display_message_duration_s);'
+          text: !lambda 'return id(display_message_input).state;'
+          seconds: !lambda 'return (int) id(display_message_duration).state;'

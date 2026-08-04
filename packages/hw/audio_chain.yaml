@@ -13,7 +13,7 @@
 #          announcement_resampling_speaker, media_resampling_speaker,
 #          mixing_speaker + its three inputs (announcement/media/noise), noise,
 #          la_la_sad (flashed media file), external_media_player, respeaker,
-#          mic_mute_switch.
+#          mic_mute_switch, and the amp's configuration re-assert tick.
 # CONSUMES internal_i2c (device core), the audio settings.
 # WRITTEN BY api/sound.yaml ONLY. Nothing else starts, stops, ducks or
 #          re-levels this chain; behavior packages go through that api. Reading
@@ -38,8 +38,9 @@
 #     compression must reach 1:1 BEFORE the gain is set, because disabling
 #     compression narrows the legal gain range from -28..30 dB to 0..30 dB. Set
 #     gain first and it gets clamped - people end up with a silent amp this way.
-#   * The chip has no NVM. A glitch on the 5V rail returns it to factory
-#     defaults (AGC back on); id(amp).apply() rewrites it.
+#   * The chip has no NVM. A glitch on the 5V rail returns it to factory defaults
+#     - which means AGC back ON, silently. The interval below re-asserts the
+#     configuration so that state cannot persist; see the note on it.
 # ---------------------------------------------------------------------
 tpa2016:
   id: amp
@@ -50,6 +51,22 @@ tpa2016:
   limiter: true
   limiter_level: ${amp_limiter_dbv}
   noise_gate: false
+
+interval:
+  # RE-ASSERT THE AMP CONFIGURATION. The failure this exists for is silent: the
+  # amp comes back from a rail glitch with its AGC enabled, and the only symptom
+  # is that the echo canceller stops working and wake-word-over-noise starts
+  # failing. Nothing would report it.
+  #
+  # apply() is four register writes, each verified by readback, and it is
+  # idempotent - the component exposes it publicly for exactly this. Re-writing
+  # blindly is the right shape here rather than probing first: the probe would
+  # cost the same readbacks that apply() already does.
+  - interval: ${amp_reassert_interval}
+    then:
+      - lambda: |-
+          if (!id(amp)->apply())
+            ESP_LOGW("tpa2016", "re-assert failed - amp may be on factory defaults (AGC ON)");
 
 # ---------------------------------------------------------------------
 # I2S to/from the XVF3800. The pins are fixed by the Flex's routing, and the

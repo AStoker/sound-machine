@@ -1,7 +1,7 @@
 # Sound Machine
 
 ESPHome firmware for a bedside smart sound machine built on a ReSpeaker Flex
-(XVF3800 + XIAO ESP32-S3): white/pink/brown noise, voice assistant, a 7-seg
+(XVF3800 + XIAO ESP32-S3): white/pink/brown noise, voice assistant, an LED-matrix
 clock, an SK6812 sunrise crescent, and battery/UPS monitoring.
 
 ## Layout

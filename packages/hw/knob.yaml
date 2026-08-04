@@ -69,7 +69,7 @@ binary_sensor:
     id: knob_press
     name: "Knob Press"
     # Tap and hold timings are shared with the touch pad (see settings.yaml
-    # section 11) so both physical controls feel the same.
+    # section 10) so both physical controls feel the same.
     on_multi_click:
       - timing:
           - ON for at most ${gesture_tap_max}

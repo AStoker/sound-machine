@@ -90,6 +90,20 @@ must("packages/hw/crescent.yaml", rf"leds_per_row\[\] = {row_re}", "row array")
 must("packages/hw/crescent.yaml", rf"{g.LED_PITCH}mm", "measured LED pitch")
 must("packages/hw/crescent.yaml", rf"{g.LED_ROW_PITCH}, NOT", "row pitch")
 
+# >>> PRESENCE IS NOT ENOUGH, and this file learned that the hard way. must()
+# >>> above passed for months while crescent.yaml ALSO carried "rows are 11.0
+# >>> apart" in the effect's own comment block -- the one the header points at as
+# >>> the authority for the row layout. Both sentences were in the same file. A
+# >>> rule that only asks "is the right number in here somewhere" cannot see the
+# >>> wrong one sitting next to it, so the row pitch gets a staleness rule too.
+# >>> Derived, not hard-coded, for the reason spelled out under _stale_px below.
+_stale_row_pitch = "|".join(
+    f"{v / 10:.1f}" for v in range(90, 171) if abs(v / 10 - g.LED_ROW_PITCH) > 1e-9
+)
+for d in ("packages/hw/crescent.yaml", "HARDWARE.md", "3d-print/README.md"):
+    must_not(d, rf"\b(?:{_stale_row_pitch})\s*(?:mm\s*)?(?:apart|, NOT)\b",
+             f"a row pitch other than {g.LED_ROW_PITCH}")
+
 # ------------------------------------------------------------------- docs
 must("HARDWARE.md", rf"\*\*{g.CRES_PX} pixels\*\*", "pixel count")
 must("HARDWARE.md", rf"{g.W} × {g.D:g} × {g.H:.1f}", "envelope")
