@@ -86,7 +86,7 @@ Every solid is watertight, one connected body, and fits a 220 bed.
 >
 > Both ramps are verified by deletion: remove either and the audit fails.
 
-Envelope: **202 × 64 × 155.7**. Both printed parts fit a **220 bed whole** — the
+Envelope: **202 × 79 × 155.7**. Both printed parts fit a **220 bed whole** — the
 front module used to be 250.8 wide and had to split; rotating the speakers and
 lifting the mic array removed the need. See "Printing it on a 220 bed".
 

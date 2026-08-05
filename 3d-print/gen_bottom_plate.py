@@ -171,6 +171,33 @@ def write_stl(solid, name):
     return len(F)
 
 
+# ---------------------------------------------------------------------------
+# INTO THE ASSEMBLY'S HANDEDNESS
+# ---------------------------------------------------------------------------
+# >>> THIS PART WAS MODELLED AS THE MIRROR OF THE PART THE DOME NEEDS, and every
+# >>> check agreed with it because every check compared NUMBERS instead of
+# >>> POSITIONS.
+# >>>
+# >>> The two frames are different and nothing said so:
+# >>>     dome   (x = width, y = HEIGHT,    z = DEPTH)
+# >>>     plate  (x = width, y = DEPTH,     z = THICKNESS)
+# >>> The mapping between them that everything implicitly assumed is the swap
+# >>> (x, y, z) -> (x, z, y), whose determinant is -1. That is a REFLECTION. It is
+# >>> not something you can do to a printed part.
+# >>>
+# >>> Only a proper rotation is physically achievable, and every proper rotation
+# >>> that lines these two frames up NEGATES one of the two swapped axes:
+# >>>   * keep the underside down (mandatory -- the counterbores and foot pockets
+# >>>     are on it) -> DEPTH REVERSES: a feature at depth d lands at D - d.
+# >>>   * keep depth as-is -> the plate arrives underside UP.
+# >>> So the plate must be laid out mirrored in depth, and it was not.
+# >>>
+# >>> The outline is symmetric about D/2, so mirroring there moves the FEATURES and
+# >>> leaves the perimeter alone. Done here, once, at the end -- rather than by
+# >>> negating depth at forty call sites, which is how this class of bug is usually
+# >>> half-fixed.
+body = body.mirror((0.0, 1.0, 0.0)).translate((0.0, D, 0.0))
+
 nf = write_stl(body, "bottom-plate.stl")
 bb = body.bounding_box()
 

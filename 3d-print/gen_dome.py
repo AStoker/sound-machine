@@ -43,7 +43,8 @@ import struct
 from manifold3d import CrossSection, Manifold
 
 from enclosure_geom import (
-    ARCH_R, ARCH_RY, ARCH_Y, BARREL_D, BARREL_LAND_D, BARREL_NUT_D, BARREL_Y,
+    ARCH_R, ARCH_RY, ARCH_Y, BARREL_D, BARREL_HOLE_D, BARREL_LAND_D,
+    BARREL_NUT_D, BARREL_Y, SW_HOLE_D, PANEL_FIT,
     BOSS_CHAMF, BOSS_D, BOSS_MIN_WALL, BOSS_PILOT_D, BOSS_SCREW, BP_T, D,
     ENC_SHAFT_D, ENC_Y, ENC_PIXEL_D, enc_pixel_xy, KNOB_BASE_D,
     ENC_HOLES,
@@ -56,7 +57,7 @@ from enclosure_geom import (
     TOUCH_WALL, TOUCH_Y, VENT_HH, VENT_N, VENT_P, VENT_Y, W, WALL,
     vent_slots, vent_half_len, BOSS_GAP_MIN,
     flat_depth, flex_holes, rear_wall_boards, crown_boards, touch_x, vent_x,
-    crown_inner_y,
+    crown_inner_y, depth_stacks, depth_required,
     REAR_BOARD_SCREW, REAR_PILOT_D,
 )
 
@@ -432,7 +433,7 @@ for _left in (True, False):
 
 # --- rear wall: openings ----------------------------------------------------
 RW0, RW1 = D - WALL, D
-cuts.append(cyl(W / 2, BARREL_Y, RW0 - 1, RW1 + 1, BARREL_D))
+cuts.append(cyl(W / 2, BARREL_Y, RW0 - 1, RW1 + 1, BARREL_HOLE_D))
 cuts.append(cyl(W / 2, LP_Y, RW0 - 1, RW1 + 1, LP_D))
 # >>> LOUVRED, NOT DRILLED STRAIGHT THROUGH. Each slot RISES by VENT_RISE across
 # >>> the wall's thickness -- outer opening low, inner opening high. A level line
@@ -488,16 +489,16 @@ for vx, vy, _hl, _hh in vent_slots():
 # >>> ROUND. It is a panel-mount PUSH BUTTON, not a rocker: a rectangular cutout
 # >>> would leave four gaps around a circular bezel and give its nut nothing flat
 # >>> and concentric to pull against.
-cuts.append(cyl(SW_WALL_X, SW_WALL_Y, RW0 - 1, RW1 + 1, SW_D))
+cuts.append(cyl(SW_WALL_X, SW_WALL_Y, RW0 - 1, RW1 + 1, SW_HOLE_D))
 _sw_land, _ = boss(SW_WALL_X, SW_WALL_Y, SW_RIB, 0.0, d=SW_NUT_D + 2 * SW_RIB)
-adds.append(_sw_land - cyl(SW_WALL_X, SW_WALL_Y, RW0 - 2, RW1 + 1, SW_D))
+adds.append(_sw_land - cyl(SW_WALL_X, SW_WALL_Y, RW0 - 2, RW1 + 1, SW_HOLE_D))
 
 # --- rear wall: a flat land for the barrel jack's nut ------------------------
 # The jack is a panel-mount part; its nut has to pull up against a plane. The
 # rear wall IS flat, so the land is just a raised pad giving the nut room to turn
 # clear of the vents and the lux pipe.
 _land, _ = boss(W / 2, BARREL_Y, 1.2, 0.0, d=BARREL_LAND_D)
-adds.append(_land - cyl(W / 2, BARREL_Y, RW0 - 2, RW1 + 1, BARREL_D))
+adds.append(_land - cyl(W / 2, BARREL_Y, RW0 - 2, RW1 + 1, BARREL_HOLE_D))
 
 # --- rear wall: board bosses ------------------------------------------------
 # All standing forward in +z off the inside of the rear wall -- straight up off
@@ -769,8 +770,31 @@ def write_stl(solid, name):
     return len(F)
 
 
-nf = write_stl(body, "dome.stl")
-bb = body.bounding_box()
+# ---------------------------------------------------------------------------
+# EXPORT IN THE ORIENTATION IT PRINTS IN
+# ---------------------------------------------------------------------------
+# >>> IT USED TO COME OUT NOSE-DOWN AND YOU HAD TO TURN IT EVERY TIME. The dome is
+# >>> modelled in the assembly frame (x = width, y = height, z = depth) and prints
+# >>> REAR-WALL-DOWN, so the exported file was 180 deg away from the bed on every
+# >>> single load. Rotating a part by hand before each print is a step that can be
+# >>> got wrong, and on a part this asymmetric getting it wrong is expensive.
+# >>>
+# >>> A 180 deg ROTATION ABOUT X, not a flip of z. det = +1, so it is something you
+# >>> could do to the printed object; mirroring z would have put the rear wall on
+# >>> the bed too and quietly handed the part. That distinction is exactly what
+# >>> went wrong on the bottom plate, so it is spelled out rather than assumed:
+# >>>     (x, y, z) -> (x, H - y, D - z)
+# >>> Rear wall z=D lands on the bed at z=0; the crown points along the bed.
+# >>> AND IT IS A SEPARATE SOLID, NOT A REBINDING OF `body`. Doing this in place
+# >>> rotated the geometry out from under every check that runs below -- the
+# >>> overhang audit promptly reported 10 failures, because it reasons about which
+# >>> faces point at the bed and the bed had just moved. Checks stay in the
+# >>> assembly frame; only the file is oriented.
+print_body = (body.mirror((0.0, 1.0, 0.0)).mirror((0.0, 0.0, 1.0))
+              .translate((0.0, H, D)))
+
+nf = write_stl(print_body, "dome.stl")
+bb = print_body.bounding_box()
 
 say(f"wrote models/dome.stl   {nf} triangles")
 say(f"bbox        {bb[3]-bb[0]:.2f} x {bb[4]-bb[1]:.2f} x {bb[5]-bb[2]:.2f} mm")
@@ -779,11 +803,11 @@ say(f"joint       lip {LIP_W}x{LIP_T} | groove {SLOT_W:.1f} | rib {RIB_W}x{RIB_T
 say(f"ledge       {SEAT_W} continuous, top of the plate at y={BP_T}")
 say(f"lugs        {len(SCREWS)} x {LUG_L}x{LUG_W}x{LUG_H}, "
     f"{chr(216)}{INSERT_D} blind for M3 heat-set")
-say(f"rear wall   barrel {chr(216)}{BARREL_D} on a {chr(216)}{BARREL_LAND_D} land | "
+say(f"rear wall   barrel {chr(216)}{BARREL_HOLE_D} (body {BARREL_D} + fit {PANEL_FIT}) on a {chr(216)}{BARREL_LAND_D} land | "
     f"lux {chr(216)}{LP_D} | {len(vent_x())*VENT_N} louvres "
     f"{'/'.join(f'{2*hl:.0f}' for _v, _y, hl, _h in vent_slots())}"
     f"x{2*VENT_HH} obround, arch-following | "
-    f"switch {chr(216)}{SW_D} @ ({SW_WALL_X},{SW_WALL_Y})")
+    f"switch {chr(216)}{SW_HOLE_D} (body {SW_D}) @ ({SW_WALL_X},{SW_WALL_Y})")
 say(f"bosses      {len(board_bosses)} board bosses, all blind; "
     + ", ".join(f"{_n} M{REAR_BOARD_SCREW.get(_n, BOSS_SCREW)}"
                 for _n in dict.fromkeys(n for n, _, _ in board_bosses)))
@@ -804,10 +828,28 @@ chk("groove takes the module plus cloth both sides", SLOT_W - 4.0 - 2 * 0.6)
 chk("rib clears the module's back face", RIB_T)
 chk("ledge is under the lugs, not level with them", LUG_H - SEAT_LEDGE_T)
 chk("insert hole stops short of the lug top", LUG_H - BOSS_MIN_WALL - 3.0)
-chk("switch is below the Flex", FLEX_WALL_Y - (SW_WALL_Y + SW_D / 2))
-chk("switch is above the floor", (SW_WALL_Y - SW_D / 2) - BP_T)
+chk("switch is below the Flex", FLEX_WALL_Y - (SW_WALL_Y + SW_HOLE_D / 2))
+chk("switch is above the floor", (SW_WALL_Y - SW_HOLE_D / 2) - BP_T)
 chk("barrel land clears the nut", BARREL_LAND_D - BARREL_NUT_D)
+# >>> AND THE NUT MUST STILL COVER THE HOLE IT TIGHTENS OVER. Opening a panel hole
+# >>> up is exactly the change that breaks this: grow it past the nut's flats and
+# >>> the fastener pulls straight through. Cheap to check, invisible until assembly.
+chk(f"barrel nut ({BARREL_NUT_D}) covers its {BARREL_HOLE_D} opening",
+    BARREL_NUT_D - BARREL_HOLE_D - 2.0)
+chk(f"switch nut ({SW_NUT_D}) covers its {SW_HOLE_D} opening",
+    SW_NUT_D - SW_HOLE_D - 2.0)
 chk("touch pad thinning leaves wall", TOUCH_WALL)
+
+# --- the depth axis, which nothing used to check ----------------------------
+# >>> IN PLAN IS NOT ENOUGH ON A SHALLOW BOX. Every other clearance table here
+# >>> works x against y. The speakers hang off the FRONT module and the UPS hangs
+# >>> off the REAR wall; they overlap in both plan axes, so depth is the only thing
+# >>> keeping them apart, and nothing was looking at it.
+say("")
+say(f"depth stacks (D = {D}, the deepest needs {depth_required():.2f})")
+for _dn, _dfront, _drear, _dair in depth_stacks():
+    chk(f"{_dn}: front {_dfront:.1f} + air {_dair:.1f} + rear {_drear:.1f} + wall",
+        D - (_dfront + _dair + _drear + WALL))
 
 # --- the NeoPixel window ----------------------------------------------------
 # >>> THE ENCODER CARRIES A NeoPixel AND THE CROWN WAS SOLID OVER IT. The firmware
@@ -1068,6 +1110,19 @@ if _missing:
     bad.append("mesh validation could not run: missing " + ", ".join(_missing))
 else:
     tm = trimesh.load(os.path.join(MODEL_DIR, "dome.stl"))
+    # >>> BACK INTO THE ASSEMBLY FRAME BEFORE MEASURING ANYTHING. The file on disk
+    # >>> is now written in its PRINT orientation, so every mesh check below --
+    # >>> board envelopes, the overhang audit, the bore scans -- would otherwise be
+    # >>> reading a part rotated 180 deg away from the coordinates it is comparing
+    # >>> against. That produced 2 instant failures the moment the export was
+    # >>> oriented, which is the good outcome: the alternative is checks that keep
+    # >>> passing while measuring the wrong thing.
+    # >>> The transform is its own inverse: (x, y, z) -> (x, H - y, D - z).
+    import numpy as _np
+    tm.apply_transform(_np.array([[1.0, 0.0, 0.0, 0.0],
+                                 [0.0, -1.0, 0.0, H],
+                                 [0.0, 0.0, -1.0, D],
+                                 [0.0, 0.0, 0.0, 1.0]]))
     n_bodies = len(tm.split(only_watertight=False))
     say("")
     say(f"watertight={tm.is_watertight}  winding_ok={tm.is_winding_consistent}  "

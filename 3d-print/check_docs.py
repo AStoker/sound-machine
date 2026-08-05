@@ -441,7 +441,14 @@ if _missing:
         "human has to resolve, and the document is what they act on.")
 
 # ...and the other way: anything MEASURE-ME asks for must still be unknown.
-_asked = set(_re.findall(r"`([A-Z][A-Z_0-9]*)`", _mm_text))
+# >>> AN ASK IS A HEADING, NOT A MENTION. This matched every backticked constant
+# >>> anywhere in the document, so simply REFERRING to one -- "the openings are the
+# >>> body plus PANEL_FIT" -- registered as a demand to measure it, and the check
+# >>> nagged about a value that was never in question. What makes something an ask
+# >>> is that the document gives it its own section.
+_asked = set()
+for _h in _re.findall(r"^#+ .*$", _mm_text, _re.M):
+    _asked |= set(_re.findall(r"`([A-Z][A-Z_0-9]*)`", _h))
 # >>> THE EXEMPTION IS ONE SECTION, NOT "EVERYTHING AFTER THE HEADING". This read
 # >>> _mm_text.split("## Settled")[-1], which swallows the rest of the file -- so a
 # >>> stale ask appended at the END of the document was silently exempt, and the

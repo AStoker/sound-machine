@@ -36,7 +36,18 @@ os.makedirs(MODEL_DIR, exist_ok=True)
 # >>> above them lowers CRES_Y, but the wider arc more than eats the saving.
 # >>> There is no way around this while the arc stays concentric with the
 # >>> crescent -- the numbers are printed at the bottom of the run.
-D         = 64.0
+# >>> 64 -> 79, BECAUSE THE SPEAKERS WERE INSIDE THE BATTERY. Andy fitted it and
+# >>> found the cans overlapping the UPS pack by about 3 mm. That observation pins
+# >>> the STACK even though it cannot say which half of it was wrong:
+# >>>     (FP_T + can) + pack  =  D - WALL + 3  =  64.5
+# >>> against the 50.0 the two guesses claimed. 14.5 mm of speaker-plus-battery
+# >>> that the model did not know about. +15 clears it with 9 mm to spare.
+# >>>
+# >>> D IS CHOSEN, BUT IT IS NO LONGER UNCHECKED. See depth_stacks() at the bottom
+# >>> of this file: the machine is a shallow box with things mounted on BOTH faces,
+# >>> and until now nothing tested whether a front-mounted part and a rear-mounted
+# >>> part could occupy the same millimetre. The speakers and the UPS pack do.
+D         = 79.0
 WALL      = 2.5      # dome wall
 # THE CROWN IS A FLATTENED ARCH, NOT A SEMICIRCLE.
 # A true "D" has H = CRES_Y + W/2 -- the arch height is locked to half the width
@@ -608,15 +619,52 @@ ENC_SHAFT_D = 7.0    # clearance bore through the shell for the encoder shaft
 # >>> 25.4 mm board started at depth 17.3 -- 77.8 mm^3 of it inside the front
 # >>> module, with the ToF 55.4 mm^3 in beside it. See CROWN_Z.
 ENC_PCB     = 25.4   # Adafruit #4991, 1.0" square -- CONFIRMED, see QT_PCB_SRC
+# >>> THE ENCODER BODY IS TALLER THAN THE BARE STANDOFF ALLOWED FOR. The board hangs
+# >>> under the crown and the encoder can sits BETWEEN the two, so the standoff has
+# >>> to be the can's height, not a generic spacer. +5 over STANDOFF_H, measured off
+# >>> the real part. The ToF keeps its own TOF_STAND -- it has nothing on that face.
+ENC_STAND   = 8.0    # = STANDOFF_H + 5.0, for the encoder can under the board
 # The knob is a FULL pebble: an ellipse of revolution truncated by a shallow cut
 # at the bottom, so only a small flat meets the crown. KNOB_BASE_D sets how much
 # of the pebble is cut away -- closer to KNOB_D = more of a hemisphere.
 KNOB_D      = 34.0   # widest diameter (occurs part-way up, not at the base)
+# >>> THE KNOB GREW BECAUSE THE BORE DID. A 20 mm blind bore in a 20 mm pebble
+# >>> leaves 0.5 mm of cap over the shaft -- the one surface you look down at. The
+# >>> cap is measured on the axis (apex minus bore top), so the height is the bore
+# >>> plus a cap, and KNOB_CAP_MIN says how much cap counts as a cap.
+KNOB_CAP_MIN = 3.0   # material over the top of the blind bore, on the axis
+# >>> BACK TO 20.0. It went to 23 only to keep a cap over a 20 mm blind bore. The
+# >>> bore is now sized to the SHAFT rather than guessed, and the shaft is 12 mm,
+# >>> so the reason for the extra 3 mm is gone and the pebble returns to the
+# >>> proportion it was designed with.
 KNOB_H      = 20.0   # total height above the boss
 KNOB_BASE_D = 28.0   # diameter of the flat where it meets the crown
 KNOB_BORE_D = 6.0    # (?) encoder shaft -- Adafruit seesaw is a 6 mm D-shaft
 KNOB_BORE_F = 4.5    # (?) across the D-flat
-KNOB_BORE_H = 15.0   # blind bore depth
+# >>> THE SHAFT IS TWO DIFFERENT THINGS AND THE BORE HAS TO BE TOO. MEASURED:
+# >>> 12 mm of shaft stands above the dome, and only the TOP 5 mm of it is
+# >>> D-flatted. The 7 mm below that is the round threaded bushing -- with the nut
+# >>> on it. A single Ø6.2 bore therefore lands on the bushing and holds the knob
+# >>> 7 mm proud, which is what "not flush" was.
+# >>>
+# >>> So: a wide counterbore for the round part, then the D-bore above it, and the
+# >>> knob drops until its base meets the dome. The previous recess was 3.5 deep --
+# >>> sized for the NUT alone, when the nut is only the bottom 3 mm of a 7 mm
+# >>> obstruction.
+KNOB_SHAFT_H  = 12.0   # MEASURED, dome surface to the top of the shaft
+KNOB_D_LEN    = 5.0    # MEASURED, the D-flatted length at the TOP
+KNOB_ROUND_LEN = KNOB_SHAFT_H - KNOB_D_LEN   # 7.0 of round bushing below it
+KNOB_TIP_CLR  = 0.5    # air above the shaft tip, so the knob seats on the DOME
+KNOB_BORE_H = KNOB_SHAFT_H + KNOB_TIP_CLR    # 12.5 total
+# >>> AND THE SHAFT NUT NEEDS SOMEWHERE TO GO. The encoder's bushing is fastened
+# >>> with a nut that sits ON TOP of the crown, 12 mm across and 3 mm tall, right
+# >>> where the knob's base flat wants to be. Without a counterbore the knob simply
+# >>> perches on the nut. Concentric with the shaft, so rotation is a non-issue.
+KNOB_NUT_D  = 12.0   # nut across corners -- the widest thing in the round section
+KNOB_NUT_CLR = 0.5   # on the diameter
+# The counterbore clears the whole round section, not just the nut.
+KNOB_CB_D   = KNOB_NUT_D + KNOB_NUT_CLR      # 12.5
+KNOB_CB_H   = KNOB_ROUND_LEN                 # 7.0 -- where the D-flat begins
 KNOB_BOSS_D = 30.0   # flat seating pad on the crown, under the knob
 # ---- the encoder's NeoPixel, and a way for its light to get out -------------
 # >>> POSITION FROM THE FAB PRINT: the NeoPixel sits centred across the board and
@@ -697,7 +745,16 @@ LP_D, LP_Y      = 4.0, 120.0        # BH1750 light pipe ("lux"), centred, above
 # >>> MEASURED: the charging port and the encoder both take a 7 mm hole, the
 # >>> push button 12 mm. BARREL_D was 11.0 -- a guess at a panel-mount DC-005 --
 # >>> which would have left a 4 mm gap round the jack in the visible rear wall.
-BARREL_D        = 7.0               # MEASURED panel hole for the charge jack
+# >>> COMPONENT SIZE AND HOLE SIZE ARE DIFFERENT NUMBERS, and conflating them is
+# >>> what made both of these too tight to fit. BARREL_D and SW_D are what Andy
+# >>> CALIPERED -- 7 and 12 -- and they were then cut as the openings themselves,
+# >>> at nominal, with nothing for the fit. A printed hole comes out under size
+# >>> anyway (elephant's foot, first-layer squish, and the perimeter's own
+# >>> compensation), so nominal is the worst case, not the average one.
+# >>> The measurements stay true; PANEL_FIT is what makes them assemble.
+PANEL_FIT       = 1.0               # on the diameter of a panel-mount opening
+BARREL_D        = 7.0               # MEASURED body of the charge jack
+BARREL_HOLE_D   = BARREL_D + PANEL_FIT   # the opening actually cut
 # >>> THE JACK IS LOW, NOT MID-WALL. A barrel lead entering half way up the back
 # >>> of a bedside object drapes across it; entering just above the desk it runs
 # >>> straight down behind. It was at y=95 only because the Flex started at y=16
@@ -747,7 +804,13 @@ VENT_RISE       = 2.5               # how far a slot climbs across the wall
 
 # ---- internals shown for reference ----------------------------------------
 FOOT_D, FOOT_IN     = 12.0, 16.0         # rubber feet
-SPK_BODY_D          = 22.0               # (?) speaker can depth
+# >>> 22.0 WAS NOT CLOSE. Inferred from the fit-up: the cans overlapped the UPS by
+# >>> ~3 mm at D=64, so (FP_T + can) + UPS_D = 64.5. Holding UPS_D at its own guess
+# >>> of 24 gives a 36.5 mm can -- 14.5 more than modelled. Still (?) because the
+# >>> observation constrains the SUM, not this term alone: if the pack turns out
+# >>> deeper than 24, this is correspondingly less. Caliper either one and the other
+# >>> follows.
+SPK_BODY_D          = 36.5               # (?) speaker can depth -- INFERRED, see above
 
 # ---- front module: diffuser + cavity + mounts ------------------------------
 # DIFF_T / DIFF_REBATE / DIFF_MARGIN / CAV_WALL are defined UP TOP, next to
@@ -812,8 +875,23 @@ CARRIER_Z0     = CAV_Z + LED_STRIP_T                 # carrier front face
 # >>> that wall existed, which put the leading 1.53 mm of both boards inside it.
 # >>> Deriving the depth means the boards move whenever the baffle does -- and the
 # >>> baffle has moved twice this week.
-CROWN_BAFFLE_CLR = 2.0                # air between the baffle and a crown board
-CROWN_Z = CARRIER_Z0 + CROWN_BAFFLE_CLR + max(ENC_PCB, TOF_PCB_D) / 2.0
+# >>> AND THE BAFFLE IS NOT THE LAST THING IN THE WAY. Clearing the cavity wall by
+# >>> 2.0 left the encoder's front bosses at depth 23.37 against a carrier whose
+# >>> BACK FACE is at 21.33 -- 2.04 mm, all of which the carrier's own fixing screws
+# >>> stand up into. With the front face and LED plate screwed in they touch. The
+# >>> stack is what has to be cleared, so the stack is what the depth is built from:
+# >>> the cavity wall, the carrier plate on it, and the heads of the screws holding
+# >>> the carrier down.
+CARRIER_SCREW_H  = 2.0                # M2.5 pan head standing off the carrier
+# >>> 1.5 -> 5.0, NOW THAT THE SHELL IS 79 DEEP. 1.5 mm was the tightest margin
+# >>> left in the machine and it sat on top of CARRIER_SCREW_H, which is my estimate
+# >>> of an M2.5 pan head rather than a measurement -- a 3 mm head would have eaten
+# >>> two thirds of it. There are 26 mm of unused depth behind these boards, so the
+# >>> margin was expensive to keep and free to fix. Costs nothing but moving the
+# >>> knob 3.5 mm further back along the crown.
+CROWN_CLR        = 5.0                # air after all of that
+CROWN_Z = (CARRIER_Z0 + CARRIER_T + CARRIER_SCREW_H + CROWN_CLR
+           + max(ENC_PCB, TOF_PCB_D) / 2.0)
 ENC_Y = CROWN_Z       # knob/encoder centre, from the front face, in plan
 TOF_Y = CROWN_Z       # same front-offset as the knob, so it sits alongside
 CARRIER_Z1     = CARRIER_Z0 + CARRIER_T
@@ -951,8 +1029,19 @@ _LX = WALL + LUG_L/2
 # >>> jack dropped to y=12 with a 20 mm land spanning x 91..111, and the tab at
 # >>> 105 sat directly behind it. The switch land takes x 16.5..35.5 and the UPS
 # >>> owns everything past x=120, which leaves x 36..90 -- so 45 and 82.
-SCREWS = [(_LX,     36.0), (W - _LX,     36.0),   # side walls, behind the speakers
-          (_LX,     54.0), (W - _LX,     54.0),   # side walls, rear
+# >>> "BEHIND THE SPEAKERS" STOPPED BEING TRUE WHEN THE SPEAKERS GOT DEEPER. At a
+# >>> 22 mm can these sat 10 mm clear; at the real 36.5 they are 5.9 mm INSIDE it.
+# >>> The comment was right about the intent and silently wrong about the number,
+# >>> which is what a hard-coded depth next to a "behind the X" rationale always
+# >>> risks. Derived from the can now, so it stays behind it.
+# >>> AND THE LUG HAS LENGTH -- its FRONT EDGE is what meets the speaker, not its
+# >>> centre. Deriving from the centre put it 3 mm inside the can anyway; the first
+# >>> fix was as wrong as the thing it fixed, just by less.
+SPK_LUG_CLR = 4.0                                          # lug edge to can
+SCREW_FRONT_Y = FP_T + SPK_BODY_D + LUG_L / 2 + SPK_LUG_CLR   # 51.5 at a 36.5 can
+SCREW_REAR_Y  = D - WALL - LUG_L / 2                          # hard against the wall
+SCREWS = [(_LX, SCREW_FRONT_Y), (W - _LX, SCREW_FRONT_Y),  # behind the speakers
+          (_LX, SCREW_REAR_Y),  (W - _LX, SCREW_REAR_Y),   # side walls, rear
           (45.0,  D - WALL - LUG_L/2),            # rear wall, left of the jack
           (82.0,  D - WALL - LUG_L/2)]            # rear wall, right of the jack
 
@@ -1738,8 +1827,8 @@ def rear_wall_items():
          ("Flex",     FLEX_WALL_X - FLEX_W/2, FLEX_WALL_X + FLEX_W/2,
           FLEX_WALL_Y, FLEX_WALL_Y + FLEX_H),
          ("lux pipe", W/2 - LP_D/2,   W/2 + LP_D/2,   LP_Y - LP_D/2, LP_Y + LP_D/2),
-         ("barrel jack", W/2 - BARREL_D/2, W/2 + BARREL_D/2,
-          BARREL_Y - BARREL_D/2, BARREL_Y + BARREL_D/2)]
+         ("barrel jack", W/2 - BARREL_HOLE_D/2, W/2 + BARREL_HOLE_D/2,
+          BARREL_Y - BARREL_HOLE_D/2, BARREL_Y + BARREL_HOLE_D/2)]
     for k, vx in enumerate(vent_x()):
         nm = "vent stack" if len(vent_x()) == 1 else f"vent stack {'LR'[k]}"
         # >>> THE HEIGHT USED TO BE WRONG. VENT_HH is a HALF-height, so the stack
@@ -1790,6 +1879,39 @@ def plate_boards():
     """Boards mounted on the BOTTOM PLATE, as (name, cx, cd, w, d, hole_offsets).
     The RTC used to be here; it is on the rear wall now."""
     return [("TPA2016", AMP_X, AMP_DEPTH, AMP_W, AMP_D, amp_holes_part())]
+
+
+SPK_UPS_CLR = 3.0    # air wanted between a speaker magnet and the battery pack
+CROWN_REAR_CLR = 2.0 # air wanted behind a crown board
+
+
+def depth_stacks():
+    """Things that queue up along the DEPTH axis, as
+    (name, front-mounted reach, rear-mounted reach, wanted air).
+
+    >>> THIS IS THE AXIS NOTHING WAS CHECKING. Every clearance table in this file
+    >>> works IN PLAN -- x against y -- because that is where most of the crowding
+    >>> is. But the machine is only D deep with parts hung off BOTH faces, and two
+    >>> things can clear beautifully in plan while sharing the same depth. The
+    >>> speaker cans hang off the front module; the UPS hangs off the rear wall;
+    >>> they overlap in x (148-193 against 120-180) and in y, so depth is the ONLY
+    >>> thing keeping them apart -- and no check looked at it.
+    >>>
+    >>> Reach is measured from the face the part is mounted on, so a stack fits iff
+    >>>     front_reach + air + rear_reach  <=  D - 2 * WALL_ish
+    >>> and the required D falls straight out of the ones that do not.
+    """
+    return [
+        # name                 front reach            rear reach   air
+        ("speaker vs UPS",     FP_T + SPK_BODY_D,     UPS_D,       SPK_UPS_CLR),
+        ("crown board vs wall", CROWN_Z + max(ENC_PCB, TOF_PCB_D) / 2.0, 0.0,
+         CROWN_REAR_CLR),
+    ]
+
+
+def depth_required():
+    """The smallest D that satisfies every depth stack."""
+    return max(front + air + rear + WALL for _n, front, rear, air in depth_stacks())
 
 
 def rear_wall_clearances():
@@ -1982,7 +2104,7 @@ def crown_boards():
     >>> the ToF is a sensor pointing somewhere other than where its pinhole is.
     """
     return [
-        ("encoder", W / 2, ENC_Y, ENC_PCB,    ENC_PCB,   ENC_HOLES, STANDOFF_H),
+        ("encoder", W / 2, ENC_Y, ENC_PCB,    ENC_PCB,   ENC_HOLES, ENC_STAND),
         ("ToF",     TOF_X, TOF_Y, TOF_PCB_W,  TOF_PCB_D, TOF_HOLES, TOF_STAND),
     ]
 
@@ -2069,7 +2191,8 @@ BARREL_NUT_D  = 16.0      # (?) across the nut's corners -- MEASURE
 # >>> panel-mount push button, not a rocker -- a rectangular cutout would leave
 # >>> four visible gaps around a circular bezel and nothing for its nut to pull
 # >>> against.
-SW_D         = 12.0       # CONFIRMED by measurement -- push button is 12 mm
+SW_D         = 12.0       # MEASURED body of the push button (see PANEL_FIT)
+SW_HOLE_D    = SW_D + PANEL_FIT     # the opening actually cut
 SW_NUT_D     = 16.0       # (?) across the nut, for the land -- MEASURE
 SW_WALL_X    = 26.0       # rear wall, left of the Flex
 SW_WALL_Y    = 12.0       # low, level with the jack

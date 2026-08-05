@@ -47,8 +47,9 @@ from enclosure_geom import (
     SPK_NUB_SCREW, SPK_NUB_Y, SPK_NUB_Z, SPK_POST_WALL, SPK_RING_W, SPK_SEAT_W,
     SPK_NUB_H, SPK_NUB_W, SPK_POST_W, SPK_POST_H_Y, CLR_POST_MIC,
     DIFF_LIP, CAV_Z, CARRIER_Z0, CARRIER_T, LED_STRIP_T, DIFF_R_G, CAV_RY_G,
-    strip_rects, BAFFLE_DROP, CARRIER_SKIRT, CARRIER_LIP,
-    crown_boards, crown_inner_y, CROWN_BAFFLE_CLR,
+    strip_rects, BAFFLE_DROP, CARRIER_SKIRT, CARRIER_LIP, CARRIER_T,
+    CARRIER_SCREW_H, CAV_R_G, CAV_RY_G,
+    crown_boards, crown_inner_y, CROWN_CLR,
     PAD_PROJ, PAD_W, PAD_DRAFT, PAD_Z0, PAD_RAMP, PAD_OFFSET_IN, PAD_PILOT_D,
     PAD_PILOT_Z, carrier_pads, DIFF_RY_G,
     pad_led_clearances,
@@ -1388,15 +1389,35 @@ for _i, (_px, _py) in enumerate(mtx_posts):
 # >>> that knows how far it reaches.
 say("")
 say("crown boards (dome-mounted) vs this module's reach")
+# >>> AND "THIS MODULE" MEANS THE STACK ON IT, NOT JUST THE MOULDING. The first
+# >>> version of this check compared the crown boards against part_body alone and
+# >>> reported 0.00 -- while the encoder board was actually 0.50 mm inside the LED
+# >>> CARRIER, which is a different STL and so invisible to it. The carrier bolts to
+# >>> this part's cavity wall and its screw heads stand up off that; from the crown
+# >>> boards' point of view all three are one obstacle. Model the stack.
+_carrier_env = slab(half_disc(W / 2, CRES_Y, CAV_R_G, skirt=CARRIER_SKIRT,
+                             ry=CAV_RY_G),
+                    CARRIER_Z0, CARRIER_Z0 + CARRIER_T + CARRIER_SCREW_H)
+_stack = part_body + _carrier_env
+say(f"            (the stack reaches {CARRIER_Z0 + CARRIER_T + CARRIER_SCREW_H:.2f}: "
+    f"cavity wall {CARRIER_Z0:.2f} + carrier {CARRIER_T} + screw head "
+    f"{CARRIER_SCREW_H})")
 for _cnm, _ccx, _ccz, _cbw, _cbd, _coffs, _cstand in crown_boards():
     _ctip = min(crown_inner_y(_ccx + _dx) for _dx, _ in _coffs) - _cstand
     _cenv = Manifold.cube((_cbw, 1.6 + 6.0, _cbd)).translate(
         (_ccx - _cbw / 2, _ctip - 1.6 - 6.0, _ccz - _cbd / 2))
-    clash(f"{_cnm} board (depth {_ccz - _cbd/2:.1f}-{_ccz + _cbd/2:.1f}) "
-          f"is clear of the baffle", _cenv)
-say(f"  ---- {min(c - _cbd/2 for _n, _x, c, _w, _cbd, _o, _s in crown_boards()) - CARRIER_Z0:8.2f}"
-    f"   nearest crown board to the baffle at z={CARRIER_Z0:.2f} "
-    f"(design clearance {CROWN_BAFFLE_CLR})")
+    _v = (_stack ^ _cenv).volume()
+    say(f"  {'FAIL' if _v > 1e-6 else 'ok  '} {_v:9.2f}   {_cnm} board "
+        f"(depth {_ccz - _cbd/2:.1f}-{_ccz + _cbd/2:.1f}) is clear of the "
+        f"module AND the carrier stack on it")
+    if _v > 1e-6:
+        bad.append((f"{_cnm} board fouls the stack", -1))
+# >>> REPORTED AGAINST THE STACK, not the baffle -- quoting the gap to the baffle
+# >>> next to a clearance measured from the stack invites reading one as the other.
+_stack_z = CARRIER_Z0 + CARRIER_T + CARRIER_SCREW_H
+say(f"  ---- {min(c - _cbd / 2 for _n, _x, c, _w, _cbd, _o, _s in crown_boards()) - _stack_z:8.2f}"
+    f"   nearest crown board to the stack top at z={_stack_z:.2f} "
+    f"(design clearance {CROWN_CLR})")
 
 say("")
 say("LED ribbons vs the cavity bar")

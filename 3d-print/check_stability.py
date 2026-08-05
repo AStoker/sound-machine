@@ -31,6 +31,7 @@ import sys
 import trimesh
 
 import enclosure_geom as g
+import frames
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 MODELS = os.path.join(HERE, "models")
@@ -110,16 +111,20 @@ for fn, _, why in SHELL:
         say(f"  --   {fn} not exported; skipped")
         continue
     m = trimesh.load(path)
+    # >>> INTO THE ASSEMBLY FRAME FIRST. This used to read each file's raw z (or,
+    # >>> for the plate, its raw y plus an offset) and call the result a depth. That
+    # >>> silently became wrong the moment the dome started exporting rear-wall-down
+    # >>> -- it put the dome's centre of mass 30 mm from where it is, in the one
+    # >>> calculation that is entirely about where mass sits front-to-back.
+    # >>> frames.py owns the transforms; nothing here guesses.
+    if fn in frames.TO_ASSEMBLY:
+        frames.to_assembly(m, fn)
     vol = m.volume
     com = m.center_mass
-    if fn == "dome.stl":
-        depth = float(com[2])
-    elif fn == "bottom-plate.stl":
-        depth = g.WALL + g.BP_CLR + float(com[1])
-    elif fn == "knob.stl":
-        depth = g.KNOB_DEPTH if hasattr(g, "KNOB_DEPTH") else 20.0
+    if fn == "knob.stl":
+        depth = g.ENC_Y                # sits on the crown, over the encoder
     else:
-        depth = float(com[2])          # thin, sits against the facade
+        depth = float(com[2])          # assembly z IS depth, for every part
     shell_parts.append((fn, vol, depth))
     say(f"  {fn:20s} {vol/1000:6.1f} cm^3   COM {depth:5.1f} mm from the front")
 

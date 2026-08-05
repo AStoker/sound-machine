@@ -323,7 +323,7 @@ clock display now — see the Display section.)*
 
 ## Enclosure (context)
 
-Main body **202 × 64 × 155.7 mm**. Form: a letter **"D" lying on its long flat
+Main body **202 × 79 × 155.7 mm**. Form: a letter **"D" lying on its long flat
 side, extruded along the depth** — flat bottom, straight sides, and a **flattened
 half-ellipse** top (semi-axes `W/2` × `CROWN_K·W/2`), **concentric with the LED
 crescent**. The crown is a *cylinder*, not a sphere: it curves in front view and

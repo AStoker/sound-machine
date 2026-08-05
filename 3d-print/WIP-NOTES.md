@@ -42,6 +42,186 @@ and it is checked as a **rigid motion**: the hole-to-hole span and each hole's
 four edge distances have to survive it. Both broken forms were re-introduced to
 confirm the check fails (−6.34 for a swap, −8.25 for the original centreline bug).
 
+## The knob bore is stepped, because the shaft is
+
+Measured: **12 mm of shaft above the dome, and only the top 5 mm is D-flatted.**
+The 7 mm below it is round threaded bushing, with the nut on it.
+
+A single Ø6.2 bore therefore lands on the bushing and holds the knob **7 mm proud**
+— which is what "not flush" was. The counterbore that existed was Ø12.5 × **3.5**,
+sized for the nut alone, when the nut is only the bottom 3 mm of a 7 mm
+obstruction. Checking a recess against the nut's height is what let that look
+correct.
+
+Now: Ø12.5 counterbore **7.0 deep**, then the D-bore from 7.0 to 12.5. Verified on
+the STL — open to r=6.30 up to z=6.5, r=3.15 from 7.5 to 12, solid above 13.
+
+`KNOB_H` goes **back to 20.0**. It was raised to 23 only to keep a cap over a 20 mm
+bore that had been guessed at; the bore is 12.5 now because it is sized to the
+shaft, so the pebble returns to its designed proportion with 7.5 mm of cap.
+
+Every length in the bore is now derived from a measurement rather than chosen:
+`KNOB_BORE_H = KNOB_SHAFT_H + KNOB_TIP_CLR`, `KNOB_CB_H = KNOB_ROUND_LEN`. The tip
+clearance is what makes the knob seat on the **dome** rather than bottoming on the
+shaft.
+
+## The bottom plate was a mirror image, and I argued it wasn't
+
+Andy said the plate needed reflecting. **I told him twice it didn't, and I was
+wrong both times.** The second time I produced a table of "evidence" showing dome
+lugs and plate holes at matching coordinates. That table was meaningless: it read
+45.0 from one part and 45.0 from the other without noticing that **one of those
+numbers was a depth and the other was a height.**
+
+    dome   modelled  (x = width, y = HEIGHT,  z = DEPTH)
+    plate  modelled  (x = width, y = DEPTH,   z = THICKNESS)
+
+The mapping between them that every check silently assumed is the axis swap
+`(x, y, z) -> (x, z, y)`, and **its determinant is -1**. That is a reflection —
+not something you can do to a printed part. Only a proper rotation is achievable,
+and every proper rotation that lines these frames up negates one of the two
+swapped axes:
+
+- keep the underside down (mandatory — the counterbores and foot pockets are on
+  it) → **depth reverses**, a feature at depth d lands at D − d
+- keep depth as-is → the plate arrives underside **up**
+
+So the plate had to be laid out mirrored in depth and was not. Fixed at the end of
+`gen_bottom_plate.py` with one mirror about D/2 — the outline is symmetric there,
+so it moves the features and leaves the perimeter alone.
+
+### What made it invisible for weeks
+
+Every check in the repo tests **one part against numbers**. Nothing ever put two
+parts in the same space. `check_assembly.py` now does: it loads the exported
+solids, transforms each into one frame, and asks whether the lugs meet the holes.
+With the mirror removed it reports all six **BLOCKED** — verified.
+
+Two rules came out of it, and `frames.py` exists to enforce them:
+
+1. **Comparing coordinates from two frames is not a comparison.** Transform first.
+2. **Take the determinant.** An axis swap looks exactly like a rotation until you
+   do. Every transform is asserted proper at import, so a reflection cannot load.
+
+### The dome exports print-ready now
+
+Rear-wall-down, so it needs no turning in the slicer — one manual step fewer to get
+wrong on an asymmetric part. Done as a **180° rotation about X**, not a flip of z:
+mirroring z would have put the rear wall on the bed too and quietly handed the
+part, which is the exact mistake above.
+
+Doing that immediately broke two things, both of which are the *good* outcome:
+
+- The dome's own mesh checks read the exported file, so they were suddenly
+  measuring a part rotated 180° from the coordinates they compare against — 2
+  instant failures. They now map it back on load.
+- **`check_stability.py` had been silently wrong** and nothing said so: it took
+  each file's raw z as a depth, which put the dome's centre of mass at 24.5 mm
+  instead of 54.5 — in the one calculation that is entirely about where mass sits
+  front-to-back. It goes through `frames.py` now.
+
+## The knob bore: four things agreed and all four were wrong
+
+The knob printed loose on the shaft. `gen_knob.py` had:
+
+```
+BORE_FIT = 0.25   # per side, bore to shaft -- a press fit, not a clearance
+bore_d   = KNOB_BORE_D + 2 * BORE_FIT        # ... which ADDS 0.5 mm
+```
+
+and the check that was supposed to guard it read
+
+```
+chk("bore takes the shaft with a press fit", bore_d - KNOB_BORE_D)
+```
+
+**which is only positive when there IS clearance.** The constant's name, its
+comment, the arithmetic and the assertion all agreed with each other, and all four
+described a press fit while building half a millimetre of slop. Nothing disagreed
+with anything, so nothing caught it.
+
+0.25 -> **0.10**: a 6.2 bore on a 6.0 shaft, 4.7 across the flat. Verified off the
+STL. If it is still loose, come down in 0.05 steps — thin wall and PLA, so do not
+chase an actual interference fit.
+
+### The replacement check has an upper bound
+
+`bore_d - KNOB_BORE_D > 0` passes at 6.1 and at 60: it only says the shaft goes in,
+never that it is held. Snug has a *ceiling*, and the ceiling is the whole
+requirement. Now checked as a band, plus the same for the D-flat, which is what
+stops it spinning. Verified by restoring 0.25: both fail at -0.20.
+
+## Panel holes: the component size is not the hole size
+
+Both the charge jack and the button came out too tight to fit. Cause: `BARREL_D`
+and `SW_D` are what Andy **calipered** — 7 and 12 — and they were being cut as the
+openings themselves, at nominal, with nothing for the fit. A printed hole comes out
+under size anyway (elephant's foot, first-layer squish, the perimeter's own
+compensation), so nominal is the worst case rather than the average one.
+
+`PANEL_FIT` = 1.0 now separates the two: the measurements stay true and
+`BARREL_HOLE_D` / `SW_HOLE_D` are what get cut. Ø8 and Ø13.
+
+That immediately made the nuts load-bearing, so there is a new check that each nut
+still **covers** its opening: barrel 6.00 mm to spare, switch only **1.00**, on a
+`SW_NUT_D` that is still a guess. Promoted in MEASURE-ME.
+
+> **Same defect, not yet fixed:** `ENC_SHAFT_D` = 7.0 is the crown's hole for the
+> encoder bushing, and it is cut at nominal too. Andy has not reported it binding,
+> so it is left alone — but it is the same class and will be tight.
+
+## D 64 -> 79: the speakers were inside the battery
+
+Andy fitted it and found the speaker cans overlapping the UPS pack by about 3 mm.
+**The model said 11.5 mm of clear air.**
+
+That observation pins the *stack*, even though it cannot say which half was wrong:
+
+    (FP_T + can) + pack  =  D - WALL + 3  =  64.5      against the 50.0 modelled
+
+14.5 mm of speaker-plus-battery nobody knew about. `SPK_BODY_D` was a `(?)` guess
+of 22; holding `UPS_D` at its own guess of 24 makes the can **36.5**. Still `(?)`,
+because the observation constrains the sum and not the term.
+
+### CROWN_CLR 1.5 -> 5.0, once there was room to spare
+
+1.5 mm was the tightest margin left in the machine, and it sat directly on top of
+`CARRIER_SCREW_H` — my *estimate* of an M2.5 pan head, not a measurement. A 3 mm
+head would have eaten two thirds of it. With 26 mm of unused depth behind those
+boards the margin was expensive to keep and free to fix, so the crown boards now
+sit 5.00 mm clear and would still have 4.00 mm if the heads turn out 3 mm tall.
+Costs nothing but moving the knob 3.5 mm further back along the crown.
+
+### Nothing was checking the depth axis at all
+
+Every clearance table in `enclosure_geom.py` works **in plan** — x against y —
+because that is where the crowding usually is. But this is a shallow box with
+parts hung off *both* faces: the speakers off the front module, the UPS off the
+rear wall. They overlap in x (148–193 against 120–180) and in y, so **depth was the
+only thing keeping them apart, and no check looked at it.**
+
+`depth_stacks()` now enumerates front-reach against rear-reach and `gen_dome.py`
+checks each one. D = 79 leaves 9 mm on the binding stack.
+
+### Two wrong guesses about the cause, both worth recording
+
+- **Andy's:** that the standoff posts push the speaker back. They don't —
+  `gen_front_plate.py` says the nub lands 7 mm behind *the speaker's front face*,
+  and that face sits on the back of the facade. The posts rise to meet nubs on the
+  can's sides; the can is hard against the facade at z = 4.
+- **Mine:** moving the plate's front fixing screws by deriving from the can's rear.
+  The lug has LENGTH — its **front edge** meets the speaker, not its centre — so
+  the first fix landed 3 mm inside the can anyway. As wrong as the thing it fixed,
+  just by less. Both side pairs are derived now (`LUG_L/2` included).
+
+Their comment had said "side walls, behind the speakers" since it was written. It
+stayed true in prose and stopped being true in fact — which is what a hard-coded
+depth sitting next to a "behind the X" rationale always risks.
+
+**Side effect, all good:** the deeper base is more stable. Backward tilt margin
+10.6° -> **14.5°**, top-shove 56 -> **81 gf**, and the UPS still makes it better
+rather than worse.
+
 ## The encoder's NeoPixel now has a way out
 
 The seesaw carries a NeoPixel and `packages/api/indicator.yaml` has been driving it since

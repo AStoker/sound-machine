@@ -52,15 +52,22 @@ wants, which the insert's own spec gives — usually 0.1–0.2 mm under its knur
 
 ### `BARREL_NUT_D`, `SW_NUT_D` — across the nuts, both assumed 16.0
 
+**Now load-bearing.** The panel openings were opened up by `PANEL_FIT` (1 mm) after
+both came out too tight, so the switch nut has only **1.0 mm** of overlap on its
+Ø13 hole at the assumed 16. If it is actually smaller than 15 it pulls through.
+Measure this one before you fit the button.
+
 Across the **corners**, not the flats, on the panel nuts for the DC jack and the
-UPS button. They set the flat land each one tightens against. The panel holes
-themselves are settled (Ø7 and Ø12, from your measurements).
+UPS button. They set the flat land each one tightens against. The component bodies
+are settled (Ø7 and Ø12, from your measurements); the openings cut for them are
+those plus `PANEL_FIT`.
 
 ### `KNOB_BORE_D` / `KNOB_BORE_F` — encoder shaft, assumed 6.0 with a 4.5 flat
 
-Caliper the D-shaft: full diameter, and across the flat. A press fit is designed
-in, so 0.2 mm out here is the difference between a knob that presses on and one
-that splits.
+Caliper the D-shaft: full diameter, and across the flat. The bore is only 0.2 mm
+over nominal now, so 0.2 mm out here is the difference between a knob that presses
+on and one that splits. *(The shaft's LENGTHS are settled — 12 mm above the dome,
+top 5 mm D-flatted.)*
 
 ---
 

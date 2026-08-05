@@ -31,6 +31,8 @@ from manifold3d import CrossSection, Manifold
 from enclosure_geom import (
     KNOB_BASE_D, KNOB_BORE_D, KNOB_BORE_F, KNOB_BORE_H, KNOB_BOSS_D,
     KNOB_D, KNOB_H, MODEL_DIR, knob_ellipse,
+    KNOB_NUT_D, KNOB_NUT_CLR, KNOB_CAP_MIN, KNOB_CB_D, KNOB_CB_H,
+    KNOB_SHAFT_H, KNOB_D_LEN, KNOB_ROUND_LEN, KNOB_TIP_CLR,
 )
 
 SEG = 128
@@ -38,7 +40,17 @@ BED = 220.0
 OVERHANG_LIMIT = 50.0     # degrees from vertical, before support is needed
 
 # --- print parameters -------------------------------------------------------
-BORE_FIT   = 0.25         # per side, bore to shaft -- a press fit, not a clearance
+# >>> IT WAS NEVER A PRESS FIT. This said "a press fit, not a clearance" and then
+# >>> the code ADDED it: bore = shaft + 2 x 0.25, i.e. half a millimetre of slop on
+# >>> the diameter. The knob printed loose, which is what that arithmetic asks for.
+# >>> The check below certified it, too -- it asserted `bore_d - KNOB_BORE_D`, which
+# >>> is only positive WHEN THERE IS CLEARANCE. Name, comment, check and code all
+# >>> agreed with each other and all four were wrong together, so nothing caught it.
+# >>> 0.25 -> 0.10: a 6.2 bore on a 6.0 shaft, which after the usual printed-hole
+# >>> shrink lands snug. If it is still loose, come down in 0.05 steps -- PLA and a
+# >>> thin wall, so do not chase an interference fit.
+BORE_FIT   = 0.10         # per side. POSITIVE IS CLEARANCE -- read the note above
+BORE_FIT_MAX = 0.15       # per side, beyond which it is loose rather than snug
 BASE_CHAMF = 0.5          # break on the base edge, so it does not scuff the crown
 GRIP_N     = 0            # optional flutes; 0 = plain pebble (see the note below)
 
@@ -70,7 +82,12 @@ prof.append((0.0, KNOB_H))                 # close on the axis at the apex
 
 body = CrossSection([prof]).revolve(circular_segments=SEG)
 
-# --- the D-shaft bore -------------------------------------------------------
+# --- the shaft bore, in TWO parts -------------------------------------------
+# >>> BECAUSE THE SHAFT IS IN TWO PARTS. 12 mm stands above the dome and only the
+# >>> top KNOB_D_LEN of it is D-flatted; the KNOB_ROUND_LEN below is round threaded
+# >>> bushing carrying the nut. A single D-bore lands on that bushing and holds the
+# >>> knob 7 mm proud of the crown. Counterbore the round section, D-bore the rest,
+# >>> and the knob drops until its base touches the dome.
 # Blind, from the base up. Round bore of KNOB_BORE_D with one side flattened to
 # KNOB_BORE_F, matching the shaft.
 bore_d = KNOB_BORE_D + 2 * BORE_FIT
@@ -86,6 +103,16 @@ keep = Manifold.cube((bore_d + 2, slab_hi - slab_lo, KNOB_BORE_H + 2)) \
     .translate((-(bore_d + 2) / 2, slab_lo, -1.0))
 bore = bore ^ keep
 body = body - bore.translate((0.0, 0.0, -0.5))     # break out through the base
+
+# --- counterbore for the round section (bushing + nut) ----------------------
+# >>> IT CLEARS 7 mm, NOT 3. The previous version was sized for the NUT alone --
+# >>> Ø12.5 x 3.5 -- which is only the bottom 3 mm of a 7 mm obstruction. The
+# >>> bushing above it is round too, and the knob was landing on that.
+# >>> Concentric with the shaft, so it does not care how the knob is turned.
+NUT_REC_D = KNOB_CB_D
+NUT_REC_H = KNOB_CB_H
+body = body - (Manifold.cylinder(NUT_REC_H + 0.5, NUT_REC_D / 2, NUT_REC_D / 2, SEG)
+               .translate((0.0, 0.0, -0.5)))
 
 
 # --- base edge break --------------------------------------------------------
@@ -155,7 +182,15 @@ chk("material around the bore at the base", W0 - bore_d / 2 - 1.0)
 # >>> through; the shaft itself is KNOB_BORE_D (6.0). Checking the knob's bore
 # >>> against the shell hole compares two things that never touch and happened to
 # >>> read exactly 0.00 -- a passing number that meant nothing.
-chk("bore takes the shaft with a press fit", bore_d - KNOB_BORE_D)
+# >>> A BAND, NOT A DIRECTION. "bore_d - KNOB_BORE_D > 0" passes at 6.1 and at 60:
+# >>> it only says the shaft goes in, never that it is held. Snug has an upper
+# >>> bound, and that bound is the whole requirement here.
+chk(f"bore goes onto the shaft at all ({bore_d:.2f} on {KNOB_BORE_D})",
+    bore_d - KNOB_BORE_D)
+chk(f"...and is SNUG, not loose (<= {2 * BORE_FIT_MAX:.2f} on the diameter)",
+    2 * BORE_FIT_MAX - (bore_d - KNOB_BORE_D))
+chk(f"D-flat keeps the knob from spinning ({flat_f:.2f} on {KNOB_BORE_F})",
+    2 * BORE_FIT_MAX - (flat_f - KNOB_BORE_F))
 # >>> THE BOSS IS BIGGER THAN THE KNOB BASE ON PURPOSE, and the first version of
 # >>> this check asserted the reverse. If the boss were smaller, the knob's rim
 # >>> would overhang the CURVED crown and leave a gap that varies all the way
@@ -169,6 +204,32 @@ chk("fits the bed (x)", BED - (bb[3] - bb[0]))
 chk("fits the bed (z)", BED - (bb[5] - bb[2]))
 chk("widest point is ABOVE the base (it is a pebble, not a cone)",
     KNOB_D - KNOB_BASE_D)
+
+# --- the deeper bore, and the nut recess ------------------------------------
+# >>> THE CAP IS MEASURED ON THE AXIS, where the dome over the bore is thinnest.
+# >>> A 20 mm bore in the old 20 mm pebble left 0.5 mm there -- on the one surface
+# >>> you look down at. KNOB_H had to grow with the bore; this check is what says
+# >>> by how much.
+chk(f"cap over the blind bore ({KNOB_H - (KNOB_BORE_H - 0.5):.2f} on the axis)",
+    (KNOB_H - (KNOB_BORE_H - 0.5)) - KNOB_CAP_MIN)
+chk(f"counterbore takes the {KNOB_NUT_D} nut", NUT_REC_D - KNOB_NUT_D)
+# >>> AGAINST THE ROUND SECTION, NOT THE NUT. Checking the recess against the nut
+# >>> height is what let a 3.5 mm recess look correct while the bushing behind it
+# >>> was 7 mm long.
+chk(f"counterbore clears the whole round section ({KNOB_ROUND_LEN})",
+    NUT_REC_H - KNOB_ROUND_LEN + 1e-9)
+chk(f"D-bore engages the {KNOB_D_LEN} mm D-section",
+    (KNOB_BORE_H - NUT_REC_H) - KNOB_D_LEN + 1e-9)
+chk(f"bore is as deep as the shaft is long ({KNOB_SHAFT_H} + {KNOB_TIP_CLR})",
+    KNOB_BORE_H - KNOB_SHAFT_H - KNOB_TIP_CLR + 1e-9)
+# >>> AND THE KNOB MUST STILL HAVE SOMETHING TO SIT ON. The recess eats the middle
+# >>> of the base flat; what is left is an annulus between it and the rim. If that
+# >>> ever goes to nothing the knob is back to balancing on the nut.
+chk(f"base flat still seats outside the recess "
+    f"({(KNOB_BASE_D - NUT_REC_D) / 2:.2f} mm annulus)",
+    (KNOB_BASE_D - NUT_REC_D) / 2 - 3.0)
+chk("bore is still blind (does not reach the apex)",
+    KNOB_H - (KNOB_BORE_H - 0.5) - 0.5)
 
 
 try:
