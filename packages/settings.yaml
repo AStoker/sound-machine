@@ -262,10 +262,16 @@ substitutions:
   #   48 SK6812 RGBW at full all-channel white ~= 2.9A
   #   TPA2016 into 2x 4ohm at clipping           ~= 1.3A
   #   Flex + XVF3800 + ESP32-S3 + sensors        ~= 0.5A
-  # 65% of 2.9A = ~1.9A for the strip, ~3.7A of 5A total. Also keeps the sealed
-  # dome from cooking. Raise only after measuring actual draw.
-  led_max_pct: "65%"
-  crescent_transition: 1s            # default fade between light states
+  # STOPGAP: 65% (~1.9A, ~3.7A of 5A total on paper) was enough to brown out the
+  # ESP32 in practice - the strip latches its last frame independent of the MCU,
+  # so once the rail sags enough to reset the ESP32 it can't recover: the LEDs
+  # keep drawing the same current through the reboot loop. Real fix is bulk
+  # capacitance at the strip + ESP32 5V inputs and verifying the wiring/feed
+  # topology (see HARDWARE.md); this cap is just a stopgap until that's done.
+  # 25% of 2.9A = ~0.73A for the strip, ~2.5A of 5A total. Raise only after the
+  # hardware fix, and only in small steps while watching for the same failure.
+  led_max_pct: "25%"
+  crescent_transition: 3s            # slower ramp -> gentler current step
 
   # ---- Static presets ----
   # A second brightness layer on top of led_max_pct: cap what a preset may
