@@ -42,6 +42,36 @@ and it is checked as a **rigid motion**: the hole-to-hole span and each hole's
 four edge distances have to survive it. Both broken forms were re-introduced to
 confirm the check fails (−6.34 for a swap, −8.25 for the original centreline bug).
 
+## The nut lands were holding the bottom plate 2 mm open
+
+The switch and barrel-jack lands sit at y=12 with pads ~20 across, so they reached
+down to **y=2.50 and y=2.00** — through the plate, whose top face is at BP_T=4. The
+plate rode proud on two little rings.
+
+They cannot just be narrowed: a land exists to give the NUT a flat seat, so it must
+be at least the nut across corners (16), which already reaches exactly y=4.0 with
+zero clearance. So they are **clipped flat** where the plate goes. A nut loses the
+bottom sliver of its seat; the box closes.
+
+### check_assembly SAW this and I let it through
+
+It reported **27.2 mm³** of dome-inside-plate and passed, because I had written the
+test as `overlap < 50.0 mm³`. That tolerance was invented for a real reason — two
+touching parts produce many ZERO-VOLUME coplanar fragments where the plate rests on
+its ledge, and a raw "any intersection at all" test would scream on every run. But
+a blanket allowance does not distinguish contact from collision, and 27 mm³ of
+genuine interference fitted comfortably underneath it.
+
+**Contact is flat: many pieces, none with volume. A collision is one lump with
+volume.** The check now splits the intersection and judges the LARGEST PIECE at an
+epsilon that only covers mesh noise (0.05 mm³), and prints the offenders with their
+bounding boxes. Today: 17 regions, all flat, largest 0.000. With the clip removed:
+`FAIL largest 14.692 mm³`, naming both lands and their exact y spans.
+
+The lesson is narrower than "tolerances are bad" — it is that a tolerance chosen to
+absorb one phenomenon will absorb anything else the same size, so it has to be
+applied to a quantity that only that phenomenon can produce.
+
 ## The knob bore is stepped, because the shaft is
 
 Measured: **12 mm of shaft above the dome, and only the top 5 mm is D-flatted.**

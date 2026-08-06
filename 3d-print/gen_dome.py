@@ -51,7 +51,7 @@ from enclosure_geom import (
     FLEX_BOSS_D, FLEX_HOLE_D, FLEX_STANDOFF, FLEX_WALL_Y, H, IN_D, IN_W, INSERT_D,
     KNOB_BOSS_D, LIP_T, LIP_W, LP_D, LP_Y, LUG_H, LUG_L, LUG_W, MODEL_DIR,
     RIB_T, RIB_W, R_BOT, REVEAL, FP_CLR, FP_T, SCREWS, SEAT_W, SLOT_W, STANDOFF_H, SW_RIB,
-    SW_D, SW_NUT_D, SW_WALL_X, SW_WALL_Y, VENT_RISE,
+    SW_D, SW_NUT_D, SW_WALL_X, SW_WALL_Y, VENT_RISE, LAND_PLATE_CLR,
     TOF_HOLE_D, TOF_BOARD_GAP,
     TOF_PCB_D, TOF_PCB_W, TOF_X, TOF_Y, TOUCH_DEPTH, TOUCH_PAD_L, TOUCH_PAD_W,
     TOUCH_WALL, TOUCH_Y, VENT_HH, VENT_N, VENT_P, VENT_Y, W, WALL,
@@ -490,14 +490,21 @@ for vx, vy, _hl, _hh in vent_slots():
 # >>> would leave four gaps around a circular bezel and give its nut nothing flat
 # >>> and concentric to pull against.
 cuts.append(cyl(SW_WALL_X, SW_WALL_Y, RW0 - 1, RW1 + 1, SW_HOLE_D))
+# >>> CLIPPED FLAT WHERE THE BOTTOM PLATE GOES -- see LAND_PLATE_CLR. Unclipped
+# >>> this pad reaches y=2.5 and the plate's top face is at 4.0, so the plate could
+# >>> not close by 1.5 mm.
+_plate_keepout = slab(rect2(-10.0, -10.0, W + 20.0,
+                            BP_T + LAND_PLATE_CLR + 10.0), RW0 - 3, RW1 + 2)
 _sw_land, _ = boss(SW_WALL_X, SW_WALL_Y, SW_RIB, 0.0, d=SW_NUT_D + 2 * SW_RIB)
-adds.append(_sw_land - cyl(SW_WALL_X, SW_WALL_Y, RW0 - 2, RW1 + 1, SW_HOLE_D))
+adds.append(_sw_land - cyl(SW_WALL_X, SW_WALL_Y, RW0 - 2, RW1 + 1, SW_HOLE_D)
+            - _plate_keepout)
 
 # --- rear wall: a flat land for the barrel jack's nut ------------------------
 # The jack is a panel-mount part; its nut has to pull up against a plane. The
 # rear wall IS flat, so the land is just a raised pad giving the nut room to turn
 # clear of the vents and the lux pipe.
 _land, _ = boss(W / 2, BARREL_Y, 1.2, 0.0, d=BARREL_LAND_D)
+_land = _land - _plate_keepout
 adds.append(_land - cyl(W / 2, BARREL_Y, RW0 - 2, RW1 + 1, BARREL_HOLE_D))
 
 # --- rear wall: board bosses ------------------------------------------------

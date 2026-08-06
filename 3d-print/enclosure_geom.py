@@ -2197,6 +2197,15 @@ SW_NUT_D     = 16.0       # (?) across the nut, for the land -- MEASURE
 SW_WALL_X    = 26.0       # rear wall, left of the Flex
 SW_WALL_Y    = 12.0       # low, level with the jack
 SW_RIB       = 1.5        # retaining land around the opening, inside
+# >>> THE LANDS HAVE TO STOP ABOVE THE BOTTOM PLATE. Both the switch and the barrel
+# >>> jack sit at y=12 with lands ~20 across, so their pads reach down to y=2.5 and
+# >>> y=2.0 -- straight through the plate, whose top face is BP_T=4. The plate then
+# >>> rides 1.5-2 mm proud on two little rings, which is what Andy felt.
+# >>> They cannot simply be made narrower: the land exists to give the NUT a flat
+# >>> seat, so it has to be at least the nut across corners (16), which already
+# >>> reaches exactly y=4. So the pads are CLIPPED FLAT where the plate is instead;
+# >>> a nut loses the bottom sliver of its seat and gains a machine that closes.
+LAND_PLATE_CLR = 0.3      # air between a clipped land and the plate's top face
 
 # ---- bottom plate ----------------------------------------------------------
 FOOT_POCKET_T = 1.0       # recess depth for a stick-on foot

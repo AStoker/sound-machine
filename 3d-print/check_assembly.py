@@ -123,13 +123,38 @@ for _sx, _sd in g.SCREWS:
 # >>> and obviously.
 say("")
 say("solid interference between the two parts")
+# >>> A 50 mm^3 TOLERANCE HID A REAL COLLISION. Two parts that touch produce a lot
+# >>> of ZERO-VOLUME coplanar fragments where the plate rests on its ledge, so a
+# >>> blanket allowance looked reasonable -- and it swallowed 27 mm^3 of genuine
+# >>> interference: the switch and barrel-jack nut lands reaching 1.5-2.0 mm through
+# >>> the plate. Andy found it by trying to close the box.
+# >>>
+# >>> The two are not the same thing and must not share a threshold. Contact is
+# >>> flat: many pieces, each with no volume. A collision is one lump with volume.
+# >>> So split the intersection and judge the LARGEST PIECE, at an epsilon that only
+# >>> covers mesh noise -- not at a number big enough to hide a feature.
 try:
     inter = dome.intersection(plate)
-    _v = float(inter.volume) if inter is not None and len(inter.faces) else 0.0
+    _pieces = ([] if inter is None or not len(inter.faces)
+               else sorted(inter.split(only_watertight=False),
+                           key=lambda p: -abs(p.volume)))
 except Exception as _e:                        # pragma: no cover
-    _v = float("nan")
+    _pieces = None
     say(f"  (boolean failed: {_e})")
-chk("dome and plate do not overlap", _v < 50.0, f"{_v:.1f} mm^3")
+if _pieces is None:
+    chk("dome and plate do not overlap", False, "boolean failed")
+else:
+    _worst = abs(_pieces[0].volume) if _pieces else 0.0
+    _flat = sum(1 for p in _pieces if abs(p.volume) <= 0.05)
+    say(f"  ----  {len(_pieces)} contact region(s), {_flat} of them flat "
+        f"(zero volume -- the plate resting on its ledge)")
+    for _p in _pieces[:3]:
+        if abs(_p.volume) > 0.05:
+            _b = _p.bounds
+            say(f"        SOLID {_p.volume:7.2f} mm^3 at x {_b[0][0]:.1f}-{_b[1][0]:.1f}, "
+                f"y {_b[0][1]:.2f}-{_b[1][1]:.2f}")
+    chk("no piece of the dome is INSIDE the plate", _worst <= 0.05,
+        f"largest {_worst:.3f} mm^3")
 
 say("")
 say("ALL CLEAR" if not bad else f"*** {len(bad)} PROBLEM(S) ***")
