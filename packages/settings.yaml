@@ -138,9 +138,9 @@ substitutions:
   # packages/hw/matrix.yaml under "WHY COMPACT SCOPE EXISTS".
   #
   # Power-source announcements, raised when External Power flips (charger in or
-  # out). Gated on ups_confirm_time, so the message lands ~30s after the plug
-  # moves, not instantly - that debounce is what stops a full pack's idle
-  # current excursions announcing a false mains loss.
+  # out). Gated on the averaging window plus ups_confirm_time, so the message
+  # lands up to ~90s after the plug moves, not instantly - that lag is what
+  # stops a full pack's idle current excursions announcing a false mains loss.
   power_msg_mains: "CHG"
   power_msg_battery: "BATT"
   power_msg_seconds: "3"
@@ -411,17 +411,33 @@ substitutions:
   # steadier but slower to react.
   ups_ema_alpha: "0.2"
 
-  # Current deadband in AMPS, deliberately ASYMMETRIC.
-  # Above +50mA the cells are genuinely absorbing charge.
+  # Charge deadband in AMPS, applied to the INSTANTANEOUS current: above +50mA
+  # the cells are genuinely absorbing charge.
   ups_charge_threshold_a: "0.05"
-  # Below -200mA the pack is genuinely carrying the load. Sits in the gap
-  # between a full pack's idle excursions on mains (tens of mA, spiking to
-  # ~180mA) and a real mains loss (several hundred mA from the first sample).
-  # Lower it only if this device draws far less than expected on battery.
-  ups_discharge_threshold_a: "0.20"
 
-  # How long a charge/mains state change must hold before it is believed.
-  # Rejects one-off sensor noise; at a 10s poll this is ~3 readings.
+  # Mains-loss deadband in AMPS, applied to the AVERAGED current (see the window
+  # below), so it can be small. Anything more negative than this, sustained
+  # across the window, means the pack is carrying the load.
+  #
+  # DO NOT raise this back into the hundreds of mA to reject charger excursions.
+  # It was 200mA for exactly that reason and it was wrong: this device's idle
+  # draw from an 11-12V pack is roughly 100-180mA, UNDER that deadband, so
+  # running on battery read as "Plugged In" forever. Duration, not magnitude, is
+  # what separates the two cases - that is the window's job, not this value's.
+  ups_discharge_threshold_a: "0.05"
+
+  # How many consecutive current samples the mains detector averages over. At
+  # ups_poll_interval this is the averaging window in real time (6 x 10s = 60s).
+  #
+  # THIS is what rejects a full pack's idle excursions on the charger: a ~180mA
+  # blip lasting one sample averages to ~30mA over six and never crosses the
+  # deadband, while a genuine mains loss holds every sample and crosses within
+  # two or three. Shorter window = faster detection, less excursion rejection.
+  ups_current_avg_samples: "6"
+
+  # How long a charge/mains state change must hold AFTER the window before it is
+  # believed. Rejects one-off sensor noise; at a 10s poll this is ~3 readings.
+  # Worst-case latency on a mains change is window + this, so ~90s.
   ups_confirm_time: "30s"
 
   # SOC at/below this counts as "low battery". The pack VOLTAGE thresholds are

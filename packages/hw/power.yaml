@@ -38,13 +38,18 @@
 # Anything that wants to know "is the jack live?" reads external_power, which is
 # defined as NOT DISCHARGING rather than as charging.
 #
+# ...and "not discharging" is judged on the AVERAGED current, not the
+# instantaneous one. Both mistakes here are subtle and both have been made: see
+# battery_current_avg for why a big instantaneous deadband made external_power
+# report mains power while the device ran off the pack.
+#
 # PACK THRESHOLDS, for reference (3S = per-cell x3):
 #   12.6V full (4.20/cell)   10.2V low (3.40/cell)   9.0V empty (3.00/cell)
 # The SOC curve below spans exactly that range. It is a measured lithium-ion
 # rest-voltage curve, not a tunable, which is why it lives here rather than in
 # settings.yaml.
 #
-# DEFINES  battery_voltage, battery_current, battery_power,
+# DEFINES  battery_voltage, battery_current, battery_current_avg, battery_power,
 #          battery_shunt_voltage, battery_oc_voltage, battery_level,
 #          battery_cell_voltage, battery_charging, external_power, battery_low.
 # CONSUMES internal_i2c (device core), the ups_* / battery_* settings.
@@ -163,6 +168,46 @@ sensor:
       }
       return 100.0f;
 
+  # Averaged pack current, and the ONLY input to the mains detector below.
+  #
+  # WHY AVERAGE AT ALL. External Power used to threshold the instantaneous
+  # current, with a deliberately large 200mA deadband to reject the excursions a
+  # full pack makes on the charger. That deadband was bigger than this device's
+  # entire idle draw (~100-180mA from an 11-12V pack), so on battery the current
+  # never reached it and External Power reported "Plugged In" the whole time the
+  # charger was out. Shrinking the deadband alone just restores the flapping it
+  # was added to stop.
+  #
+  # The two cases differ in DURATION, not magnitude. A charger excursion is a
+  # blip of a sample or two that the recharge immediately cancels; a mains loss
+  # is every sample from then on. Averaging over ups_current_avg_samples turns
+  # that difference into a difference in magnitude, which a small deadband can
+  # then read cleanly - a one-sample 180mA blip averages to ~30mA over six.
+  #
+  # `copy` rather than a template sensor: it republishes on each source update,
+  # so the window is exactly ups_current_avg_samples INA219 readings and cannot
+  # drift against a poll interval of its own.
+  - platform: copy
+    source_id: battery_current
+    name: "Battery Current Average"
+    id: battery_current_avg
+    unit_of_measurement: "A"
+    accuracy_decimals: 3
+    device_class: current
+    state_class: measurement
+    entity_category: diagnostic
+    filters:
+      - sliding_window_moving_average:
+          window_size: ${ups_current_avg_samples}
+          # Publish on every sample. ESPHome requires send_first_at <= send_every,
+          # so per-sample publishing rules out waiting for a full window - the
+          # first few publishes are averages over a partly-filled window and the
+          # very first is just the raw sample. That is survivable here only
+          # because ups_confirm_time outlasts the ramp-up: a boot transient
+          # cannot hold External Power long enough to be believed.
+          send_every: 1
+          send_first_at: 1
+
   # Per-cell average of the RAW bus voltage - deliberately not the compensated
   # figure, because the point of this entity is to be checkable against a
   # multimeter on the pack terminals.
@@ -197,22 +242,22 @@ binary_sensor:
 
   # THE MAINS DETECTOR. Defined as NOT DISCHARGING, not as charging: idle-on-mains
   # and full-on-mains both sit near zero current and must still read as powered.
-  # Only a sustained NEGATIVE current - the device pulling its whole draw out of
+  # Only a SUSTAINED negative current - the device pulling its whole draw out of
   # the pack - counts as mains lost.
   #
-  # The threshold is deliberately asymmetric with the charge threshold. A full
-  # pack on the charger periodically hands the load back to the cells for a few
-  # seconds, a small discharge of tens of mA with occasional ~180mA spikes; at
-  # 50mA that reads as mains loss and flaps. A genuine loss puts several hundred
-  # mA on the pack from the very first sample. ups_discharge_threshold_a sits in
-  # the empty gap between the two.
+  # Reads battery_current_avg, NOT the instantaneous current. The window is what
+  # rejects a charging pack's idle excursions, which is what lets the deadband be
+  # small enough to see this device's modest draw. Thresholding the raw current
+  # with a deadband big enough to do that job instead is the bug documented on
+  # battery_current_avg above: it never fired, and the device reported mains
+  # power while running off the pack.
   - platform: template
     name: "External Power"
     id: external_power
     device_class: plug
     lambda: |-
-      if (!id(battery_current).has_state()) return {};
-      return id(battery_current).state > -${ups_discharge_threshold_a}f;
+      if (!id(battery_current_avg).has_state()) return {};
+      return id(battery_current_avg).state > -${ups_discharge_threshold_a}f;
     filters:
       - delayed_on: ${ups_confirm_time}
       - delayed_off: ${ups_confirm_time}

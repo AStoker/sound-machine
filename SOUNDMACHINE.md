@@ -108,10 +108,24 @@ The display and other logic key off those flags.
 
 "Charging" and "on mains" are **not** the same thing here: a full pack on the
 charger tapers to near-zero current, so the mains detector (`external_power`) is
-defined as *not discharging* rather than as charging. That flag is what drives the
-"CHARGING" / "BATTERY" announcement, so it is debounced by `ups_confirm_time`
-(30s) — the message lands about half a minute after the plug actually moves,
-which is the price of never crying "mains lost" at a healthy full battery.
+defined as *not discharging* rather than as charging.
+
+Getting *"not discharging"* right took a second pass. The first version compared
+the instantaneous current against a deliberately large 200 mA deadband, sized to
+ignore the brief excursions a full pack makes on the charger. But this device's
+whole idle draw from an 11–12 V pack is only ~100–180 mA — under that deadband —
+so unplugging it changed nothing and `external_power` reported **"Plugged In"
+while running on battery**. Shrinking the deadband alone just brings the flapping
+back. What actually separates the two cases is **duration**: a charger excursion
+lasts a sample or two, a real mains loss lasts forever. So the detector now
+thresholds a **60 s moving average** of the current (`battery_current_avg`)
+against a small 50 mA deadband — a one-sample blip averages down to nothing,
+while a sustained draw crosses within two or three samples.
+
+That flag drives the "CHG" / "BATT" announcement, and the averaging window sits
+in front of `ups_confirm_time` (30s), so the message can land up to ~90s after
+the plug actually moves — the price of never crying "mains lost" at a healthy
+full battery.
 
 ### The control surface
 
