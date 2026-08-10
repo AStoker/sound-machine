@@ -305,10 +305,19 @@ substitutions:
   alarm_default_time: "06:30:00"
 
   # ---- Capacitive touch pad ----
-  touch_setup_mode: "false"          # flip to true ONCE, watch the logs for this
-                                     # pad's raw value untouched vs touched, then
-                                     # set the threshold below
-  touch_threshold: "700000"          # ESP32-S3 raw threshold - TODO: CALIBRATE
+  # ON THE ESP32-S3 THE THRESHOLD IS A *DELTA*, NOT A RAW COUNT. The S3's touch
+  # peripheral (v2) keeps a rolling `benchmark` per channel and fires when
+  # (value - benchmark) exceeds the threshold. So the number below is the size of
+  # the finger's effect, typically HUNDREDS to a few thousand - not the ~10^5-ish
+  # raw reading. (The old ESP32 v1 semantics were an absolute count, which is
+  # where the previous 700000 came from; on the S3 nothing can ever exceed it,
+  # so the pad could never fire.)
+  touch_setup_mode: "true"           # true = log value/benchmark/difference for
+                                     # this pad every 250 ms at DEBUG. Flip back
+                                     # to false once the threshold below is set.
+  touch_threshold: "1000"            # PROVISIONAL - calibrate: with setup mode on,
+                                     # note `difference` untouched (~0) vs held
+                                     # (D), then set this to ~0.5-0.7 x D
   touch_debounce: 40ms
 
   # ===================================================================

@@ -8,10 +8,18 @@
 #   on_touch_tap   - a short press
 #   on_touch_hold  - a long press
 #
-# CALIBRATION: the threshold is a raw capacitance count and is build-specific -
-# it depends on the pad, the wire length and the enclosure. Set touch_setup_mode
-# to true once, watch the logs for this pad's value untouched vs touched, pick a
-# value between the two, then set it back to false.
+# CALIBRATION: on the ESP32-S3 the threshold is a DELTA against the peripheral's
+# own rolling per-channel `benchmark`, not a raw capacitance count - the pad goes
+# active when (value - benchmark) exceeds it. Expect hundreds to a few thousand,
+# and expect it to be build-specific: it depends on the pad area, the lead length
+# and the wall thickness. Set touch_setup_mode to true, watch the `difference=`
+# field in the logs untouched vs held, set touch_threshold to ~0.5-0.7x the held
+# figure, then set setup mode back to false.
+#
+# NOTHING HERE LOGS AT DEBUG. The component only prints pad state at VERBOSE, and
+# so does binary_sensor itself - so with log_level: DEBUG a working pad produces
+# no log line at all, only a state change in HA / the web server. Setup mode is
+# the exception: it logs at DEBUG. Don't read log silence as "the pad is dead".
 #
 # DEFINES  preset_touch (binary_sensor).
 # CONSUMES the touch_* and gesture_* settings.

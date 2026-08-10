@@ -12,7 +12,9 @@
       "Bash(rsvg-convert -b white -z 2 enclosure-drawing.svg -o /dev/null)",
       "Bash(rsvg-convert -b white -z 1 enclosure-drawing.svg -o __TRACKED_VAR__/s1.png)",
       "Bash(python3 gen_internals.py)",
-      "Bash(rsvg-convert -b white -z 1.5 enclosure-internals.svg -o __TRACKED_VAR__/s2.png)"
+      "Bash(rsvg-convert -b white -z 1.5 enclosure-internals.svg -o __TRACKED_VAR__/s2.png)",
+      "Bash(cp diffuser.svg /private/tmp/claude-502/-Users-andrew-Documents-Claude-Sound-Machine/71be74df-e932-4afe-822d-5eb0418e9d8f/scratchpad/diffuser.committed.svg)",
+      "Bash(python3 gen_diffuser.py)"
     ]
   }
 }
