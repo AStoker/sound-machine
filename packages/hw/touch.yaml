@@ -8,7 +8,10 @@
 #   on_touch_tap   - a short press
 #   on_touch_hold  - a long press
 #
-# CALIBRATION: on the ESP32-S3 the threshold is a DELTA against the peripheral's
+# CALIBRATION: check `value` FIRST. If it reads exactly 4194303 the counter is
+# saturated and no threshold can ever work - fix touch_measurement_duration before
+# anything else (see the measurement_duration note below). Once value sits well
+# under that ceiling, the threshold is a DELTA against the peripheral's
 # own rolling per-channel `benchmark`, not a raw capacitance count - the pad goes
 # active when (value - benchmark) exceeds it. Expect hundreds to a few thousand,
 # and expect it to be build-specific: it depends on the pad area, the lead length
@@ -27,6 +30,12 @@
 # =====================================================================
 esp32_touch:
   setup_mode: ${touch_setup_mode}
+  # NOT OPTIONAL - see touch_measurement_duration in settings.yaml. Leaving this
+  # out takes ESPHome's default, which derives charge_times = 65535 (its maximum,
+  # against a driver default of 500) and pins every reading at the 22-bit ceiling
+  # of 4194303, difference stuck at 0. A pad that reads exactly 4194303 is this,
+  # not a wiring fault.
+  measurement_duration: ${touch_measurement_duration}
 
 binary_sensor:
   - platform: esp32_touch

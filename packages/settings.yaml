@@ -312,6 +312,19 @@ substitutions:
   # raw reading. (The old ESP32 v1 semantics were an absolute count, which is
   # where the previous 700000 came from; on the S3 nothing can ever exceed it,
   # so the pad could never fire.)
+  #
+  # MEASUREMENT DURATION MUST BE SET EXPLICITLY - the ESPHome default rails the
+  # counter. On v2 the raw reading is the number of clock ticks taken to complete
+  # `charge_times` charge/discharge cycles, so it scales LINEARLY with that count.
+  # ESPHome derives it as round(measurement_duration_us * 65535/8192), and its own
+  # schema default of 8192us therefore yields charge_times = 65535 - the maximum -
+  # against a driver default of 500. Any real electrode then overflows the 22-bit
+  # counter and every reading pins at 4194303 (0x3FFFFF), benchmark follows it
+  # there, and `difference` is permanently 0: the pad can never fire. 63us maps
+  # back to 504, i.e. the intended default.
+  touch_measurement_duration: 63us   # -> charge_times 504. LOWER this (halve it)
+                                     # if the untouched `value` still sits near
+                                     # 4194303; raise it for more resolution.
   touch_setup_mode: "true"           # true = log value/benchmark/difference for
                                      # this pad every 250 ms at DEBUG. Flip back
                                      # to false once the threshold below is set.
