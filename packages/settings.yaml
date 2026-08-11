@@ -325,12 +325,29 @@ substitutions:
   touch_measurement_duration: 63us   # -> charge_times 504. LOWER this (halve it)
                                      # if the untouched `value` still sits near
                                      # 4194303; raise it for more resolution.
-  touch_setup_mode: "true"           # true = log value/benchmark/difference for
+                                     # MEASURED: baseline lands at ~47,500, only
+                                     # 1.1% of the 4,194,303 ceiling - so there is
+                                     # ~80x of headroom in hand. Since value AND
+                                     # delta both scale linearly with this, raising
+                                     # it is the lever if the smaller production
+                                     # pads behind the thinned wall give too weak
+                                     # a delta to separate from noise.
+  touch_setup_mode: "false"          # true = log value/benchmark/difference for
                                      # this pad every 250 ms at DEBUG. Flip back
                                      # to false once the threshold below is set.
-  touch_threshold: "1000"            # PROVISIONAL - calibrate: with setup mode on,
-                                     # note `difference` untouched (~0) vs held
-                                     # (D), then set this to ~0.5-0.7 x D
+  # CALIBRATED 2026-08-11 against a 76 x 76 mm bench pad behind the unthinned
+  # 2.5 mm dome wall (baseline value ~47,500, well clear of the counter ceiling).
+  # Measured over 64 untouched samples and 5 presses:
+  #   untouched  mean -12, sd 34, worst positive excursion +50
+  #   pressed    per-press medians 6363 / 7465 / 7754 / 12153 / 12731
+  # That is a 127x separation, so the exact number is not delicate. 2500 sits
+  # 50x above the noise ceiling and 2.5x below the weakest press - biased HIGH
+  # within that gap on purpose: the risks this pad actually has are a hovering
+  # hand and gripping the dome to move it (both give intermediate deltas that
+  # this bench data does not sample), not a missed press.
+  # RE-CALIBRATE when the real 40 x 22 pads go in behind the thinned 1.6 mm wall
+  # - a smaller pad at a shorter dielectric distance moves both numbers.
+  touch_threshold: "2500"
   touch_debounce: 40ms
 
   # ===================================================================
