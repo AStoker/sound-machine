@@ -12,15 +12,21 @@
 # >>> build if they drift. Get this wrong and the firmware addresses pixels that
 # >>> are not physically there.
 #
-# The Circadian Sunrise effect lives here, with the two numbers that shape it,
-# because it paints per-ROW and so is inseparable from the row layout above it.
-# Its auto-off is NOT here: it raises sunrise_done and api/light.yaml acts on it,
-# because turning the light off is a write and writes belong to the api layer
-# (also: calling turn_off from inside a running effect is asking for trouble).
+# The three custom effects live here, because two of them paint by POSITION and
+# so are inseparable from the row layout above them - Circadian Sunrise per row,
+# Rainbow Arch per pixel-radius. (Colour Cycle needs no geometry; it is here
+# only because effects must be declared on the light they run on.) Which effect
+# a preset uses, and when, is behavior/light.yaml's business, not this file's.
 #
-# DEFINES  crescent (light), sunrise_duration + sunrise_hold (numbers),
-#          sunrise_done (global).
-# CONSUMES the led_*, sunrise_* and pin_crescent_data settings.
+# The sunrise's auto-off is NOT here: it raises sunrise_done and api/light.yaml
+# acts on it, because turning the light off is a write and writes belong to the
+# api layer (also: calling turn_off from inside a running effect is asking for
+# trouble).
+#
+# DEFINES  crescent (light) and its effects, sunrise_duration + sunrise_hold
+#          (numbers), sunrise_done (global).
+# CONSUMES the led_*, sunrise_*, cycle_*, rainbow_* and pin_crescent_data
+#          settings.
 # WRITTEN BY api/light.yaml ONLY.
 # =====================================================================
 globals:
@@ -107,6 +113,106 @@ light:
       - addressable_rainbow:
       - addressable_color_wipe:
       - pulse:
+      # ---------------------------------------------------------------
+      # Colour Cycle: the whole crescent one colour, drifting round the hue
+      # wheel. No geometry at all - it is here rather than anywhere else only
+      # because effects must be declared on the light.
+      #
+      # BRIGHTNESS IS BAKED IN, as it is in every effect below. An addressable
+      # light hands its pixels to the running effect and stops applying its own
+      # brightness to them, so the HA brightness slider does nothing while an
+      # effect is active. cycle_brightness is the second brightness layer the
+      # static presets get from settings; led_max_pct still caps the result.
+      # ---------------------------------------------------------------
+      - addressable_lambda:
+          name: "${cycle_effect_name}"
+          update_interval: ${cycle_update_interval}
+          lambda: |-
+            static uint32_t start_millis = 0;
+            if (initial_run) start_millis = millis();
+
+            // Position on the wheel, 0..1, wrapping every cycle_period_s.
+            const float period_seconds = ${cycle_period_s}.0f;
+            float phase = fmodf((millis() - start_millis) / 1000.0f / period_seconds, 1.0f);
+
+            // 256 hue steps over the period: at the default 180s that is a step
+            // every 0.7s, worth 1.4 degrees - well under what the eye catches.
+            auto hue_rgb = light::ESPHSVColor((uint8_t) (phase * 255.0f), 255, 255).to_rgb();
+            const float level = ${cycle_brightness}f;
+            // White channel stays 0: mixing it in would wash the hue out, and a
+            // saturated colour lighting at most two of the four channels is what
+            // keeps this preset well under the static ones' current draw.
+            Color out((uint8_t) (hue_rgb.r * level),
+                      (uint8_t) (hue_rgb.g * level),
+                      (uint8_t) (hue_rgb.b * level), 0);
+            for (int i = 0; i < it.size(); i++)
+              it[i] = out;
+
+      # ---------------------------------------------------------------
+      # Rainbow Arch: concentric hue bands, red on the outside and violet at the
+      # centre of the flat edge - a real rainbow's order, on the one shape this
+      # crescent naturally makes.
+      #
+      # The band a pixel lands in is its NORMALISED ELLIPTICAL RADIUS, not its
+      # row: r = sqrt((x/half_width)^2 + (y/height)^2) over the LED field's own
+      # semi-axes. Rows alone would give horizontal stripes, which is not what an
+      # arch looks like - the top-centre pixels and the bottom-outermost pixels
+      # belong to the SAME band, and only a radius puts them there.
+      #
+      # >>> IT IS LEFT-RIGHT SYMMETRIC ON PURPOSE. x appears only as x^2, so
+      # >>> mirroring a row changes nothing - which means this effect is correct
+      # >>> whether or not the strip is laid serpentine. That is the one unknown
+      # >>> in the layout note above, and this sidesteps it rather than guessing.
+      #
+      # Static, so it is repainted on a lazy interval purely to survive anything
+      # that disturbs the buffer; there is nothing to animate.
+      # ---------------------------------------------------------------
+      - addressable_lambda:
+          name: "${rainbow_effect_name}"
+          update_interval: ${rainbow_update_interval}
+          lambda: |-
+            // Same row layout as the sunrise above, and the same warning: this is
+            // a COPY of 3d-print/enclosure_geom.crescent_rows, bottom row first.
+            static const uint8_t leds_per_row[] = {10, 10, 9, 8, 7, 4};
+            const uint8_t row_count = sizeof(leds_per_row) / sizeof(leds_per_row[0]);
+            // Physical spacing from the same source: 16.5mm between pixels along
+            // a row, 10.4mm between rows. The grid is deliberately not square, so
+            // using row/column INDICES here would squash the bands vertically.
+            const float pitch_x = 16.5f, pitch_y = 10.4f;
+
+            // Semi-axes of the LED FIELD, derived from the layout rather than
+            // copied from the enclosure's 89 x 62.7: those describe the diffuser,
+            // which the pixels sit inside, so normalising by them would leave the
+            // outer band never reaching r = 1 and the red end unused.
+            uint8_t widest = 0;
+            for (uint8_t row = 0; row < row_count; row++)
+              if (leds_per_row[row] > widest) widest = leds_per_row[row];
+            const float half_width = (widest > 1) ? (widest - 1) * 0.5f * pitch_x : 1.0f;
+            const float height = (row_count > 1) ? (row_count - 1) * pitch_y : 1.0f;
+
+            const float level = ${rainbow_brightness}f;
+            uint16_t led_index = 0;
+            for (uint8_t row = 0; row < row_count && led_index < it.size(); row++) {
+              const float y = row * pitch_y;
+              for (uint8_t led_in_row = 0; led_in_row < leds_per_row[row] && led_index < it.size(); led_in_row++) {
+                // x measured from the crescent's centre line, in mm.
+                const float x = (led_in_row - (leds_per_row[row] - 1) * 0.5f) * pitch_x;
+                const float nx = x / half_width, ny = y / height;
+                float radius = sqrtf(nx * nx + ny * ny);
+                if (radius > 1.0f) radius = 1.0f;   // the top row overhangs slightly
+
+                // Outermost band red (hue 0), innermost violet. 270 degrees is
+                // the rainbow's own span - a full 360 would wrap back to red and
+                // put two red bands on the arch.
+                const float hue_degrees = ${rainbow_hue_span}f * (1.0f - radius);
+                auto hue_rgb = light::ESPHSVColor((uint8_t) (hue_degrees * 255.0f / 360.0f), 255, 255).to_rgb();
+                it[led_index++] = Color((uint8_t) (hue_rgb.r * level),
+                                        (uint8_t) (hue_rgb.g * level),
+                                        (uint8_t) (hue_rgb.b * level), 0);
+              }
+            }
+            // Any LEDs past the configured rows stay off.
+            for (; led_index < it.size(); led_index++) it[led_index] = Color(0, 0, 0, 0);
       # Circadian Sunrise: keyframe-interpolated dawn simulation. The sun rises
       # from the bottom row; colour evolves deep-red -> amber -> blue-enriched
       # cool white over an ADJUSTABLE duration (the "Sunrise Duration" number

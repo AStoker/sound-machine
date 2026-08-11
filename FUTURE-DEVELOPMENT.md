@@ -104,13 +104,35 @@ quiet bench sample.
 
 ### C1. Calibrate the ToF proximity thresholds
 
-`tof_near_m` / `tof_far_m` (0.20 / 0.30 m) are guesses, never measured. The
-VL53L0X is live in `packages/hw/proximity.yaml` but only pre-illuminates the knob
-NeoPixel when a hand comes near.
+`tof_near_m` / `tof_far_m` (**0.25 / 0.40 m**) are still guesses, never measured.
+The VL53L0X is live in `packages/hw/proximity.yaml` but only pre-illuminates the
+knob NeoPixel when a hand comes near.
 
 **How:** watch the **Knob Proximity** binary sensor while reaching for the knob
 and adjust until it leads your hand without firing across the room. Low stakes —
 the knob-pixel feature degrades gracefully to volume-only if the sensor is absent.
+
+**Three fixes have already landed for "it doesn't see my hand", so try these
+before moving a threshold** — a threshold was never the reason:
+
+1. **`long_range: true`.** A palm reflects a few percent of 940 nm; the
+   datasheet's white target reflects ~88 %. Short range's 0.25 MCPS signal-rate
+   limit was rejecting the return outright. Long range drops it to 0.10.
+2. **`timing_budget: 50 ms`** (was the ~33 ms default) — more photons per
+   measurement, so a weak return separates from noise.
+3. **Unresolved readings are now ignored, not counted as "far".** The component
+   publishes the range register without the range-status byte beside it, so a
+   failed measurement arrives dressed as a distance of a few centimetres. One of
+   those in the middle of a hover reset the confirm counter, and asserting needs
+   two *consecutive* near samples — so the assert frequently never happened.
+   `tof_min_valid_m` rose 0.03 → 0.05 to catch them, and
+   `tof_invalid_hold_samples` (12 ≈ 3 s) leashes how long they may be ignored.
+
+**Diagnose before tuning.** Set `tof_log_level: DEBUG` and read the raw
+distances: an idle sensor showing a small fixed number means unresolved reads or
+something in its 25° cone; a hand reading nothing at all means sensitivity; a
+hand reading the *right* distance with no pixel means the thresholds — and only
+then is this entry the thing to work on.
 
 ### C2. Widen the gesture timing dead band
 

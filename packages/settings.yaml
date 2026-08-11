@@ -292,10 +292,11 @@ substitutions:
   # is derived from the Crescent Preset select's own option list in
   # packages/behavior/light.yaml - see the CONVENTION note at the top of this file.
 
-  # ---- Circadian Sunrise (the one dynamic preset) ----
+  # ---- Circadian Sunrise (the wake-up preset) ----
   # The effect's name, shared so that hw/crescent.yaml (which declares the effect)
   # and behavior/light.yaml (which asks for it by name) cannot drift apart. A
-  # mismatch would otherwise be a silent runtime no-op, not a build error.
+  # mismatch would otherwise be a silent runtime no-op, not a build error. Same
+  # applies to the two effect names further down.
   sunrise_effect_name: "Circadian Sunrise"
   sunrise_default_minutes: "30"      # dawn ramp length. 30 min is the typical
                                      # dawn-simulation protocol in the research.
@@ -304,6 +305,36 @@ substitutions:
   sunrise_update_interval: 100ms     # effect repaint rate
   sunrise_edge_softness: "0.15"      # vertical width of the sun's glowing edge,
                                      # as a fraction of the crescent's height
+
+  # ---- Colour Cycle + Rainbow Arch (the two ambient effects) ----
+  # Both are EFFECTS rather than static colours, because one paints over time and
+  # the other paints per pixel. Their brightness is a setting for a reason worth
+  # knowing: an addressable light stops applying its own brightness to pixels a
+  # running effect owns, so the Home Assistant slider does nothing while either
+  # of these is on and the number below is the only control there is.
+  #
+  # ON CURRENT: neither is a brightness risk, despite looking bright. A fully
+  # saturated hue lights at most two of the strip's four channels, so at 0.50
+  # these draw roughly (2/4 x 0.50) of the full-white figure the led_max_pct
+  # budget is written against - less than Morning Light, which lights three. And
+  # led_max_pct caps the lot regardless. See section 7's budget note.
+  cycle_effect_name: "Colour Cycle"
+  cycle_period_s: "180"              # seconds for one full trip round the hue
+                                     # wheel. 3 min is slow enough that the
+                                     # colour never appears to be moving.
+  cycle_update_interval: 100ms       # repaint rate; the hue itself steps far
+                                     # more slowly than this
+  cycle_brightness: "0.50"
+  rainbow_effect_name: "Rainbow Arch"
+  rainbow_update_interval: 500ms     # nothing animates - this is just a lazy
+                                     # repaint so the frame cannot be left stale
+  rainbow_brightness: "0.50"
+  # Hue degrees from the outermost band to the centre of the flat edge: 0 (red)
+  # to 270 (violet), which is a real rainbow's span. A full 360 wraps back to red
+  # and puts two red bands on the arch. KEEP THE DECIMAL POINT - this is pasted
+  # straight into a C++ float literal, and "270f" is a compile error where
+  # "270.0f" is not.
+  rainbow_hue_span: "270.0"
 
   # ---- Alarm (starts the Sunrise preset) ----
   alarm_default_time: "06:30:00"
@@ -389,24 +420,60 @@ substitutions:
   tof_update_interval: "250ms"       # every read is I2C traffic on a bus this
                                      # build keeps deliberately quiet - 4/s is
                                      # plenty responsive for "a hand is coming"
-  tof_near_m: "0.20"                 # <= this asserts "hand near" (~8 in)
-  tof_far_m: "0.30"                  # must go beyond this to release (~12 in)
+  # LONG RANGE IS ON FOR SENSITIVITY, NOT FOR REACH. It drops the component's
+  # signal-rate limit from 0.25 to 0.10 MCPS and lengthens the VCSEL pulse
+  # periods, which is what lets a weak return be believed at all - and a PALM is
+  # a weak return. Skin reflects a few percent of 940nm where the white target
+  # the datasheet ranges reflects ~88%, so a hand at 25cm can sit under a
+  # short-range limit that a sheet of paper clears easily. That was the likely
+  # cause of "it doesn't see my hand hovering". The cost is more ambient-IR
+  # sensitivity and more spurious returns, which the invalid-sample handling
+  # below now absorbs rather than letting them break the debounce.
+  tof_long_range: "true"
+  # Time the chip spends integrating one measurement. Longer = more photons
+  # collected = weak returns separate from noise. 50ms against a 250ms poll
+  # leaves the bus alone for 80% of the time; the ESPHome default is ~33ms.
+  tof_timing_budget: 50ms
+  tof_near_m: "0.25"                 # <= this asserts "hand near" (~10 in)
+  tof_far_m: "0.40"                  # must go beyond this to release (~16 in)
   tof_max_valid_m: "1.2"             # above this, treat as no target at all
   tof_confirm_samples: "2"           # consecutive near readings to assert
   tof_release_samples: "3"           # consecutive far readings to release.
                                      # Slower to release on purpose: a single
                                      # dropped reading must not blink the pixel.
-  # "Nothing there" arrives in two encodings: NaN (target beyond ~8.19m, which
-  # reaches Home Assistant as 'unknown') and 0 (a measurement the chip could not
-  # resolve - the ESPHome component publishes the range register without checking
-  # the range-status byte beside it). The hw package rewrites both to
-  # tof_no_target_m so the entity always holds one number meaning "no target"
-  # instead of flapping between the two. tof_no_target_m MUST stay above
-  # tof_max_valid_m, or a no-target reading would be treated as a hand.
-  tof_min_valid_m: "0.03"            # at/below this, no real target - the chip's
-                                     # own usable minimum is ~30-50mm, and a hand
-                                     # is never closer than tof_near_m anyway
+  # ---- What "no reading" looks like, and why there are two kinds ----
+  # The ESPHome component publishes the range register WITHOUT consulting the
+  # range-status byte next to it, so a failed measurement is not reported as a
+  # failure - it is reported as a distance. Two encodings come out of it:
+  #
+  #   NaN        the chip reported >=8190mm: genuinely nothing in range. This is
+  #              EVIDENCE OF ABSENCE and the debounce counts it as "far".
+  #   <= min     0, or a few centimetres, from a measurement that did not
+  #              resolve (phase/sigma fail). The number is meaningless - it is
+  #              NOT a target 3cm away, and it is NOT proof nothing is there.
+  #              The debounce IGNORES these; see tof_invalid_hold_samples.
+  #
+  # Conflating the two is what made a hovering hand unreliable: a real 0.20m
+  # reading followed by one junk 0.03m reading looked like near-then-far, which
+  # reset the confirm counter, so the two consecutive near samples needed to
+  # assert were rarely collected. Both encodings still PUBLISH as
+  # tof_no_target_m, so the entity holds one number meaning "no usable target"
+  # rather than flapping between 'unknown' and 0.03. tof_no_target_m MUST stay
+  # above tof_max_valid_m, or a no-target reading would be treated as a hand.
+  #
+  # RAISED from 0.03 to 0.05: the chip's own usable minimum is ~30-50mm, so a
+  # reading below that was never a real target - but at 0.03 the junk readings
+  # landing at 0.031-0.035 slipped past the floor and were treated as a hand
+  # right on the sensor. If the idle entity still shows a small distance rather
+  # than tof_no_target_m, raise this to just above whatever it is showing.
+  tof_min_valid_m: "0.05"
   tof_no_target_m: "2.0"
+  # How many CONSECUTIVE unresolved readings before the debounce stops ignoring
+  # them and releases. Ignoring them is right for the odd dropped sample; doing
+  # it forever would latch the pixel on if the sensor started failing every read
+  # (something entering its cone at point-blank range does exactly that). At
+  # tof_update_interval this is 12 x 250ms = 3s of solid junk before it gives up.
+  tof_invalid_hold_samples: "12"
   tof_publish_delta_m: "0.02"        # only publish the entity when the distance
                                      # actually moved 2cm. The debounce runs off
                                      # the raw value, so this is display-only.
@@ -501,7 +568,20 @@ substitutions:
   # starting with http(s):// is instead downloaded at build time, so the URL
   # default just works everywhere. For LOCAL/offline dev with the repo checked
   # out, override this with the repo-relative path: sounds/La-la-sad.mp3
+  #
+  # HOW BIG CAN A TRACK BE? Flashed media is compiled INTO the app image, so it
+  # competes with the firmware for one app partition - 0x3C0000 = 3.75 MB, of
+  # which the firmware itself is ~2.4 MB. Both tracks below plus everything else
+  # currently leaves ~780 KB free. `esphome compile` prints the real number
+  # ("Smallest app partition is ... N bytes free"); check it after adding one.
+  # Encode mono 48 kHz - the mixer input is one channel at 48 kHz, so stereo
+  # doubles the size for nothing.
   la_la_sad_source: "https://raw.githubusercontent.com/astoker/sound-machine/main/sounds/La-la-sad.mp3"
+  # Crickets: a 61s loop bed, mono 48 kHz 96 kbps (~733 KB). Encoded +13 dB from
+  # source so it sits within a few dB of the noise generator at the same volume
+  # setting - swapping Brown for Crickets should not need the knob touched -
+  # while keeping peaks 2.4 dB below full scale for the mixer and a TTS reply.
+  crickets_source: "https://raw.githubusercontent.com/astoker/sound-machine/main/sounds/Crickets.mp3"
 
   # ===================================================================
   # 12. LOGGING

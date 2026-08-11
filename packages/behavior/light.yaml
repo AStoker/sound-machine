@@ -1,14 +1,14 @@
 # =====================================================================
 # BEHAVIOR: the light presets and the alarm  [layer: behavior]
 #
-# What the crescent is FOR: three presets, a gesture to cycle them, and an alarm
+# What the crescent is FOR: five presets, a gesture to cycle them, and an alarm
 # that starts the sunrise. Colours and brightnesses come from settings.yaml and
 # are applied through api/light.yaml verbs, so nothing here names the strip.
 #
 # THE SELECT IS THE STATE. "Crescent Preset" is both the one place a preset is
 # applied AND the record of which one is active - its option INDEX is the preset
-# number (0 = Off, 1 = Sunrise, 2 = Nightlight, 3 = Morning Light). The touch pad
-# and the alarm just drive the select.
+# number (0 = Off, 1 = Sunrise, 2 = Nightlight, 3 = Morning Light, 4 = Colour
+# Cycle, 5 = Rainbow Arch). The touch pad and the alarm just drive the select.
 #
 # That matters more than it looks. An earlier version kept a `light_preset` int
 # global alongside the select, plus a `light_preset_count` setting, plus an
@@ -19,10 +19,16 @@
 # options, their order and how many there are, so all four collapse into
 # active_index() / size() / index_of() and the list exists once, below.
 #
-# ADDING A PRESET: add the option name, and a row to PRESETS in the set_action.
-# The cycle, the code shown on the display and resume-from-off all follow. A
-# dynamic (animated/timed) preset also needs an effect in hw/crescent.yaml, a
-# "(Dynamic)" name prefix by convention, and a branch where the sunrise is.
+# ADDING A PRESET: add the option name at the END of the list (inserting one
+# renumbers every "L<n>" code after it), then a row to BOTH tables in the
+# set_action - the colour in PRESETS and an empty string in EFFECTS, or the other
+# way round. The cycle, the display code and resume-from-off all follow, and a
+# missing row is caught at runtime rather than reading off the end of a table.
+#
+# A preset that paints per-pixel or over time is an EFFECT: declare it in
+# hw/crescent.yaml, name it from settings.yaml, and put that name in EFFECTS.
+# Prefix the OPTION name "(Dynamic)" only if it actually animates - Rainbow Arch
+# is an effect but holds still, so it is not marked dynamic.
 #
 # IMPLEMENTS the hardware input contract from hw/touch.yaml:
 #   on_touch_tap / on_touch_hold
@@ -90,6 +96,8 @@ select:
       - "(Dynamic) Sunrise"       # 1
       - "Nightlight"              # 2
       - "Morning Light"           # 3
+      - "(Dynamic) Colour Cycle"  # 4
+      - "Rainbow Arch"            # 5
     set_action:
       - lambda: |-
           // index_of(x), not active_index(): the select has not published the new
@@ -105,18 +113,47 @@ select:
           }
           id(light_preset_last) = (int) preset;
 
-          // Static presets are a colour and a brightness indexed by preset
-          // number, which is why adding one is a row here and nothing else. Rows
-          // 0 and 1 are placeholders so the table lines up with the option list:
-          // 0 is Off and 1 is the dynamic sunrise, and neither reads a colour.
+          // A preset is EITHER an EFFECT or a STATIC COLOUR, and the two tables
+          // below say which. Both are indexed by preset number and lined up with
+          // the option list above, so each one carries a dead row wherever the
+          // other one owns the preset - that alignment is the whole point, and it
+          // is why adding a preset is a row in one table rather than a branch.
+          // Row 0 is Off in both and is never read.
+          //
+          // An effect is anything that paints per-pixel or over time; it lives in
+          // hw/crescent.yaml and is named from settings, because a name that does
+          // not match one declared there fails silently at runtime.
+          static const char *const EFFECTS[] = {
+            "",                            // 0 Off
+            "${sunrise_effect_name}",      // 1
+            "",                            // 2 static
+            "",                            // 3 static
+            "${cycle_effect_name}",        // 4
+            "${rainbow_effect_name}",      // 5
+          };
+          // Colour + brightness, 0..1 each. Brightness is a second cap on top of
+          // led_max_pct - see settings.yaml section 7.
           static const float PRESETS[][4] = {
-            {0, 0, 0, 0},
-            {0, 0, 0, 0},
+            {0, 0, 0, 0},                                                                    // 0 Off
+            {0, 0, 0, 0},                                                                    // 1 effect
             {${nightlight_red}f, ${nightlight_green}f, ${nightlight_blue}f, ${nightlight_brightness}f},
             {${morning_red}f,    ${morning_green}f,    ${morning_blue}f,    ${morning_brightness}f},
+            {0, 0, 0, 0},                                                                    // 4 effect
+            {0, 0, 0, 0},                                                                    // 5 effect
           };
-          if (preset == 1)
-            id(crescent_effect)->execute("${sunrise_effect_name}");
+
+          // An option with no row in either table would otherwise read off the
+          // end of both. Refusing loudly is the point: the tables and the option
+          // list are three lists that have to agree, and this is where a
+          // half-finished addition shows up.
+          if (preset >= sizeof(EFFECTS) / sizeof(EFFECTS[0])) {
+            ESP_LOGW("light", "preset %u ('%s') has no table row - add one in "
+                              "behavior/light.yaml", (unsigned) preset, x.c_str());
+            return;
+          }
+
+          if (EFFECTS[preset][0] != '\0')
+            id(crescent_effect)->execute(EFFECTS[preset]);
           else
             id(crescent_static)->execute(PRESETS[preset][0], PRESETS[preset][1],
                                          PRESETS[preset][2], PRESETS[preset][3]);

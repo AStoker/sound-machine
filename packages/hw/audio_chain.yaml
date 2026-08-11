@@ -173,7 +173,12 @@ media_player:
     volume_min: ${volume_floor_pct}
     volume_max: ${volume_ceiling_pct}
     # On-device files baked into flash, playable with no HA and no network.
-    # Encode mono, 48 kHz, 16-bit MP3 (matches media_mixing_input).
+    # Encode mono, 48 kHz MP3 (matches media_mixing_input - stereo just doubles
+    # the size, since every mixer source is one channel).
+    #
+    # "Baked into flash" is literal: these become byte arrays in the app image
+    # and eat the same 3.75 MB app partition the firmware lives in. See the size
+    # budget next to the *_source substitutions in settings.yaml section 11.
     #
     # ADDING A TRACK: add an entry here AND a `media_play_<name>` script in
     # api/sound.yaml - a media_file id cannot be passed as a script parameter,
@@ -181,6 +186,8 @@ media_player:
     files:
       - id: la_la_sad
         file: ${la_la_sad_source}
+      - id: crickets
+        file: ${crickets_source}
     # NOTE: no on_idle hook. The mixer keeps this player from reporting idle
     # reliably, so voice-turn un-ducking is driven by the announcement state
     # instead (see behavior/voice.yaml). Looping uses media_player.repeat_one,

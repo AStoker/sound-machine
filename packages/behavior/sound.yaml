@@ -197,6 +197,7 @@ select:
     options:
       - "Off"
       - "La La"
+      - "Crickets"
       # - "Rain (HA)"      # example URL-based track (see the commented branch)
     set_action:
       # The other half of the mutual exclusion. sound_option_last is left intact,
@@ -222,6 +223,18 @@ select:
                 id: media_set_repeat
                 loop: !lambda 'return id(media_loop).state;'
             - script.execute: media_play_la_la
+      # A 61s loop bed, so it is meant to be heard with Media Loop ON - one pass
+      # is not a sound machine. The seam is whatever gap the MP3 decoder leaves
+      # at end-of-file; the clip's head and tail levels are within 0.5 dB of each
+      # other, so nothing else calls attention to the wrap.
+      - if:
+          condition:
+            lambda: 'return x == "Crickets";'
+          then:
+            - script.execute:
+                id: media_set_repeat
+                loop: !lambda 'return id(media_loop).state;'
+            - script.execute: media_play_crickets
       # ----- URL / Home Assistant track (uncomment + edit to use) -----
       # Add the option name above, then a branch here. A URL track needs a real
       # network path, so it is not offline-capable the way a flashed file is.

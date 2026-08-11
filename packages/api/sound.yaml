@@ -15,7 +15,7 @@
 #                             starts the generator.
 #   noise_stop()
 #   media_play_la_la()        play the flashed file. One verb per flashed track -
-#                             a media_file id cannot be a script parameter.
+#   media_play_crickets()     a media_file id cannot be a script parameter.
 #   media_stop()              stop playback and clear repeat
 #   media_set_repeat(loop)
 #   volume_apply(fraction)    absolute volume, 0..1, clamped
@@ -33,7 +33,7 @@
 #
 # DEFINES  audio_ready (global), volume_pct (sensor), all the verbs above.
 # CONSUMES noise, external_media_player, noise_mixing_input,
-#          media_mixing_input, la_la_sad (hw/audio_chain).
+#          media_mixing_input, la_la_sad, crickets (hw/audio_chain).
 # REQUIRES script on_audio_ready (behavior/sound.yaml).
 # =====================================================================
 esphome:
@@ -87,6 +87,12 @@ script:
     then:
       - media_player.speaker.play_on_device_media_file:
           media_file: la_la_sad
+          announcement: false
+
+  - id: media_play_crickets
+    then:
+      - media_player.speaker.play_on_device_media_file:
+          media_file: crickets
           announcement: false
 
   - id: media_stop

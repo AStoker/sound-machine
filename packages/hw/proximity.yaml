@@ -21,8 +21,20 @@
 # 'unknown' in Home Assistant. See the filters block for why the debounce
 # doesn't go through them.
 #
+# IF IT WILL NOT SEE A HAND, look at the raw readings before touching a
+# threshold: set `tof_log_level: DEBUG` (settings.yaml section 12) and watch the
+# "Got distance" lines with the space above the knob empty, then with a hand at
+# 30 / 20 / 10cm. What you learn from that:
+#   * idle shows a small fixed distance (~0.03m)  -> unresolved measurements, or
+#     something inside the sensor's 25-degree cone. The debounce already ignores
+#     these; raise tof_min_valid_m just above whatever it shows.
+#   * a hand reads nothing at all                  -> sensitivity. tof_long_range
+#     and tof_timing_budget are the levers, in that order.
+#   * a hand reads the RIGHT distance but the pixel does not light -> thresholds.
+#     tof_near_m / tof_far_m, tracked as C1 in FUTURE-DEVELOPMENT.md.
+#
 # DEFINES  knob_distance (sensor), knob_proximity (binary_sensor),
-#          hand_near (global) + its two sample counters.
+#          hand_near (global) + its three sample counters.
 # CONSUMES internal_i2c (device core), the tof_* settings.
 # REQUIRES script on_hand_near_changed (behavior/sound.yaml).
 # =====================================================================
@@ -41,6 +53,12 @@ globals:
     type: int
     restore_value: no
     initial_value: '0'
+  # Consecutive UNRESOLVED readings. Not a third verdict - just the leash on how
+  # long an unresolved sample may be ignored before it is treated as "far".
+  - id: hand_invalid_count
+    type: int
+    restore_value: no
+    initial_value: '0'
 
 sensor:
   - platform: vl53l0x
@@ -48,21 +66,26 @@ sensor:
     name: "Knob Distance"
     address: ${i2c_addr_tof}
     update_interval: ${tof_update_interval}
-    long_range: false          # short range = tighter timing budget and far less
-                               # ambient-IR trouble; a hand at <30cm needs no reach
+    # SENSITIVITY, not reach - a palm is a much weaker return than the datasheet's
+    # white target, so the short-range signal-rate limit was rejecting hands.
+    # Rationale and the trade-off are in settings.yaml section 8.
+    long_range: ${tof_long_range}
+    timing_budget: ${tof_timing_budget}
     # WHY THE PUBLISHED VALUE IS FILTERED BUT THE DEBOUNCE IS NOT
     # There is no target in range most of the time on a bedside table, and the
     # component reports that in two different ways: NaN when the target is past
-    # ~8.19m, and 0 when a measurement failed, because it publishes the range
-    # register without consulting the range-status byte next to it. Raw, that is
-    # an entity alternating between 'unknown' and 0.00m 4x a second. The debounce
-    # below still needs those samples (that is how a hand leaving gets noticed),
-    # so the two paths are split: filters clean up what the entity sees, and the
+    # ~8.19m, and a sub-minimum number (0, or a few cm) when a measurement did
+    # not resolve, because it publishes the range register without consulting the
+    # range-status byte next to it. Raw, that is an entity alternating between
+    # 'unknown' and 0.03m 4x a second. The debounce below still needs those
+    # samples - and needs to tell the two apart, which the entity does not - so
+    # the two paths are split: filters clean up what the entity sees, and the
     # debounce hangs off on_raw_value, upstream of them.
     filters:
-      # Collapse both "nothing there" encodings into one. "No target" is a fact,
+      # Collapse both "nothing usable" encodings into one. "No target" is a fact,
       # not an absence of one - publish it as a distance past anything this
-      # sensor can legitimately see.
+      # sensor can legitimately see. The DEBOUNCE does not do this: to it the two
+      # encodings mean different things (see the classifier below).
       - lambda: |-
           return (std::isnan(x) || x <= ${tof_min_valid_m}f) ? ${tof_no_target_m}f : x;
       # With no-target pinned to a constant, an idle sensor now publishes the
@@ -79,12 +102,42 @@ sensor:
           //   * consecutive samples - assert on tof_confirm_samples, release on
           //     tof_release_samples (slower to release, so one dropped reading
           //     cannot blink the pixel).
-          // This is the RAW value, so no-target readings arrive unfiltered, as
-          // NaN or as 0. Every comparison against NaN is false, and 0 is below
-          // tof_min_valid_m, so both fall through to the "far" branch by design -
-          // which is exactly what "no target" means here.
+          //
+          // THIS IS THE RAW VALUE, AND IT HAS THREE MEANINGS, NOT TWO. A sample
+          // is near, far, or UNRESOLVED, and the third one is why hovering used
+          // to be unreliable:
+          //
+          //   NaN            the chip saw >=8190mm. Nothing is there. That is
+          //                  real evidence, and it counts as FAR.
+          //   <= min_valid   0, or a few centimetres, from a measurement that
+          //                  failed. The component publishes the range register
+          //                  without checking the range-status byte beside it,
+          //                  so a failure arrives dressed as a distance. It is
+          //                  neither a target nor proof of an empty room, so it
+          //                  is IGNORED - the counters are left exactly as they
+          //                  were and the next real sample continues the run.
+          //
+          // Both used to fall through to "far" together. One junk reading in the
+          // middle of a hover therefore reset the confirm counter, and since
+          // asserting needs tof_confirm_samples in a row, the assert often never
+          // happened. Ignoring them costs nothing when they are rare and is
+          // leashed by tof_invalid_hold_samples when they are not.
           float distance_m = x;
+          const bool resolved = std::isnan(distance_m) ||
+                                distance_m > ${tof_min_valid_m}f;
+          if (!resolved) {
+            // Unresolved. Ignore it - unless they keep coming, in which case
+            // something is sitting on the sensor and "far" is the safe verdict.
+            if (++id(hand_invalid_count) < ${tof_invalid_hold_samples}) return;
+            id(hand_invalid_count) = ${tof_invalid_hold_samples};
+            distance_m = NAN;                       // fall through as "far"
+          } else {
+            id(hand_invalid_count) = 0;
+          }
+
           float threshold = id(hand_near) ? ${tof_far_m}f : ${tof_near_m}f;
+          // Every comparison against NaN is false, so a genuine no-target
+          // reading lands in the "far" branch by design.
           bool near_now = (distance_m > ${tof_min_valid_m}f) &&
                           (distance_m < ${tof_max_valid_m}f) &&
                           (distance_m <= threshold);

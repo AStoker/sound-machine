@@ -72,7 +72,15 @@ substitutions:
 ```
 
 Any additional flashed audio should follow the same pattern: add a
-`<name>_source` substitution (URL default) rather than a bare path.
+`<name>_source` substitution (URL default) rather than a bare path. Note the
+ordering that implies: the URL only resolves once the file is on `main`, so a
+new track is **pushed first, built second** — or built locally with the path
+override above.
+
+**Size.** Flashed media is compiled into the app image and shares the 3.75 MB
+app partition with the firmware. With both current tracks (`La-la-sad`,
+`Crickets`) that image is 3.0 MB, leaving ~760 KB. `esphome compile` prints the
+remaining space; check it after adding one.
 
 ## Status
 

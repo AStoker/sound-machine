@@ -38,7 +38,8 @@ Hatch"** because it takes design cues from the Hatch Restore form factor while
 being fully custom and locally controlled. It is one integrated device that
 combines:
 
-- **Ambient noise** — continuous white / pink / brown noise, generated on-device.
+- **Ambient noise** — continuous white / pink / brown noise, generated on-device,
+  plus flashed loop beds (crickets) for when a colour of noise isn't the mood.
 - **A far-field voice assistant** — "Okay Nabu" wake word into Home Assistant,
   robust enough to be heard *over* playing noise.
 - **A sunrise light** — an SK6812 crescent that simulates dawn to wake you, plus
@@ -88,10 +89,19 @@ watchdog un-ducks when the reply finishes. See `packages/behavior/voice.yaml`.
 
 `packages/hw/crescent.yaml` owns the SK6812 crescent: an Off/On entity plus a
 preset dispatcher (a `select`) with **Sunrise** (a timed, animated dawn),
-**Nightlight**, and **Morning Light**. The **Circadian Sunrise** is a
-keyframe-interpolated effect that fills the crescent from the bottom row upward,
-evolving deep-red → amber → blue-enriched cool white over an adjustable duration,
-then holding and auto-off. An **Alarm** datetime fires the sunrise at a set time.
+**Nightlight**, **Morning Light**, **Colour Cycle** and **Rainbow Arch**. The
+**Circadian Sunrise** is a keyframe-interpolated effect that fills the crescent
+from the bottom row upward, evolving deep-red → amber → blue-enriched cool white
+over an adjustable duration, then holding and auto-off. An **Alarm** datetime
+fires the sunrise at a set time.
+
+Two of the presets are colour rather than function. **Colour Cycle** drifts the
+whole crescent round the hue wheel over three minutes; **Rainbow Arch** paints
+concentric hue bands — red on the outside, violet at the centre of the flat edge
+— by each pixel's *normalised elliptical radius*, which is what makes it read as
+an arch rather than as horizontal stripes. Both bake their own brightness in,
+because an addressable light stops applying its brightness to pixels a running
+effect owns.
 
 The crescent is **48 px** in six cut segments laid out `{10, 10, 9, 8, 7, 4}`
 bottom-to-top on a half-ellipse. That layout is **not a firmware choice** —
