@@ -55,7 +55,16 @@ def load(rel):
 
 DOCS = {r: load(r) for r in (
     "HARDWARE.md", "SOUNDMACHINE.md", "CLAUDE.md",
-    "3d-print/README.md", "3d-print/WIP-NOTES.md",
+    # The session build journal used to be listed here. Prototype 1 is built and
+    # the journal now lives only on the v1 release branch; ../RETROSPECTIVE.md
+    # carries its conclusions. Nothing asserted against it (it was never in
+    # PROSE), so it is simply gone rather than repointed.
+    "3d-print/README.md",
+    # FUTURE-DEVELOPMENT.md quotes LIVE values (led_max_pct, touch_threshold, the
+    # pixel count), so it can go stale exactly like the others and is checked.
+    # RETROSPECTIVE.md deliberately is NOT: it is history, and the stale-value
+    # rules exist to flag precisely the numbers it is supposed to be talking about.
+    "FUTURE-DEVELOPMENT.md",
     "packages/hw/crescent.yaml",
 )}
 
@@ -122,7 +131,8 @@ must("CLAUDE.md", rf"\*\*{g.CRES_PX} px\*\*", "pixel count")
 must("CLAUDE.md", r"3d-print/README\.md", "the enclosure doc link")
 
 # --------------------------------------------------------------- staleness
-PROSE = ("HARDWARE.md", "SOUNDMACHINE.md", "CLAUDE.md", "3d-print/README.md")
+PROSE = ("HARDWARE.md", "SOUNDMACHINE.md", "CLAUDE.md", "3d-print/README.md",
+         "FUTURE-DEVELOPMENT.md")
 
 # >>> DERIVE THE STALE SET, DO NOT HARD-CODE IT. The first version of this rule
 # >>> literally banned "48 px" because 48 happened to be the superseded value

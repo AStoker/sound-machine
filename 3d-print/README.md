@@ -3,6 +3,20 @@
 Three reference sheets and the printable parts, all generated, all sharing one
 source of truth.
 
+> **Prototype 1 has been printed and assembled.** These parts are as-built, not
+> proposals — treat a change here as a change to a machine that exists.
+>
+> **This folder is still live.** `enclosure_geom.py` remains the source of truth
+> for the LED crescent (`packages/hw/crescent.yaml` carries a *copy* of its
+> output), and `check_docs.py` still enforces that the firmware and all four prose
+> documents agree with it. Run it after any geometry change.
+>
+> The session-by-session build journal that used to live here as `WIP-NOTES.md`
+> is no longer on `main` — it is preserved on the **v1 release branch**, and its
+> conclusions are distilled in [`../RETROSPECTIVE.md`](../RETROSPECTIVE.md). Read
+> that before re-opening a decision: a surprising number of the parts below are
+> shaped by a failure that is not obvious from the geometry.
+
 | Sheet | File | What it answers |
 |---|---|---|
 | 1 | [`enclosure-drawing.svg`](enclosure-drawing.svg) | the shell — top / front / side / rear, assembled and exploded |

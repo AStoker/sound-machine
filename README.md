@@ -18,6 +18,9 @@ clock, an SK6812 sunrise crescent, and battery/UPS monitoring.
 | `sounds/` | On-device audio baked into flash |
 | `soundmachine.min.yaml` | Reference minimal device YAML for Home Assistant |
 | `secrets.example.yaml` | The secret keys you must provide locally |
+| `3d-print/` | The enclosure: parametric geometry, generators, validation, printable solids |
+| [`FUTURE-DEVELOPMENT.md`](FUTURE-DEVELOPMENT.md) | Every open item, one numbered entry each |
+| [`RETROSPECTIVE.md`](RETROSPECTIVE.md) | What building v1 taught |
 
 ## Running it from Home Assistant (pull latest from GitHub)
 
@@ -71,7 +74,19 @@ substitutions:
 Any additional flashed audio should follow the same pattern: add a
 `<name>_source` substitution (URL default) rather than a bare path.
 
+## Status
+
+**Prototype 1 is built and in service** — printed, wired, assembled, running.
+Ongoing work is firmware. See [`SOUNDMACHINE.md`](SOUNDMACHINE.md) for what the
+machine does, [`FUTURE-DEVELOPMENT.md`](FUTURE-DEVELOPMENT.md) for what is still
+open, and [`RETROSPECTIVE.md`](RETROSPECTIVE.md) for how it got here.
+
+The full v1 development history is preserved on the **v1 release branch**; `main`
+carries the conclusions.
+
 ## Notes
 
-- The UPS monitor I2C address and shunt value in `soundmachine.yaml` are
-  placeholders — see the comments in the `substitutions:` block.
+- The UPS monitor is **confirmed** as an INA219 at `0x41`. Its shunt value
+  (`ups_shunt_ohms`, `0.01 Ω`) is still taken from documentation rather than
+  measured — voltage and state-of-charge don't depend on it, absolute current and
+  power do.

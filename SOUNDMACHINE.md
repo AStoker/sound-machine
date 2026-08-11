@@ -1,14 +1,33 @@
 # SOUNDMACHINE.md
 
 The project story in one file. If you are an agent (or a person) loading this
-repo cold, read this first: it explains **what we are building, why the pieces
-are arranged the way they are, what has already been solved, and what is still
+repo cold, read this first: it explains **what we built, why the pieces are
+arranged the way they are, what has already been solved, and what is still
 open.** Then use the companions for detail:
 
 - **[`HARDWARE.md`](HARDWARE.md)** — the parts, addresses, pins, power budget.
 - **[`CLAUDE.md`](CLAUDE.md)** — how the firmware/repo is structured and the
   rules for editing it safely.
 - **[`README.md`](README.md)** — how to build and deploy it.
+- **[`FUTURE-DEVELOPMENT.md`](FUTURE-DEVELOPMENT.md)** — everything still to do,
+  one numbered entry each.
+- **[`RETROSPECTIVE.md`](RETROSPECTIVE.md)** — what building v1 taught.
+
+> ## Where the project is
+>
+> **Prototype 1 is built.** Designed, printed, wired, assembled, and running on
+> the bedside table. The enclosure is done and the electronics are in their final
+> arrangement — **the work from here is firmware.**
+>
+> That changes what "open" means below. The remaining items are tuning, polish,
+> unverified assumptions and **one hardware fix** — not construction. They are
+> tracked in [`FUTURE-DEVELOPMENT.md`](FUTURE-DEVELOPMENT.md).
+>
+> The v1 development history is distilled in
+> [`RETROSPECTIVE.md`](RETROSPECTIVE.md); the raw journals live on the **v1
+> release branch**. The enclosure *design system* (`3d-print/`) stays live on
+> `main`, because it is still the source of truth for the LED crescent and the
+> starting point for any v2.
 
 ---
 
@@ -73,6 +92,12 @@ preset dispatcher (a `select`) with **Sunrise** (a timed, animated dawn),
 keyframe-interpolated effect that fills the crescent from the bottom row upward,
 evolving deep-red → amber → blue-enriched cool white over an adjustable duration,
 then holding and auto-off. An **Alarm** datetime fires the sunrise at a set time.
+
+The crescent is **48 px** in six cut segments laid out `{10, 10, 9, 8, 7, 4}`
+bottom-to-top on a half-ellipse. That layout is **not a firmware choice** —
+`3d-print/enclosure_geom.py` computes it from the physical cavity and
+`crescent.yaml` carries a copy. Change one without the other and the firmware
+addresses pixels that are not there; `3d-print/check_docs.py` is what stops that.
 
 ### The display
 
@@ -196,11 +221,27 @@ disables every model and re-enables only what the selects name, and that bit is
 **persisted in flash**. After a fresh flash, set the select to "Okay Nabu", or the
 wake word stays off across reboots.
 
-**Transient brownouts crashed the ESP invisibly.** They don't show on a
-multimeter but are enough to reset the ESP32. Fix: bulk capacitance at the load
-— **470–1000 µF low-ESR electrolytic + 1–10 µF X7R ceramic** at the Flex board's
-power input terminals, close to the terminals (and an input-side cap on the LED
-supply). *Verify this is present in the as-built.*
+**Transient brownouts crashed the ESP invisibly — WORKED AROUND, NOT FIXED.**
+They don't show on a multimeter but are enough to reset the ESP32. The diagnosis
+holds: the proper fix is bulk capacitance at the load — **470–1000 µF low-ESR
+electrolytic + 1–10 µF X7R ceramic** at the Flex board's power input terminals,
+close to the terminals, plus an input-side cap on the LED supply.
+
+**That capacitance has not been installed.** What is actually in service is a
+firmware workaround: the crescent's current ceiling (`led_max_pct`) is held at
+**25%**, which keeps the transient small enough not to trigger it. This is why
+the light is dimmer than the hardware can drive. Two things make it more than a
+cosmetic compromise:
+
+- **The paper budget was never the constraint.** At 65% the strip draws ~1.9 A
+  and the whole machine ~3.7 A of a 5 A rail — comfortable — and it browned out
+  anyway. The failure is transient, not average.
+- **It cannot self-recover.** The SK6812s latch their last frame independently of
+  the MCU, so once the rail sags enough to reset the ESP32 the strip keeps
+  drawing the same current through the entire reboot loop.
+
+See §4 for the TODO. Until it is done, `led_max_pct` is load-bearing — treat it
+as a safety limit, not a preference.
 
 **I2C bus was starving the XVF3800.** The STEMMA sensor chain added enough cable
 capacitance / pull-up load to break the timing-sensitive XVF3800. Fix: run the
@@ -230,59 +271,58 @@ local device YAML overrides), custom components must load via a **git**
 than a bare repo path. See `CLAUDE.md` → "Remote-hosting constraints."
 
 ---
-
 ## 4. What is still open
 
-**Bench-verify the UPS monitoring.** `ups_i2c_address` (`0x41`) and
-`ups_shunt_ohms` (`0.01 Ω`) are **placeholders** — confirm against the boot I2C
-scan, and confirm the part is an INA219 (vs INA226, which needs a platform
-swap). Also verify the **current sign convention** on the bench.
+**Every open item lives in [`FUTURE-DEVELOPMENT.md`](FUTURE-DEVELOPMENT.md)**,
+one numbered entry each, so it can be referenced from code and commits. Summary:
 
-**Calibrate the ToF thresholds on the bench.** The **VL53L0X** is now live
-(`packages/hw/proximity.yaml`) but only in its *modest* role: pre-illuminating the knob
-NeoPixel when a hand comes near. `tof_near_m` / `tof_far_m` (0.20 / 0.30 m) are
-reasonable guesses, not measurements — watch the **Knob Proximity** binary sensor
-while reaching for the knob and adjust. The broader **touchless wake** gesture
-(the historical design output distance in inches, ×39.3701) is still not
-implemented; nothing but the knob pixel reads the sensor today, and the whole
-knob-pixel feature degrades gracefully to volume-only if the sensor is absent.
+| | |
+|---|---|
+| **H1** | Install the brownout-fix bulk capacitance — **the highest-value item.** It is currently costing three quarters of the crescent's brightness, because `led_max_pct: 25%` is standing in for it. |
+| **H2 / H3** | Verify the UPS shunt value; settle which touch electrode is actually installed and re-calibrate if needed. |
+| **C1–C4** | Calibrate the ToF thresholds and the gesture dead band; tune the brown-noise makeup gain and the auto-dim curve. |
+| **V1–V3** | Validate wake-word-over-noise in the enclosure; re-check the sunrise against the final crescent; measure the remaining `(?)` geometry constants. |
+| **F1** | Touchless wake — designed, never built. |
+| **T1 / T2** | Tech debt: blanket `except ImportError` in the generators; the optional foot-span stability lever. |
 
-**AEC / channel-assignment bench test.** Wake-word-over-playing-noise still needs
-a proper bench validation with the final channel assignment.
+### Settled since assembly
 
-**Confirm as-built power wiring.** The brownout-fix bulk capacitance should be
-confirmed installed.
+**UPS monitoring is live and reading correctly.** The boot I2C scan finds the
+monitor at **`0x41`** and the INA219 platform talks to it — pack 12.46 V,
+4.153 V/cell across 3S, 98 % SOC, all mutually consistent. The **sign convention
+is confirmed**: discharging reads negative, and `External Power` / `Battery
+Charging` agree with the actual plug state. The shunt value is still assumed —
+that is H2.
 
-**Enclosure geometry.** The five-part frame is designed, but the **bottom plate
-geometry** was historically blocked on the battery-retention decision — now that
-the Waveshare 3S UPS is chosen, that geometry can be finalized.
+**The capacitive touch pad works and is calibrated.** `touch_threshold` is
+**2500**, from 64 untouched samples and 5 presses on the assembled machine:
+untouched noise sd 34 with a worst excursion of +50, presses 6363–12731. Getting
+there also turned up an ESPHome bug worth knowing — `measurement_duration` must
+be set explicitly or the S3's touch counter saturates and no threshold can ever
+fire. Both are documented in `packages/settings.yaml` §7 and
+`packages/hw/touch.yaml`.
 
-**Calibration.** The capacitive touch threshold (`touch_threshold`) needs
-`esp32_touch: setup_mode: true` calibration; the brown-noise high-pass makeup
-gain is tuned by ear.
+**The enclosure is built.** The bottom-plate geometry that was historically
+blocked on the battery-retention decision was resolved by the Waveshare 3S UPS,
+printed, and assembled.
 
 ---
 
-## 5. Memory reconciliation (history vs. current code)
+## 5. History
 
-The project has evolved; a few things in older conversation memory no longer
-match the code in this repo. Current code wins. The notable drifts:
+**[`RETROSPECTIVE.md`](RETROSPECTIVE.md)** — what building v1 taught, distilled.
+Mostly *not* about enclosures: the ways a check can pass for the wrong reason,
+why interference lives in the gap between parts, the physical facts worth not
+rediscovering, and a table of what changed from the original design and why.
 
-| Topic | Historical note | Current repo (authoritative) |
-|-------|-----------------|------------------------------|
-| **Power** | Battery retention was an *open decision* (LiPo + USB-C candidate; Qi2 already dropped) | **Resolved: Waveshare UPS Module 3S** (3× 18650), 5V/5A rail, INA219 monitoring |
-| **LED strip** | SK6812 **144 LED/m**, powered via an **XL6009 boost converter** | SK6812 **60 LED/m, 48 px in 6 cut segments**, powered directly from the **UPS 5V rail** (no boost converter) |
-| **Crescent shape** | A half **circle** — diffuser R117 with the LED field on a smaller R96 and a 21 mm unlit fade band between them | A flattened half-**ellipse**, **89 × 62.7** (`CROWN_K = 0.74`). **The LED field IS the diffuser** — no fade band. Row counts are limited by the physical **ribbon** (n × 16.5 mm), not the LED bodies, which is what sets the row counts; the rows BUTT so the whole 48-px reel fits |
-| **Enclosure size** | **258 × 64 × 190**, front module split in two for the bed | **202 × 64 × 155.7**, both printed parts fit a 220 bed **whole**. Speakers rotated 90° (nubs top/bottom), mic array moved above them, crown flattened |
-| **Printed parts** | dome, front module, bottom plate, knob | …plus an **LED carrier** (part 6) and a generated **notched acrylic diffuser** (part 7) — a plate holding the six strip segments at the 12 mm standoff, screwed to pads inside the diffusion cavity wall |
-| **MCU** | XIAO ESP32-S3 **Plus** | Either works; **standard XIAO ESP32-S3 is a confirmed drop-in** (`board: esp32-s3-devkitc-1`, 8MB flash) |
-| **ToF sensor** | VL53L0X treated as part of the sensor stack, for a touchless *wake* gesture | **Kept and now live** (`packages/hw/proximity.yaml`), but in a smaller role: it only **pre-illuminates the knob NeoPixel** when a hand comes near. Touchless wake is still unimplemented |
-| **SHT40 temp/hum** | Part of the planned sensor stack | **Removed** from the design entirely |
-| **Front ends** | HA + embedded web server (a standalone PWA was tried) | **HA + embedded web server**; the standalone PWA was **removed** |
+Read it before re-opening a settled decision. If an old idea resurfaces — 144
+LED/m, a boost converter, a 258 mm body, an SHT40, a PWA — each was killed there
+for a reason, and §4 of the retrospective records it.
 
-**Working principles that still hold** (carry these forward): search project
-history before reasoning from memory on this hardware — pin maps and part choices
-have changed a lot; the **tested D4/D5 audio-I2C mapping is the source of
-truth**, not schematic-derived guesses; **bench-first** before soldering; and
-Andy prefers **complete updated files** after a change (not diffs), and uses
-`git diff` against known-good commits to catch regressions.
+The raw session-by-session build journal is **not on `main`**. It is preserved on
+the **v1 release branch**; `main` carries only the conclusions.
+
+**Still live, not history:** `3d-print/` — the enclosure geometry, its generators
+and its checks. `enclosure_geom.py` remains the source of truth for the LED
+crescent, and `3d-print/check_docs.py` still enforces that this document,
+`HARDWARE.md`, `CLAUDE.md` and the firmware all agree with it.

@@ -13,6 +13,15 @@ The config is designed to be **hosted on GitHub and pulled by Home Assistant as
 a remote ESPHome package** — this constraint shapes several non-obvious design
 choices (see "Remote-hosting constraints" below). Repo slug: `astoker/sound-machine`.
 
+> **Prototype 1 is built and assembled — this is a firmware repo now.** The
+> enclosure is printed, the electronics are in their final arrangement, and the
+> machine is in service. Expect changes here to be behavior, tuning and polish.
+> `3d-print/` is still live and still authoritative for the crescent geometry (see
+> the coupling note below), but it is no longer where the work is. Open work is
+> tracked in [`FUTURE-DEVELOPMENT.md`](FUTURE-DEVELOPMENT.md); the v1 development
+> history is distilled in [`RETROSPECTIVE.md`](RETROSPECTIVE.md), with the raw
+> journals preserved on the **v1 release branch** rather than on `main`.
+
 ## Companion docs
 
 - **[`HARDWARE.md`](HARDWARE.md)** — every physical part, the I2C address map,
@@ -24,6 +33,12 @@ choices (see "Remote-hosting constraints" below). Repo slug: `astoker/sound-mach
 - **[`3d-print/README.md`](3d-print/README.md)** — the enclosure: generated
   drawing sheets and printable solids, the constraints they turned up, and how
   each part is validated. Start here for anything about the physical shell.
+- **[`FUTURE-DEVELOPMENT.md`](FUTURE-DEVELOPMENT.md)** — every open item, one
+  numbered entry each (`H1`, `C2`, …), referenceable from code and commits.
+  Check here before starting work, and add an entry rather than a stray TODO.
+- **[`RETROSPECTIVE.md`](RETROSPECTIVE.md)** — what building v1 taught: mostly how
+  checks fail, plus a table of what changed from the original design and why.
+  Read it before re-opening a settled decision; it is history, not current state.
 
 > **The enclosure geometry and the firmware are coupled, and the coupling is
 > one-way.** `3d-print/enclosure_geom.py` is the source of truth for the LED
@@ -199,8 +214,40 @@ HA's ESPHome folder: it injects secrets as substitutions and pulls
 `soundmachine.yaml` from this repo with `refresh: 0s` (always latest `main`).
 `secrets.example.yaml` lists the five required keys.
 
-## Hardware placeholders
+## Hardware calibration state
 
-The UPS monitor I2C address (`ups_i2c_address`) and shunt (`ups_shunt_ohms`) in
-`packages/settings.yaml` are UNCONFIRMED placeholders — confirm against the boot
-I2C scan. INA219 vs INA226 may need swapping in `packages/hw/power.yaml`.
+On an assembled machine, most of this is settled. What is *not* settled is worth
+knowing before you trust a number.
+
+**Confirmed on hardware:**
+- **UPS monitor** — `ups_i2c_address` **`0x41`**, INA219 (not INA226), confirmed
+  against the boot I2C scan and reading consistently (12.46 V pack / 4.153 V per
+  cell across 3S / 98 % SOC). Sign convention confirmed: discharge is negative.
+- **Touch pad** — `touch_threshold` **2500**, derived from measured noise and
+  press deltas; see the working in `packages/settings.yaml` §7.
+
+> **`led_max_pct: 25%` IS A SAFETY LIMIT, NOT A BRIGHTNESS PREFERENCE. Do not
+> raise it.** The brownout-fix bulk capacitance has **not** been installed; this
+> cap is the workaround standing in for it. 65% was tried and still reset the
+> ESP32, at ~3.7 A of a 5 A rail — the average draw was never the constraint, the
+> transient is. And the failure does not self-clear: the SK6812s latch their last
+> frame independently of the MCU, so a rail sag that resets the ESP32 leaves the
+> strip drawing the same current through the whole reboot loop. If the crescent
+> looks dim and you are tempted to fix it in firmware, that is this. See the
+> hardware TODO in `SOUNDMACHINE.md` §4.
+
+**Still assumed, so do not build on it:**
+- **`ups_shunt_ohms` (`0.01 Ω`)** is inherited from the module's documentation,
+  not measured. Bus voltage and SOC do not depend on it; **absolute current and
+  power do.** The idle reading (~0.15 A) is plausible but that is not verification.
+- **`tof_near_m` / `tof_far_m`** (0.20 / 0.30 m) are guesses.
+- **Touch, again** — 2500 is calibrated against a bench pad behind the unthinned
+  2.5 mm wall, not the designed 40 × 22 mm pads behind 1.6 mm. Re-calibrate when
+  those go in.
+
+> **The ESP32-S3 touch peripheral needs `measurement_duration` set explicitly.**
+> ESPHome's default derives `charge_times = 65535` (the hardware maximum, against
+> a driver default of 500), which saturates the 22-bit counter: every reading pins
+> at 4194303, the benchmark follows it, and the delta is permanently 0 so the pad
+> can never fire. `packages/hw/touch.yaml` sets it. A pad reading exactly 4194303
+> is this bug, not a wiring fault.

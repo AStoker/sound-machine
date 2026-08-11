@@ -1,5 +1,18 @@
 # Measure these before you print
 
+> **Prototype 1 was printed with every value below still a guess, and it went
+> together.** That is not the same as the guesses being right — it means nothing
+> that failed depended on them. Two things follow:
+>
+> 1. **These are now measurable on the assembled machine**, which is easier than
+>    measuring the loose parts this list was written for.
+> 2. **They still matter for a reprint or a v2.** A guess that happened to survive
+>    one print is not a measurement, and the tolerance it consumed is unknown.
+>
+> The list stays live and stays enforced: `check_docs.py` asserts it against the
+> `(?)` markers in `enclosure_geom.py` in both directions. Tracked as **V3** in
+> [`../FUTURE-DEVELOPMENT.md`](../FUTURE-DEVELOPMENT.md).
+
 Every value below is still a **guess** in `enclosure_geom.py`, marked `(?)` at its
 declaration. Nothing else is: if a constant is not on this list, it came from a
 vendor board file, a datasheet, or something you already measured.

@@ -9,9 +9,13 @@ For **why the firmware is shaped the way it is**, see [`CLAUDE.md`](CLAUDE.md).
 For the **project story and goals**, see [`SOUNDMACHINE.md`](SOUNDMACHINE.md).
 
 > **Ground truth:** the tested configuration in the repo YAML is authoritative,
-> not this prose. Where a value below is marked *UNCONFIRMED / placeholder* it
-> has not yet been verified on the bench — confirm against the boot I2C scan
-> before trusting it.
+> not this prose. Where a value below is marked *UNCONFIRMED* it has not been
+> verified on the hardware — confirm before trusting it.
+>
+> **Prototype 1 is assembled**, so most of this is now as-built rather than as-
+> designed. Anything still marked UNCONFIRMED is a value nobody has actually
+> measured, not merely one nobody has got round to — several survived assembly
+> because nothing depends on them yet.
 
 ---
 
@@ -102,8 +106,9 @@ source of truth; `gen_drawing.py` prints the table on every run.
 > **History / drift:** earlier design notes referenced a **144 LED/m** strip, an
 > **XL6009 boost converter** and an **R80 / R96 / R117 circular** crescent. The
 > current build is **60 LED/m on a flattened ellipse, powered directly from the
-> UPS 5V rail** (~1.9 A at the 65% cap). See the reconciliation note in
-> [`SOUNDMACHINE.md`](SOUNDMACHINE.md).
+> UPS 5V rail** (~0.73 A at the 25% cap — see the power budget below). The full
+> table of what changed from the original design is in
+> [`RETROSPECTIVE.md`](RETROSPECTIVE.md) §4.
 
 ---
 
@@ -197,8 +202,8 @@ what that changed about the dome.
 |-------|------|-------|
 | Pack / UPS | **Waveshare UPS Module 3S** (3× 18650 in series) | **60 × 93 mm board**, M3 mounting holes, cells in holders on the board. Provides the **5V / 5A** rail; runs charge + discharge simultaneously (true UPS). **93 mm will not lie down in a 59 mm interior, so the board STANDS VERTICALLY against the rear wall** (~24 mm deep — confirm with cells fitted). That also puts its barrel jack on the wall that has the cutout. |
 | Charge input | **DC barrel jack** on the UPS board, **12.6 V 2 A** | **Not USB-C.** The only USB-C on the build is the XIAO's own flashing port, which is internal (see the flashing caveat above). The enclosure therefore needs a barrel-jack cutout in the rear wall, not a USB opening. Jack body clearance and its height on the board are **UNCONFIRMED** — measure the as-built. |
-| Monitor | **INA219** (assumed) | I2C — **address is an UNCONFIRMED placeholder** (`ups_i2c_address`, currently `0x41`). Waveshare boards usually carry an INA219 at `0x40–0x43`; if readings are nonsense the part may be an **INA226** (swap `platform: ina219` → `ina226` in `packages/hw/power.yaml`). |
-| Shunt | series shunt on the UPS board | **UNCONFIRMED** (`ups_shunt_ohms`, currently `0.01 Ω`). If reported current is ~10× off, this value is why. |
+| Monitor | **INA219** | **CONFIRMED.** Found at **`0x41`** on the boot I2C scan and reading consistently on `platform: ina219` — 12.46 V pack, 4.153 V/cell across 3S, 98 % SOC, all mutually agreeing. Not an INA226. Sign convention also confirmed: **discharging reads negative**, and `External Power` / `Battery Charging` track the real plug state. |
+| Shunt | series shunt on the UPS board | **UNCONFIRMED** (`ups_shunt_ohms`, currently `0.01 Ω`) — taken from the module's documentation, never measured. Bus voltage and SOC do **not** depend on it; absolute **current and power do**. Idle reads ~0.15 A, which is plausible against the estimated draw but is not verification. If current is ever ~10× off, this is why. |
 
 **Pack thresholds (3S, pack volts = per-cell × 3):**
 full `12.6V` (4.20 V/cell) · low-warn `10.2V` (3.40 V/cell) · empty `9.0V`
@@ -226,11 +231,25 @@ in the `battery_charging` sensor and drop the multiply filter.
 | TPA2016 into 2× 4Ω at clipping | ~1.3 A (set by the 4Ω load, not the 5W driver rating) |
 | Flex + XVF3800 + ESP32-S3 + sensors | ~0.5 A |
 
-The crescent is **hard-capped at 65% of full white** in firmware
-(`led_max_pct`, applied via `color_correct`) → ~1.9 A for the strip, ~3.7 A
-total of the 5 A budget. Unchanged by the enclosure work: the pixel count stays
-at 48 however the crescent is reshaped. This is a physical PWM ceiling, not just a UI limit,
-and it also keeps the sealed dome from overheating.
+The crescent is **hard-capped at 25% of full white** in firmware
+(`led_max_pct`, applied via `color_correct`) → ~0.73 A for the strip, ~2.5 A
+total of the 5 A budget. This is a physical PWM ceiling, not just a UI limit, and
+it also keeps the sealed dome from overheating.
+
+> **⚠ That 25% is a STOPGAP standing in for a hardware fix that has not been
+> done.** The cap was **65%** (~1.9 A, ~3.7 A total — comfortably inside the 5 A
+> budget on paper) and it **still browned out the ESP32 in practice.** Headroom
+> on paper is not the constraint; the *transient* is. Worse, the failure does not
+> self-clear: **the strip latches its last frame independently of the MCU**, so
+> once the rail sags far enough to reset the ESP32, the LEDs keep drawing the same
+> current straight through the reboot loop.
+>
+> The real fix is **bulk capacitance at the strip and ESP32 5V inputs** plus
+> verifying the feed topology — tracked as **H1** in
+> [`FUTURE-DEVELOPMENT.md`](FUTURE-DEVELOPMENT.md). **Do not raise `led_max_pct` before
+> that is installed**, and when you do, raise it in small steps while watching for
+> the same failure. The brightness you are looking at is a symptom of an unfixed
+> power problem, not a design choice.
 
 ---
 
@@ -271,11 +290,32 @@ Notes:
   side-to-side sensitivity mismatch cannot be trimmed out with per-pad
   thresholds. **GPIO2/D1 (TOUCH2) is kept free as the escape hatch** — splitting
   to two channels later is one wire at the MCU plus a few lines of YAML.
+- **`measurement_duration` is not optional on the S3.** ESPHome's default derives
+  `charge_times = 65535` — the hardware maximum — which saturates the 22-bit touch
+  counter: `value` pins at 4194303, the benchmark follows it there, and the delta
+  is permanently 0, so the pad can never fire whatever the threshold is. A pad
+  reading exactly 4194303 is this, not a wiring fault. Set in
+  `packages/hw/touch.yaml`; measured baseline with it is ~47,500.
 - The touch threshold (`touch_threshold`) must be **calibrated** via
   `esp32_touch: setup_mode: true` before it works reliably. Thin the wall
   locally to ~1.6 mm behind each pad.
+- **AS-BUILT, UNCONFIRMED — which electrode is actually installed.** The design
+  above is two 40 × 22 mm shoulder strips behind wall thinned to 1.6 mm. The
+  calibration in `packages/settings.yaml` (`touch_threshold: 2500`) was taken
+  against a **single 76 × 76 mm copper-tape pad behind the unthinned 2.5 mm
+  wall** — a different electrode at a different dielectric distance. Both numbers
+  are recorded because it is not documented which one went into the assembled
+  machine. **Re-calibrate if the pads are ever changed to the designed pair**;
+  a smaller electrode at a shorter distance moves the baseline and the delta.
+- **Measured separation is large**, so the exact threshold is not delicate:
+  untouched noise sd 34 counts with a worst excursion of +50, presses 6363–12731.
+  2500 is deliberately biased high within that gap — the realistic false triggers
+  are a hovering hand and gripping the dome, neither of which the bench data
+  sampled.
 - **Watch for false triggers:** the shoulders are also where you grip the device
-  to move it. If that bites, require a short hold rather than a tap.
+  to move it. If that bites, require a short hold rather than a tap — note the
+  gesture window has a dead band (`gesture_tap_max` 0.8 s → `gesture_hold_min`
+  1 s), so a 0.9 s press currently fires nothing.
 - No SPI is used (the old MAX7219 display was replaced by the I2C matrix).
 
 ---
@@ -286,7 +326,7 @@ Notes:
 |------|--------|-|------|--------|
 | `0x18` | AIC3104 codec | | `0x58` | TPA2016 amp |
 | `0x23` | BH1750 ambient light | | `0x68` | DS3231 RTC |
-| `0x29` | VL53L0X ToF | | `0x41`? | UPS INA219 *(placeholder)* |
+| `0x29` | VL53L0X ToF | | `0x41` | UPS INA219 |
 | `0x2C` | XVF3800 | | `0x74` | IS31FL3731 matrix (left) |
 | `0x36` | seesaw encoder | | `0x75` | IS31FL3731 matrix (right) |
 

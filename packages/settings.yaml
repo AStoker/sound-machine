@@ -268,6 +268,10 @@ substitutions:
   # keep drawing the same current through the reboot loop. Real fix is bulk
   # capacitance at the strip + ESP32 5V inputs and verifying the wiring/feed
   # topology (see HARDWARE.md); this cap is just a stopgap until that's done.
+  # THAT HARDWARE FIX IS STILL OUTSTANDING - tracked as the hardware TODO in
+  # SOUNDMACHINE.md section 4. Until it lands this value is a SAFETY LIMIT, not a
+  # brightness preference: raising it can put the device in a reboot loop it
+  # cannot exit on its own (the strip latches its frame independently of the MCU).
   # 25% of 2.9A = ~0.73A for the strip, ~2.5A of 5A total. Raise only after the
   # hardware fix, and only in small steps while watching for the same failure.
   led_max_pct: "25%"
