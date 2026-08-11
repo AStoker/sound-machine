@@ -169,6 +169,12 @@ fine when loud), tap = next sound, hold = sound off. A **capacitive touch pad**:
 tap = next light preset, hold = light off. Both drive the same `select` entities
 the UI uses, so physical, HA, and web controls stay in sync.
 
+"Next sound" walks **one** list — the noise colours and the flashed tracks are
+options in the same `select`, so a tap goes White → Pink → Brown → La La →
+Crickets. They were briefly two selects that kept each other switched off by
+publishing `Off` into one another; merging them makes the mutual exclusion a
+property of the data structure instead of a protocol both sides have to observe.
+
 ### The two front ends
 
 1. **Home Assistant** — full control + voice, when the network is up.

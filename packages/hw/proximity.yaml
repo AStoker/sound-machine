@@ -67,10 +67,10 @@ sensor:
     address: ${i2c_addr_tof}
     update_interval: ${tof_update_interval}
     # SENSITIVITY, not reach - a palm is a much weaker return than the datasheet's
-    # white target, so the short-range signal-rate limit was rejecting hands.
-    # Rationale and the trade-off are in settings.yaml section 8.
+    # white target, so the short-range signal-rate limit may be rejecting hands.
+    # Currently OFF: see settings.yaml section 8 for why, and for the second lever
+    # (`timing_budget:`) that goes here when this one has been ruled in or out.
     long_range: ${tof_long_range}
-    timing_budget: ${tof_timing_budget}
     # WHY THE PUBLISHED VALUE IS FILTERED BUT THE DEBOUNCE IS NOT
     # There is no target in range most of the time on a bedside table, and the
     # component reports that in two different ways: NaN when the target is past
@@ -92,6 +92,15 @@ sensor:
       # same number forever. Only forward real movement - HA retains the last
       # state, and nothing on-device reads knob_distance.state.
       - delta: ${tof_publish_delta_m}
+      # ...but a sensor that has stopped reporting ALSO holds its last state
+      # forever, so with the delta alone those two look identical and the entity
+      # cannot tell you which one you have. That is exactly the hole this fell
+      # into: a permanent 2.00m reading was read as "the sensor is dead" when it
+      # equally means "alive, nothing in front of it". The heartbeat re-sends the
+      # last value on a slow tick, so the entity's LAST-UPDATED time is now the
+      # liveness signal - ticking = alive, stuck = the component failed at setup
+      # or is not being polled.
+      - heartbeat: ${tof_heartbeat}
     # Fires on every sample, before the filters above - NaN included.
     on_raw_value:
       - lambda: |-

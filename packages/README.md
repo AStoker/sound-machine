@@ -135,6 +135,6 @@ build if it drifts from `3d-print/enclosure_geom.py`. See the note in
 | let something new drive the display | call an `api/display.yaml` verb — never `display_paint` |
 | add a display channel | a row in `api/display.yaml`'s priority table + a setter |
 | add a light preset | an option at the end of `behavior/light.yaml`'s select + a row in **both** its tables (colour *or* effect name) |
-| add a noise colour | an option in `behavior/sound.yaml`'s Sound select |
-| add a flashed track | a `files:` entry in `hw/audio_chain.yaml` + a `media_play_*` verb in `api/sound.yaml` + an option in `behavior/sound.yaml` |
+| add a noise colour | an option in `behavior/sound.yaml`'s Sound select, after the last colour |
+| add a flashed track | a `files:` entry in `hw/audio_chain.yaml` + a `media_play_*` verb in `api/sound.yaml` + an option at the END of the same Sound select, its name in `TRACKS`, and a `case` beside it |
 | change what a button does | the event handler in `behavior/` — the `hw/` file stays put |

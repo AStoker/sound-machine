@@ -420,20 +420,24 @@ substitutions:
   tof_update_interval: "250ms"       # every read is I2C traffic on a bus this
                                      # build keeps deliberately quiet - 4/s is
                                      # plenty responsive for "a hand is coming"
-  # LONG RANGE IS ON FOR SENSITIVITY, NOT FOR REACH. It drops the component's
-  # signal-rate limit from 0.25 to 0.10 MCPS and lengthens the VCSEL pulse
-  # periods, which is what lets a weak return be believed at all - and a PALM is
-  # a weak return. Skin reflects a few percent of 940nm where the white target
-  # the datasheet ranges reflects ~88%, so a hand at 25cm can sit under a
-  # short-range limit that a sheet of paper clears easily. That was the likely
-  # cause of "it doesn't see my hand hovering". The cost is more ambient-IR
-  # sensitivity and more spurious returns, which the invalid-sample handling
-  # below now absorbs rather than letting them break the debounce.
-  tof_long_range: "true"
-  # Time the chip spends integrating one measurement. Longer = more photons
-  # collected = weak returns separate from noise. 50ms against a 250ms poll
-  # leaves the bus alone for 80% of the time; the ESPHome default is ~33ms.
-  tof_timing_budget: 50ms
+  # LONG RANGE IS A SENSITIVITY KNOB, NOT A REACH ONE, AND IT IS OFF UNTIL
+  # MEASURED. It drops the component's signal-rate limit from 0.25 to 0.10 MCPS
+  # and rewrites three tuning registers, which is what lets a weak return be
+  # believed at all - and a PALM is a weak return (skin reflects a few percent of
+  # 940nm where the datasheet's white target reflects ~88%). So it is a plausible
+  # fix for "it doesn't see my hand hovering".
+  #
+  # It was turned ON, together with an explicit 50ms timing budget and a floor
+  # change, and the sensor then reported no usable distance at all. THREE
+  # SIMULTANEOUS CHANGES MEANT NOTHING COULD BE BLAMED, so both sensor-level ones
+  # are reverted here and this is back to the configuration that at least
+  # produced readings. Try them ONE AT A TIME against the DEBUG log:
+  #   1. this -> "true"
+  #   2. add `timing_budget: 50ms` to the sensor in hw/proximity.yaml (longer
+  #      integration = more photons; the component's own default is ~33ms)
+  # If either kills the readings, that one is the answer and it belongs in
+  # FUTURE-DEVELOPMENT C1.
+  tof_long_range: "false"
   tof_near_m: "0.25"                 # <= this asserts "hand near" (~10 in)
   tof_far_m: "0.40"                  # must go beyond this to release (~16 in)
   tof_max_valid_m: "1.2"             # above this, treat as no target at all
@@ -477,6 +481,11 @@ substitutions:
   tof_publish_delta_m: "0.02"        # only publish the entity when the distance
                                      # actually moved 2cm. The debounce runs off
                                      # the raw value, so this is display-only.
+  # Re-send the last value this often even when nothing changed, so the entity's
+  # last-updated time means "the sensor is still reporting". Without it a live
+  # sensor watching an empty room and a sensor that failed at setup look exactly
+  # the same in Home Assistant - both a number that never moves.
+  tof_heartbeat: 60s
 
   # ===================================================================
   # 9. POWER / UPS MONITORING - Waveshare UPS Module 3S (3x 18650 series)
@@ -590,4 +599,16 @@ substitutions:
   # The ToF sensor logs every reading. WARN hides that per-reading spam; set to
   # DEBUG to see every distance while fine-tuning (CONFIG keeps just the boot
   # dump).
-  tof_log_level: "WARN"
+  #
+  # ON DEBUG DELIBERATELY while the proximity sensor is being diagnosed. This is
+  # the only place the sensor's RAW behaviour is visible - the entity cannot show
+  # it, because every kind of "no reading" is deliberately flattened to one
+  # number before it gets there. Four readings a second, each one line:
+  #   "Got distance 0.183 m"          a real measurement
+  #   "Distance is out of range"      the chip saw >=8190mm: genuinely nothing
+  #   neither, ever                   the component failed at setup - look for
+  #                                   "setup timeout" or "reference calibration
+  #                                   failed" from tag vl53l0x at boot, and for
+  #                                   0x29 in the boot I2C scan
+  # Put it back to WARN once the question is settled.
+  tof_log_level: "DEBUG"

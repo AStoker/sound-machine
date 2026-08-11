@@ -7,19 +7,29 @@
 # hardware access.
 #
 # THE SELECT IS THE STATE. The "Sound" select is the single place a sound change
-# happens, and its option INDEX is the state: 0 = Off, and 1..N are the noise
-# colours in the order the generator numbers them (index - 1 IS the colour index
-# the api takes). Everything else - a knob tap, a long press, the boot restore,
-# Home Assistant - drives that select and lets it do the work, which is why the
-# code flash and the mutual exclusion live in one place and are guaranteed to run
-# whatever triggered the change.
+# happens, and its option INDEX is the state: 0 = Off, then the noise colours in
+# the order the generator numbers them (index - 1 IS the colour index the api
+# takes), then the flashed tracks. Everything else - a knob tap, a long press, the
+# boot restore, Home Assistant - drives that select and lets it do the work, which
+# is why the code flash and the mutual exclusion live in one place and are
+# guaranteed to run whatever triggered the change.
+#
+# ONE LIST, BOTH KINDS. Noise and tracks used to be separate selects that kept
+# each other Off by publishing into one another; now they are options in the same
+# list and only one option can be selected, so the exclusion is structural rather
+# than a protocol two set_actions have to keep observing. A knob tap therefore
+# walks the whole list - White, Pink, Brown, La La, Crickets - and a track, like a
+# colour, resumes after a reboot.
 #
 # Reading the order off the option list is what keeps it honest: the cycle used to
 # be a hand-written chain of "White -> Pink, Pink -> Brown, Brown -> White" that
 # had to silently agree with the list, and the set_action mapped each name to a
 # colour number and a display code by hand. Both are now arithmetic on the index.
 #
-# ADDING A COLOUR: add an option, in the generator's numbering order. Nothing else.
+# ADDING A COLOUR: add an option after the last colour, in the generator's
+# numbering order. Nothing else.
+# ADDING A TRACK: add an option at the END, its name to TRACKS, and a case to the
+# switch beside it - plus the `files:` entry and api verb the track itself needs.
 #
 # IMPLEMENTS the hardware input contract from hw/knob.yaml:
 #   on_knob_turn(clicks) / on_knob_tap / on_knob_hold
@@ -28,7 +38,7 @@
 # and from api/sound.yaml:
 #   on_audio_ready
 #
-# DEFINES  sound_option, sound_option_last (globals), sound_select, media_select,
+# DEFINES  sound_option, sound_option_last (globals), sound_select,
 #          media_loop, sound_next, sound_off, volume_feedback,
 #          indicator_hue_from_volume, and the event handlers above.
 # CONSUMES api/sound (noise_play, noise_stop, media_*, volume_apply),
@@ -106,17 +116,17 @@ script:
           index: !lambda 'return id(sound_option);'
 
   # ---- the two sound gestures ----
-  # Tap: advance Off -> (last sound) -> the next colour -> ... wrapping among the
-  # colours. From Off it RESUMES rather than restarting the cycle; Off is index 0
-  # and reachable only by a hold.
+  # Tap: advance Off -> (last sound) -> the next sound -> ... wrapping among every
+  # sound there is, colours and tracks alike. From Off it RESUMES rather than
+  # restarting the cycle; Off is index 0 and reachable only by a hold.
   - id: sound_next
     then:
       - lambda: |-
           auto *select = id(sound_select);
-          const size_t colours = select->size() - 1;       // every option except Off
+          const size_t sounds = select->size() - 1;        // every option except Off
           const size_t current = select->active_index().value_or(0);
           const size_t next = (current == 0) ? (size_t) id(sound_option_last)
-                                            : (current % colours) + 1;
+                                            : (current % sounds) + 1;
           select->make_call().set_index(next).perform();
   # Long press: silence.
   - id: sound_off
@@ -138,10 +148,23 @@ script:
           id(display_show_code)->execute(std::to_string((int) lroundf(volume * 100.0f)));
 
 select:
-  # SOUND = Off plus the noise colours, IN THE GENERATOR'S NUMBERING ORDER, so
-  # (index - 1) is the colour index api/sound.yaml takes and index is the "S<n>"
-  # code shown on the display. Replaces what used to be an on/off switch and a
-  # separate type select.
+  # SOUND = Off, then the noise colours IN THE GENERATOR'S NUMBERING ORDER, then
+  # the flashed tracks IN TRACKS ORDER. One list holding both kinds, because only
+  # one of them can ever be playing.
+  #
+  # THAT IS THE POINT OF MERGING THEM. This used to be two selects - Sound and
+  # Media Preset - that enforced mutual exclusion by publishing "Off" into each
+  # other, each set_action having to remember to stop the other subsystem and to
+  # use publish_state rather than a real call so it did not re-enter the other's
+  # action and flash a second display code. A select already holds exactly one
+  # option; making it hold ALL the sounds turns that whole protocol into a fact
+  # about the data structure. It also means one knob tap walks the entire list -
+  # White, Pink, Brown, La La, Crickets - which is what the gesture always
+  # implied.
+  #
+  # The index is still the state, and still does double duty: it is the "S<n>"
+  # code on the display, and for a colour it is (index - 1) = the colour number
+  # api/sound.yaml takes.
   - platform: template
     name: "Sound"
     id: sound_select
@@ -154,6 +177,9 @@ select:
       - "White"                   # 1 -> noise colour 0
       - "Pink"                    # 2 -> noise colour 1
       - "Brown"                   # 3 -> noise colour 2
+      - "La La"                   # 4 -> track 0
+      - "Crickets"                # 5 -> track 1
+      # - "Rain (HA)"      # example URL-based track (see the commented branch)
     set_action:
       - lambda: |-
           // index_of(x), not active_index(): the select has not published the new
@@ -165,89 +191,62 @@ select:
           id(sound_option) = (int) choice;                 // remember (persisted)
           if (choice == 0) {
             id(noise_stop)->execute();
+            id(media_stop)->execute();
             id(display_show_code)->execute("OFF");
             return;
           }
           id(sound_option_last) = (int) choice;            // the last real one
-          id(noise_play)->execute((int) choice - 1);
           id(display_show_code)->execute("S" + std::to_string(choice));
 
-          // Noise and media are mutually exclusive: turning ON a colour stops any
-          // playing media and syncs the Media Preset select to Off. publish_state
-          // (not a select call) so it does not re-enter the media set_action or
-          // flash a second code - it just updates the shown state.
-          id(media_stop)->execute();
-          id(media_select).publish_state("Off");
+          // WHERE THE COLOURS END AND THE TRACKS BEGIN is derived, not written
+          // down: the tracks are named below and everything else in the option
+          // list except Off is a colour. So adding a colour stays a one-line
+          // change to the option list, exactly as it was before the merge.
+          //
+          // A track needs a name here (and its own api verb) because a media_file
+          // id cannot be a script parameter - that branch per track is the one
+          // irreducible part.
+          static const char *const TRACKS[] = {"La La", "Crickets"};
+          const size_t track_count = sizeof(TRACKS) / sizeof(TRACKS[0]);
+          const size_t colour_count = id(sound_select)->size() - 1 - track_count;
 
-  # MEDIA PRESET = Off plus the playable tracks. Each track is either a file
-  # flashed into the ESP (offline-capable) or a URL played to the same media
-  # player. Looping follows the Media Loop switch. Stop with "Off" here or with
-  # the media player controls in Home Assistant.
-  #
-  # Not index-driven like the Sound select above, because a track is not a number:
-  # each one needs its own api verb (a media_file id cannot be a script parameter)
-  # so the branch per option is irreducible.
-  - platform: template
-    name: "Media Preset"
-    id: media_select
-    icon: "mdi:music"
-    optimistic: true
-    restore_value: false
-    initial_option: "Off"
-    options:
-      - "Off"
-      - "La La"
-      - "Crickets"
-      # - "Rain (HA)"      # example URL-based track (see the commented branch)
-    set_action:
-      # The other half of the mutual exclusion. sound_option_last is left intact,
-      # so a later knob tap can still resume the previous colour.
-      - if:
-          condition:
-            lambda: 'return x != "Off";'
-          then:
-            - script.execute: noise_stop
-            - lambda: |-
-                id(sound_option) = 0;                      // Off
-                id(sound_select).publish_state("Off");
-      - if:
-          condition:
-            lambda: 'return x == "Off";'
-          then:
-            - script.execute: media_stop
-      - if:
-          condition:
-            lambda: 'return x == "La La";'
-          then:
-            - script.execute:
-                id: media_set_repeat
-                loop: !lambda 'return id(media_loop).state;'
-            - script.execute: media_play_la_la
-      # A 61s loop bed, so it is meant to be heard with Media Loop ON - one pass
-      # is not a sound machine. The seam is whatever gap the MP3 decoder leaves
-      # at end-of-file; the clip's head and tail levels are within 0.5 dB of each
-      # other, so nothing else calls attention to the wrap.
-      - if:
-          condition:
-            lambda: 'return x == "Crickets";'
-          then:
-            - script.execute:
-                id: media_set_repeat
-                loop: !lambda 'return id(media_loop).state;'
-            - script.execute: media_play_crickets
+          if (choice <= colour_count) {
+            id(media_stop)->execute();                     // colour wins
+            id(noise_play)->execute((int) choice - 1);
+            return;
+          }
+
+          // A track. Stop the noise, but do NOT stop the player first - handing
+          // it a new file is how it switches, and a stop immediately followed by
+          // a play races the pipeline that is still tearing down.
+          const size_t track = choice - colour_count - 1;
+          if (track >= track_count || x != TRACKS[track]) {
+            ESP_LOGW("sound", "option '%s' is not the track TRACKS[%u] expects - "
+                              "the option list and TRACKS have drifted",
+                     x.c_str(), (unsigned) track);
+            return;
+          }
+          id(noise_stop)->execute();
+          // Loop mode is read per start, so flipping the switch takes effect the
+          // next time a track is chosen.
+          id(media_set_repeat)->execute(id(media_loop).state);
+          switch (track) {
+            case 0: id(media_play_la_la)->execute(); break;
+            // A 61s loop bed, meant to be heard with Media Loop ON - one pass is
+            // not a sound machine. The seam is whatever gap the MP3 decoder
+            // leaves at end-of-file; the clip's head and tail levels are within
+            // 0.5 dB, so nothing else calls attention to the wrap.
+            case 1: id(media_play_crickets)->execute(); break;
+          }
       # ----- URL / Home Assistant track (uncomment + edit to use) -----
-      # Add the option name above, then a branch here. A URL track needs a real
-      # network path, so it is not offline-capable the way a flashed file is.
-      # - if:
-      #     condition:
-      #       lambda: 'return x == "Rain (HA)";'
-      #     then:
-      #       - script.execute:
-      #           id: media_set_repeat
-      #           loop: !lambda 'return id(media_loop).state;'
-      #       - media_player.play_media:
-      #           id: external_media_player
-      #           media_url: "http://homeassistant.local:8123/local/rain.mp3"
+      # Add the option name above, its name to TRACKS, and a case here. A URL
+      # track needs a real network path, so it is not offline-capable the way a
+      # flashed file is:
+      #   case 2:
+      #     id(external_media_player)->make_call()
+      #       .set_media_url("http://homeassistant.local:8123/local/rain.mp3")
+      #       .perform();
+      #     break;
 
 switch:
   # Loop mode for MEDIA tracks (on = repeat, off = play once). Read by the Media

@@ -112,27 +112,40 @@ knob NeoPixel when a hand comes near.
 and adjust until it leads your hand without firing across the room. Low stakes —
 the knob-pixel feature degrades gracefully to volume-only if the sensor is absent.
 
-**Three fixes have already landed for "it doesn't see my hand", so try these
-before moving a threshold** — a threshold was never the reason:
+**This is currently worse than "uncalibrated" — the sensor reports no usable
+distance at all.** After a round of changes it sat at `tof_no_target_m` (2.00 m)
+permanently. What is known, and what is not:
 
-1. **`long_range: true`.** A palm reflects a few percent of 940 nm; the
-   datasheet's white target reflects ~88 %. Short range's 0.25 MCPS signal-rate
-   limit was rejecting the return outright. Long range drops it to 0.10.
-2. **`timing_budget: 50 ms`** (was the ~33 ms default) — more photons per
-   measurement, so a weak return separates from noise.
-3. **Unresolved readings are now ignored, not counted as "far".** The component
-   publishes the range register without the range-status byte beside it, so a
-   failed measurement arrives dressed as a distance of a few centimetres. One of
-   those in the middle of a hover reset the confirm counter, and asserting needs
-   two *consecutive* near samples — so the assert frequently never happened.
-   `tof_min_valid_m` rose 0.03 → 0.05 to catch them, and
-   `tof_invalid_hold_samples` (12 ≈ 3 s) leashes how long they may be ignored.
+**Landed and kept — logic only, cannot affect what the chip measures:**
 
-**Diagnose before tuning.** Set `tof_log_level: DEBUG` and read the raw
-distances: an idle sensor showing a small fixed number means unresolved reads or
-something in its 25° cone; a hand reading nothing at all means sensitivity; a
-hand reading the *right* distance with no pixel means the thresholds — and only
-then is this entry the thing to work on.
+- **Unresolved readings are ignored, not counted as "far".** The component
+  publishes the range register without the range-status byte beside it, so a
+  failed measurement arrives dressed as a distance of a few centimetres. One of
+  those mid-hover reset the confirm counter, and asserting needs two
+  *consecutive* near samples — so the assert frequently never happened.
+  `tof_min_valid_m` rose 0.03 → 0.05 to catch them; `tof_invalid_hold_samples`
+  (12 ≈ 3 s) leashes how long they may be ignored.
+- **A `heartbeat: 60s` filter on the published entity.** Before it, a `delta`
+  filter meant a live sensor watching an empty room and a sensor that died at
+  setup produced the identical entity — one number, never updating. Now the
+  last-updated time is the liveness signal.
+
+**Reverted, and to be retried ONE AT A TIME:** `long_range: true` and an explicit
+`timing_budget: 50ms` went in together with the floor change, so when the
+readings stopped, nothing could be blamed. Both are sensitivity levers worth
+having — a palm reflects a few percent of 940 nm where the datasheet's white
+target reflects ~88 %, and short range's 0.25 MCPS signal-rate limit may simply
+be rejecting hands — but each needs its own build and its own log.
+
+**Diagnose before tuning.** `tof_log_level` is on `DEBUG` for this; the raw
+stream is the only place the truth is visible. Then:
+
+| What DEBUG shows | What it means |
+|---|---|
+| no ToF lines at all | setup failed — look for `setup timeout` / `reference calibration failed`, and for `0x29` in the boot I2C scan |
+| `Distance is out of range`, always | the chip sees nothing: aim, or sensitivity |
+| a small fixed number, always | unresolved reads, or something sitting in its 25° cone |
+| the right distance, but no pixel | *now* it is this entry — move the thresholds |
 
 ### C2. Widen the gesture timing dead band
 
