@@ -73,6 +73,37 @@ light:
     rgb_order: GRB
     is_rgbw: true
     pin: ${pin_crescent_data}
+    # ---- WHY THE RMT IS PINNED TO DMA AND INTERNAL RAM (see V4) ----
+    # Not tuning. These two defend against a REAL observed artifact: the top of
+    # the crescent occasionally flashes green under Rainbow Arch, where the
+    # effect only ever paints red (radius ~ 1 -> hue 0). Red is `00 7F 00 00` on
+    # a GRB+W strip, so a stream slipped by ONE BYTE puts 0x7F in the green slot
+    # -- the glitch is byte misalignment in transmission, not a wrong colour.
+    # It shows at the TOP because rows are in data order bottom-first, so the
+    # top row is pixels 44-47: the tail of the chain, where corruption lands.
+    #
+    # The default non-DMA RMT ping-pongs on half of rmt_symbols (192), giving the
+    # encoder ISR only ~96 symbols x 1.2us = ~115us of runway per refill, with
+    # the pixel buffer in PSRAM. SK6812 latches on any low gap over ~80us, so one
+    # late refill makes every pixel downstream re-latch mid-stream, byte-shifted.
+    # That ISR competes with WiFi, the I2S audio path and a busy 100kHz I2C bus.
+    # DMA removes the refill race outright; 48 px x 4 B is small enough that
+    # there is no reason to leave the buffer in PSRAM behind it.
+    #
+    # rmt_symbols is the DMA buffer once use_dma is on, ping-ponged over 2 nodes,
+    # so 1024 gives ~614us per node instead of the default 192's ~115us - and a
+    # whole frame is 1536 symbols, so this holds most of one. Sized deliberately
+    # so a surviving glitch RULES THE RMT OUT rather than leaving it half-tested.
+    # IDF limits: even, >= 48 (SOC_RMT_MEM_WORDS_PER_CHANNEL), <= 2047. 4 KB of
+    # DMA-capable internal RAM.
+    #
+    # >>> IF THE GLITCH SURVIVES THIS, IT IS THE OTHER CAUSE, NOT THIS ONE: 3.3V
+    # >>> GPIO into a 5V strip that wants VIH = 0.7 x VDD = 3.5V, with the data
+    # >>> line running the crown beside the I2S clocks. That needs a level
+    # >>> shifter or a lower strip VDD - do not go on tuning RMT numbers.
+    use_dma: true
+    use_psram: false
+    rmt_symbols: 1024
     # Real build: the crescent is a FLATTENED HALF-ELLIPSE, 89 x 62.7 semi-axes,
     # not a half circle -- the crown was flattened (CROWN_K 0.74) to get the dome
     # printable in one piece on a 220 bed. MEASURED strip: 10.0mm ribbon, 16.5mm

@@ -12,7 +12,7 @@ and leave the number dead.
 |---|---|---|
 | **[H — Hardware](#h--hardware)** | H1 bulk capacitance · H2 shunt value · H3 touch electrode · H4 ToF pinhole | needs a soldering iron |
 | **[C — Calibration](#c--calibration)** | C1 ToF deviation thresholds · C2 gesture timing · C3 noise gain · C4 dim curve | needs the assembled machine |
-| **[V — Validation](#v--validation)** | V1 AEC over noise · V2 sunrise on the final crescent · V3 `(?)` constants | needs measuring, not changing |
+| **[V — Validation](#v--validation)** | V1 AEC over noise · V2 sunrise on the final crescent · V3 `(?)` constants · V4 crescent green glitch | needs measuring, not changing |
 | **[F — Features](#f--features)** | F1 touchless wake | not built |
 | **[T — Tech debt](#t--tech-debt)** | T1 blanket `except ImportError` · T2 stability foot span · T3 mixer drain-wait fallback | optional |
 
@@ -257,6 +257,48 @@ which is not the same as the guesses being right. It means nothing that failed
 depended on them, and the tolerance they consumed is unknown. They are now easier
 to measure on the assembled machine than on the loose parts the list was written
 for, and they matter for a reprint or a v2.
+
+### V4. Confirm whether the RMT change fixed the crescent's green glitch
+
+**A fix is applied and unverified.** Under Rainbow Arch, the top of the crescent
+occasionally flashes green for well under a second. The diagnosis is settled; which
+of two causes it is, is not.
+
+**Why it is a transmission fault, not a rendering one.** Three facts, and they only
+fit one way:
+1. The effect *cannot* paint green there. Hue is `270° × (1 − radius)` and the top
+   rows sit at `radius ≈ 1`, so they are hue 0 — **pure red**. Green needs
+   `radius ≈ 0.55`, the mid-band.
+2. Red is `00 7F 00 00` on a GRB + W strip. Slip the byte stream by **one byte**
+   and `0x7F` lands in the green slot. The right bytes are arriving in the wrong
+   slots.
+3. Rows are in *data order, bottom row first*, so the top row is pixels 44–47 —
+   the **tail of the chain**, which is where corruption in a WS28xx chain lands.
+
+**What was changed** (`packages/hw/crescent.yaml`) — `use_dma: true`,
+`use_psram: false`, `rmt_symbols: 1024`. The default non-DMA RMT ping-pongs on half
+of 192 symbols, giving the encoder ISR ~115 µs of runway per refill with the buffer
+in PSRAM; SK6812 latches on any gap over ~80 µs, so one late refill makes every
+pixel downstream re-latch mid-stream, byte-shifted. That ISR competes with WiFi, the
+I2S path and a busy 100 kHz I2C bus. 1024 symbols is sized so a *surviving* glitch
+rules the RMT out rather than leaving it half-tested.
+
+**Acceptance test.** Run Rainbow Arch for a long stretch, and specifically *with
+noise playing and during voice-assistant activity* — ISR starvation correlates with
+audio, so an idle-only test proves little.
+
+**If it survives, stop tuning RMT numbers — it is the other cause.** GPIO1 drives
+the strip at **3.3 V** into a part that wants VIH = 0.7 × VDD = **3.5 V**, with no
+level shifter anywhere in `HARDWARE.md`, and the data line runs the crown beside the
+I2S clocks and the STEMMA chain. Each pixel regenerates imperfectly, so edge jitter
+accumulates over 48 hops and the tail misreads first — which matches the symptom
+just as well. Fixes, cheapest first: 330–470 Ω series resistor at GPIO1 plus 0.1 µF
+at the first pixel; one series diode on the strip's 5 V to bring VDD to ~4.4 V so
+3.3 V clears the threshold; or a 74AHCT125 as the proper answer.
+
+**Related:** [H1](#h1-install-the-brownout-fix-bulk-capacitance--highest-value) is a
+plausible contributor either way — VIH is referenced to VDD, so rail sag moves the
+threshold under a fixed 3.3 V drive.
 
 ---
 
