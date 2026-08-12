@@ -122,6 +122,13 @@ tick, `api/indicator.yaml` re-sends the pin config whenever the pixel settles at
 black, `hw/audio_chain.yaml` re-writes the amp's four registers on a tick. If you
 add an I2C part that has to be configured, give it one of these.
 
+**So does derived state that is cached on an edge.** The low-battery alert is a
+global maintained by two `on_state` handlers, and an edge that never arrives (or
+a state that is already true at boot and then never changes) would leave it
+disagreeing with its sensors indefinitely. `behavior/power.yaml` re-derives it on
+a slow tick as well, so the events buy latency and the tick buys correctness. Any
+future default view computed from a sensor wants the same treatment.
+
 **The crescent's pixel count is not a setting.** It is derived from the enclosure
 geometry and lives in `hw/crescent.yaml`. `3d-print/check_docs.py` fails the
 build if it drifts from `3d-print/enclosure_geom.py`. See the note in

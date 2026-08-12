@@ -599,6 +599,13 @@ substitutions:
   # the threshold.
   battery_low_clear_gap: "10"
 
+  # How often the low-battery alert is RE-DERIVED from the two sensors above.
+  # This is NOT how fast the warning appears - it is also refreshed the instant
+  # either sensor changes. It is the bound on how long a MISSED change can leave
+  # the display disagreeing with them, which on a pack that is already flat and
+  # already unplugged would otherwise be indefinite. See behavior/power.yaml.
+  power_alert_interval: "30s"
+
   # ===================================================================
   # 10. GESTURES - shared by the knob switch and the touch pad, so both
   # physical controls feel the same. Read by packages/hw/{knob,touch}.yaml.

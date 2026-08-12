@@ -33,7 +33,7 @@
 #   on_external_power_changed / on_battery_low_changed
 #
 # DEFINES  power_announced (global), on_external_power_changed,
-#          on_battery_low_changed, power_alert_refresh.
+#          on_battery_low_changed, power_alert_refresh, and the alert tick.
 # CONSUMES api/display (display_show_status, display_set_alert), and reads
 #          external_power + battery_low (hw/power).
 # =====================================================================
@@ -68,11 +68,34 @@ script:
 
   # Re-evaluate the sticky alert from scratch. Passing "" clears it, so this one
   # call handles both raising and clearing and cannot get out of step with itself -
-  # which is what makes it safe to call from either event.
+  # which is what makes it safe to call from either event, and from the tick
+  # below. It reads the two sensors and nothing else, so calling it more often
+  # than necessary is free.
   - id: power_alert_refresh
     then:
       - lambda: |-
           const bool on_mains = id(external_power).has_state() && id(external_power).state;
           const bool warn = id(battery_low).state && !on_mains;
+          ESP_LOGD("power", "alert refresh: battery_low=%s external_power=%s -> %s",
+                   YESNO(id(battery_low).state),
+                   id(external_power).has_state() ? YESNO(id(external_power).state) : "unknown",
+                   warn ? "${alert_msg_low_battery}" : "clear");
           id(display_set_alert)->execute(warn ? std::string("${alert_msg_low_battery}")
                                               : std::string(""));
+
+interval:
+  # SELF-HEALING, and the same idea as the chips that re-assert their config: the
+  # alert is DERIVED state cached in a global, and the two events above are
+  # EDGES. Anything that costs one edge - a publish that never lands, a script
+  # dropped for already running, a reboot into a state that then never changes
+  # again - leaves the cached alert disagreeing with the sensors for as long as
+  # both sit still. On a flat pack that is forever, and forever is exactly when
+  # the warning matters.
+  #
+  # Recomputing on a tick makes the alert eventually consistent instead of
+  # edge-latched: two boolean reads, and display_paint dedups the repaint, so an
+  # unchanged verdict costs nothing past the string compare. The events stay
+  # because they make it INSTANT; this only bounds how wrong it can get.
+  - interval: ${power_alert_interval}
+    then:
+      - script.execute: power_alert_refresh

@@ -194,11 +194,20 @@ script:
   # clock while some condition holds. It does not interrupt anything: overlays
   # still show over the top of it, so a low pack does not silence the volume
   # readout or the preset codes. Pass "" to clear.
+  # It is safe to call on a tick with an unchanged value - the compare below is
+  # the whole cost - which is what lets behavior/power.yaml re-derive it rather
+  # than latch it on an edge. Logging the transition (and only the transition)
+  # is worth it: this channel is the one thing on the display that can be wrong
+  # for hours without anyone touching the device.
   - id: display_set_alert
     parameters:
       text: string
     then:
-      - lambda: 'id(display_alert_text) = text;'
+      - lambda: |-
+          if (id(display_alert_text) != text) {
+            ESP_LOGI("display", "alert %s", text.empty() ? "cleared" : text.c_str());
+            id(display_alert_text) = text;
+          }
       - script.execute: display_refresh
 
   # The one place the scroll rate is bounded, so the driver can use the value
