@@ -140,8 +140,8 @@ reads an enable register back every `matrix_probe_interval` and re-initialises a
 panel that has forgotten its configuration.
 
 What it shows, and in what order, is not this file's business: `api/display.yaml`
-owns that (**message → status → alert → code → clock**) and hands the driver a
-resolved frame.
+owns that (overlays **message → status → code**, over a default view of
+**alert → clock**) and hands the driver a resolved frame.
 
 ---
 

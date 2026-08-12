@@ -119,7 +119,7 @@ substitutions:
   # 4. DISPLAY SERVICE (packages/api/display.yaml)
   # What gets SHOWN and for how long. How it is drawn is section 5.
   # ===================================================================
-  # One heartbeat drives everything the display does: expiring timed channels,
+  # One heartbeat drives everything the display does: expiring timed overlays,
   # advancing a scroll, and picking up the minute rolling over. It is safe to
   # tick this fast because the driver skips the I2C write when the resolved frame
   # is unchanged - an idle tick costs a short string and a hash.
@@ -131,7 +131,8 @@ substitutions:
   display_code_seconds: "2"
 
   # ---- KEEP THE STRINGS BELOW TO 4 CHARACTERS ----
-  # The COMPACT channels (status + alert) get one 16-column panel, which is 4
+  # The COMPACT content (the status overlay + the alert default view) gets one
+  # 16-column panel, which is 4
   # glyphs of the 3x5 font. Longer strings still work but scroll, and a scrolling
   # pass takes far longer than the few seconds a status is meant to occupy. The
   # full rationale - why compact text is confined to one panel at all - is in
@@ -144,9 +145,12 @@ substitutions:
   power_msg_mains: "CHG"
   power_msg_battery: "BATT"
   power_msg_seconds: "3"
-  # The sticky low-battery alert. Short and STATIC on purpose: this one persists
-  # for as long as the pack is low, and a permanently scrolling word at a
-  # bedside at night is worse than no warning at all.
+  # The sticky low-battery alert. It is a DEFAULT VIEW, not an interruption: it
+  # stands in for the clock while the pack is low and anything transient - a
+  # volume readout, a preset code, "CHG" - still shows over the top of it.
+  # Short and STATIC on purpose: this one persists for as long as the pack is
+  # low, and a permanently scrolling word at a bedside at night is worse than no
+  # warning at all.
   alert_msg_low_battery: "LOW"
 
   # ---- Home Assistant authored message (packages/behavior/message.yaml) ----

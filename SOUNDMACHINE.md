@@ -112,17 +112,29 @@ addresses pixels that are not there; `3d-print/check_docs.py` is what stops that
 ### The display
 
 The display is **pluggable**: `packages/api/display.yaml` owns the whole
-policy layer (the content channels and their priority, expiring them, formatting
-the clock, the tick) and resolves all of it into a *frame*. `packages/hw/matrix.yaml`
+policy layer (the transient overlays and their priority, expiring them, which
+default view sits underneath, formatting the clock, the tick) and resolves all of it into a *frame*. `packages/hw/matrix.yaml`
 renders that frame by providing `display_paint`, and decides nothing. The split is
 not there so the display can be swapped — it is there because choosing what to
 show and drawing it are unrelated problems, and merging them would bury the
 policy in the middle of 300 lines of fonts and register bursts.
 
-**The api layer is the single writer**, resolving one thing in priority order:
-a message typed from Home Assistant → a **device status message** → a sticky
-**alert** (the low-battery warning) → a transient code (e.g. "S3", "L1") → the
-clock. The BH1750 ambient-light sensor auto-dims it on a log curve tuned
+**The api layer is the single writer**, and it resolves one thing out of two
+tiers. First the **overlays**, all transient and all timed, in priority order: a
+message typed from Home Assistant → a **device status message** → a transient
+code (e.g. "S3", "L1"). If none is live, it falls through to the **default
+view** — what the display rests on when nothing has just happened. Normally that
+is the clock; while the pack is low it is the sticky **alert** instead.
+
+That tiering is deliberate. An alert used to sit *above* the codes, which meant a
+flat battery pinned "LOW" to the display and swallowed every volume readout and
+preset code — the machine looked broken rather than low. A sticky condition is
+not an event competing for the same instant; it is a statement about what the
+display should say when it has nothing better to do, so it displaces the clock
+and only the clock. The same slot is where a time-of-day face or any other
+resting view would go.
+
+The BH1750 ambient-light sensor auto-dims all of it on a log curve tuned
 deliberately dark.
 
 Status messages are the channel for things the *device* wants to say rather than a

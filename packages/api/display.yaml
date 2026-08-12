@@ -16,8 +16,9 @@
 # every change to either would be a change to one 500-line file.
 #
 # WHAT THIS LAYER OWNS
-#   * the four content CHANNELS below and their priority,
-#   * expiring the timed ones,
+#   * the OVERLAYS below and their priority,
+#   * expiring them,
+#   * choosing the DEFAULT VIEW shown when no overlay is up,
 #   * building the clock, so 12h/24h formatting lives in one place,
 #   * the single heartbeat that keeps all of the above honest.
 #
@@ -25,16 +26,38 @@
 #   * one script, `display_paint`, which renders the resolved FRAME below and
 #     nothing else. It makes no decisions about what to show.
 #
-# THE CHANNELS, highest priority first:
+# TWO KINDS OF CONTENT, and the distinction is the whole design:
+#
+#   OVERLAYS are transient. Something just happened and the display says so for
+#   a few seconds, then gets out of the way. Every overlay is timed.
+#
+#   DEFAULT VIEWS are what the display is *resting on* - what it shows when
+#   nothing has happened lately. There is always exactly one; normally it is the
+#   clock.
+#
+# THE OVERLAYS, highest priority first:
 #   message  timed, WIDE     Home Assistant authored text (behavior/message.yaml)
 #   status   timed, COMPACT  a device announcement, e.g. "CHG"  (any behavior)
-#   alert    STICKY, COMPACT a condition that persists, e.g. "LOW"
 #   code     timed, WIDE     a short code from a user action: "L1", "S3", "42"
-#   clock    always          the fallback
 #
-# Why status outranks alert: plugging in while the pack is flat is exactly when
-# you want to see "CHG" rather than "LOW" - and the alert is cleared a moment
-# later anyway. Why message outranks everything: it was explicitly asked for.
+# THE DEFAULT VIEWS, highest priority first:
+#   alert    sticky, COMPACT a condition that persists, e.g. "LOW"
+#   clock    always          the last resort, and the usual answer
+#
+# WHY AN ALERT IS A DEFAULT VIEW AND NOT A HIGH-PRIORITY OVERLAY. It was one
+# once, and it made a flat battery feel like a broken machine: "LOW" is sticky,
+# so it outranked every code, and turning the knob or cycling a light preset
+# showed nothing at all. But a sticky condition is not an event - it is not
+# competing with the volume readout for the same instant, it is describing what
+# the display should say when it has nothing better to do. Demoting it below the
+# overlays says exactly that: a low pack replaces the CLOCK, not the feedback.
+#
+# It also removes a special case. Status used to be documented as outranking
+# alert so that plugging in a flat pack showed "CHG" rather than "LOW"; now
+# every overlay outranks every default, so that behaviour falls out for free.
+#
+# Adding a time-of-day default (a dimmer night face, a weekend face) is a row in
+# the defaults table plus a setter - the same shape as adding an overlay.
 #
 # THE FRAME - the driver's entire input:
 #   display_frame_text   text to render; EMPTY means render the clock
@@ -53,19 +76,19 @@
 #   display_scroll_ms    ms per pixel for any text too wide for its scope.
 #                        Already bounded by display_set_scroll_speed.
 #
-# DEFINES  the channel globals, the frame globals, display_show_message,
+# DEFINES  the overlay + default-view globals, the frame globals, display_show_message,
 #          display_show_status, display_show_code, display_set_alert,
 #          display_set_scroll_speed, display_refresh, and the display tick.
 # CONSUMES ds3231_time (hw/rtc), ambient_level (hw/ambient_light),
 #          display_paint (hw/matrix.yaml).
 # =====================================================================
 globals:
-  # ---- channel state ----
-  # Each timed channel is an expiry STAMP rather than a running timer, so a
-  # second event simply overwrites it (last one wins) with no script
-  # cancellation to reason about. The resolve step CLEARS a channel it finds
-  # expired, which is what keeps the signed-difference compare below safe past
-  # the ~24.8 day mark where a stale deadline would otherwise read as future.
+  # ---- overlay state ----
+  # Each overlay is an expiry STAMP rather than a running timer, so a second
+  # event simply overwrites it (last one wins) with no script cancellation to
+  # reason about. The resolve step CLEARS an overlay it finds expired, which is
+  # what keeps the signed-difference compare below safe past the ~24.8 day mark
+  # where a stale deadline would otherwise read as future.
   - id: display_message_text
     type: std::string
     restore_value: no
@@ -90,7 +113,10 @@ globals:
     type: uint32_t
     restore_value: no
     initial_value: '0'
-  # The sticky channel: no expiry. Set to "" to clear.
+  # ---- default-view state ----
+  # Sticky: no expiry, because it is not describing an event. Set to "" to
+  # clear. A future default view (night face, weekend face) gets its own global
+  # here and its own row in the defaults table below.
   - id: display_alert_text
     type: std::string
     restore_value: no
@@ -121,8 +147,8 @@ globals:
 
 script:
   # ---- the public API: four ways to put something on the display ----
-  # Each one stamps its channel and repaints immediately, so feedback is instant
-  # rather than waiting up to one tick.
+  # Each one stamps its overlay (or the default view) and repaints immediately,
+  # so feedback is instant rather than waiting up to one tick.
 
   # A Home Assistant authored message. WIDE scope: long text scrolls.
   # This is the only channel fed by free text, so it is the only one that trims:
@@ -164,7 +190,10 @@ script:
           id(display_code_until_ms) = millis() + (uint32_t) ${display_code_seconds} * 1000u;
       - script.execute: display_refresh
 
-  # Raise or clear the sticky alert. Pass "" to clear.
+  # Raise or clear the sticky alert - the DEFAULT VIEW used in place of the
+  # clock while some condition holds. It does not interrupt anything: overlays
+  # still show over the top of it, so a low pack does not silence the volume
+  # readout or the preset codes. Pass "" to clear.
   - id: display_set_alert
     parameters:
       text: string
@@ -187,45 +216,68 @@ script:
       - script.execute: display_refresh
 
   # ---- resolve + paint ----
-  # Turns the channels into the frame, then hands the frame to the driver. This
-  # is the ONLY caller of display_paint.
+  # Turns the overlays and the default view into the frame, then hands the frame
+  # to the driver. This is the ONLY caller of display_paint.
   - id: display_refresh
     then:
       - lambda: |-
           const uint32_t now_ms = millis();
 
-          // PRIORITY IS THIS LIST, in order. Each entry is (text, expiry, scope);
-          // a null expiry means the channel is sticky and never times out. Adding
-          // a channel is a row here plus a setter above - there is no cascade of
-          // branches to extend and no second place that encodes the order.
+          id(display_frame_text).clear();
+          id(display_frame_scope) = 0;
+
+          // ---- 1. OVERLAYS ----
+          // PRIORITY IS THIS LIST, in order. Each entry is (text, expiry, scope).
+          // Adding an overlay is a row here plus a setter above - there is no
+          // cascade of branches to extend and no second place that encodes the
+          // order.
           //
-          // The code channel is WIDE on purpose: on a dual panel a 2-character
+          // The code overlay is WIDE on purpose: on a dual panel a 2-character
           // code lands one glyph per panel with the seam between them, which
-          // reads well. Status and alert are COMPACT so they stay off the seam.
-          struct Channel { std::string *text; uint32_t *until; int scope; };
-          const Channel channels[] = {
+          // reads well. Status is COMPACT so it stays off the seam.
+          struct Overlay { std::string *text; uint32_t *until; int scope; };
+          const Overlay overlays[] = {
             {&id(display_message_text), &id(display_message_until_ms), 0},  // WIDE
             {&id(display_status_text),  &id(display_status_until_ms),  1},  // COMPACT
-            {&id(display_alert_text),   nullptr,                       1},  // COMPACT, sticky
             {&id(display_code_text),    &id(display_code_until_ms),    0},  // WIDE
           };
 
-          // Nothing live -> empty text, which the driver reads as "draw the clock".
-          id(display_frame_text).clear();
-          id(display_frame_scope) = 0;
-          for (const Channel &channel : channels) {
-            if (channel.text->empty())
+          bool overlaid = false;
+          for (const Overlay &overlay : overlays) {
+            if (overlay.text->empty())
               continue;
-            // A timed channel is live while its stamp is still in the future.
-            // Expired text is CLEARED rather than merely skipped - see the note
-            // on the globals above for why that matters past 24.8 days of uptime.
-            if (channel.until != nullptr && (int32_t) (*channel.until - now_ms) <= 0) {
-              channel.text->clear();
+            // An overlay is live while its stamp is still in the future. Expired
+            // text is CLEARED rather than merely skipped - see the note on the
+            // globals above for why that matters past 24.8 days of uptime.
+            if ((int32_t) (*overlay.until - now_ms) <= 0) {
+              overlay.text->clear();
               continue;
             }
-            id(display_frame_text)  = *channel.text;
-            id(display_frame_scope) = channel.scope;
+            id(display_frame_text)  = *overlay.text;
+            id(display_frame_scope) = overlay.scope;
+            overlaid = true;
             break;
+          }
+
+          // ---- 2. THE DEFAULT VIEW ----
+          // What the display rests on when no overlay is up. Same shape as the
+          // table above minus expiry: first non-empty wins, and falling off the
+          // end leaves the frame text EMPTY, which the driver reads as "draw the
+          // clock". The clock is therefore the default view by omission - it
+          // needs no row, and nothing can displace it but a view that has
+          // deliberately claimed the slot.
+          if (!overlaid) {
+            struct DefaultView { std::string *text; int scope; };
+            const DefaultView defaults[] = {
+              {&id(display_alert_text), 1},                                 // COMPACT
+            };
+            for (const DefaultView &view : defaults) {
+              if (view.text->empty())
+                continue;
+              id(display_frame_text)  = *view.text;
+              id(display_frame_scope) = view.scope;
+              break;
+            }
           }
 
           // The clock, built once for whichever driver is loaded. '_' marks a
@@ -250,7 +302,7 @@ script:
       - script.execute: display_paint
 
 interval:
-  # THE display heartbeat, and the only one. It expires timed channels, advances
+  # THE display heartbeat, and the only one. It expires overlays, advances
   # a scroll, and notices the minute rolling over.
   #
   # It is safe to run this several times a second because display_paint hashes

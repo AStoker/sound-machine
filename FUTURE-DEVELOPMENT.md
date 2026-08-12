@@ -314,6 +314,22 @@ The hardware is present and live, so this is purely firmware: a distance
 threshold, a debounce, and a decision about what "wake" should do that does not
 collide with the existing tap/hold gestures.
 
+### F2. A second default view — a night face, or something time-driven
+
+`api/display.yaml` now resolves the display in two tiers: transient **overlays**
+over a **default view**, the thing shown when nothing has just happened. Today
+the defaults table has exactly one row — the low-battery alert — with the clock
+underneath it by omission.
+
+The table exists so that "what does the display rest on right now?" can depend on
+more than one condition. The obvious candidate is time of day: a stripped-down or
+dimmer face after bedtime, seconds or a date at other times. Adding one is a
+global, a setter beside `display_set_alert`, and a row in the defaults table —
+where it sits in that table is the whole priority decision.
+
+Worth doing only when there is a second view actually wanted; the abstraction is
+already paid for.
+
 ---
 
 ## T — Tech debt

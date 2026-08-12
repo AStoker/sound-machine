@@ -5,7 +5,9 @@
 #
 #   1. ANNOUNCE a change of power source - "CHG" when the charger goes in,
 #      "BATT" when the device starts running off the pack.
-#   2. RAISE a sticky low-battery alert, but not while on mains.
+#   2. RAISE a sticky low-battery alert, but not while on mains. The alert is a
+#      DEFAULT VIEW in api/display.yaml, so it stands in for the clock rather
+#      than talking over the machine's other feedback - see that file's header.
 #
 # ONE HANDLER PER FACT. hw/power.yaml raises a separate event for each sensor, so
 # each handler here knows exactly what changed and does not have to work it out.

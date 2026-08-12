@@ -101,8 +101,9 @@ in it. ESPHome merges packages *before* it expands `${...}`, which is why a
 setting defined in one file is usable in all of them.
 
 **The display is split across two files, and not for pluggability.**
-`api/display.yaml` decides *what* to show — priority between four competing
-sources, expiry, clock formatting — and `hw/matrix.yaml` draws it. There is one
+`api/display.yaml` decides *what* to show — priority between competing overlays,
+expiry, which default view sits underneath them, clock formatting — and
+`hw/matrix.yaml` draws it. There is one
 display and no plan for another; the split earns its keep because those are two
 unrelated problems, and merging them would bury 60 lines of policy in the middle
 of 300 lines of fonts and register bursts.
@@ -133,7 +134,8 @@ build if it drifts from `3d-print/enclosure_geom.py`. See the note in
 | tune a number | `settings.yaml`, in the matching section |
 | add a sensor or chip | a new `hw/` file; raise events, don't handle them |
 | let something new drive the display | call an `api/display.yaml` verb — never `display_paint` |
-| add a display channel | a row in `api/display.yaml`'s priority table + a setter |
+| add a display overlay (transient) | a row in `api/display.yaml`'s overlay table + a setter |
+| add a display default view (what replaces the clock at rest) | a row in `api/display.yaml`'s defaults table + a setter |
 | add a light preset | an option at the end of `behavior/light.yaml`'s select + a row in **both** its tables (colour *or* effect name) |
 | add a noise colour | an option in `behavior/sound.yaml`'s Sound select, after the last colour |
 | add a flashed track | a `files:` entry in `hw/audio_chain.yaml` + a `media_play_*` verb in `api/sound.yaml` + an option at the END of the same Sound select, its name in `TRACKS`, and a `case` beside it |

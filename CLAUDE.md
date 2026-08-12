@@ -115,9 +115,10 @@ each id must be defined exactly once. Top-level list keys (`sensor:`, `script:`,
    handler to work out what changed.
 
 **The display is two files, split by concern rather than for pluggability.**
-`api/display.yaml` decides *what* to show — four content channels and their
-priority, expiring the timed ones, formatting the clock, and the single tick —
-and resolves them into a *frame* (`display_frame_*` globals). `hw/matrix.yaml`
+`api/display.yaml` decides *what* to show — the transient overlays and their
+priority, expiring them, which default view rests underneath, formatting the
+clock, and the single tick — and resolves them into a *frame*
+(`display_frame_*` globals). `hw/matrix.yaml`
 provides one script, `display_paint`, which renders that frame and makes no
 decisions. There is one display and no plan for another; the split stands because
 policy over strings and 300 lines of fonts/panel geometry/register bursts are
@@ -151,16 +152,20 @@ what you are buying.
 Cross-file invariants worth knowing before changing behavior:
 - **Display is single-owner, in two stages.** `api/display.yaml` is the only
   caller of `display_paint`, and `packages/hw/matrix.yaml` is the only code that
-  touches the display's I2C address. Priority is a table in the api layer —
-  **message → status → alert → code → clock** — so adding a channel is a row
-  plus a setter, not a new branch. Nothing else writes the display; callers use
-  a channel:
+  touches the display's I2C address. Content is two tables in the api layer, so
+  adding to either is a row plus a setter, not a new branch:
+  **overlays** (transient, always timed) **message → status → code**, resolved
+  over a **default view** — what the display rests on with no overlay up —
+  **alert → clock**. A sticky condition like a flat battery is a *default view*:
+  it replaces the clock and nothing else, so codes and announcements still show
+  over it. Nothing else writes the display; callers use a channel:
   - `display_show_code(text)` — short codes ("L1", "S3", "OFF", a volume
     percentage) from a user action.
   - `display_show_status(text, seconds)` — timed device announcements (today:
     `behavior/power.yaml` announcing "CHG"/"BATT" when External Power flips).
-  - `display_set_alert(text)` — a *sticky* condition; pass `""` to clear (today:
-    the low-battery warning).
+  - `display_set_alert(text)` — a *sticky* condition shown **in place of the
+    clock**, not over the top of everything; pass `""` to clear (today: the
+    low-battery warning).
   - `display_show_message(text, seconds)` — Home-Assistant-authored text.
 - **The driver must self-throttle.** The api ticks at `display_tick_ms` (250 ms)
   and calls `display_paint` every time; the driver hashes what it is about to draw
