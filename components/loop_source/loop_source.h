@@ -76,9 +76,11 @@ class LoopSource : public Component {
   void set_sample_rate(uint32_t sample_rate) { this->sample_rate_ = sample_rate; }
 
   // --- Runtime control (call from lambdas / the api layer) ---
-  // Start ambience `index`, or switch to it if another is already playing. A switch
-  // does NOT stop the speaker - it rewinds onto the new file and re-runs the
-  // fade-in, so the mixer source keeps running throughout.
+  // Start ambience `index`, or switch to it if another is already playing.
+  // NEITHER a switch NOR a stop takes the mixer source down: it is started once,
+  // on the first call, and left running for the life of the device. stop()
+  // documents why at length - it is the difference between an ambience that can
+  // be re-selected and one that plays exactly once.
   void start(int index);
   void stop();
   bool is_active() const { return this->active_; }
@@ -111,7 +113,8 @@ class LoopSource : public Component {
   uint32_t sample_rate_{48000};
   float gain_{1.0f};    // static level trim from YAML
   float volume_{1.0f};  // runtime multiplier
-  bool active_{false};
+  bool active_{false};   // are we feeding the mixer source right now?
+  bool started_{false};  // has the mixer source ever been started? (never unset)
   int current_{-1};
 
   // Fade-in envelope: ramps 0.0 -> 1.0 over fade_ms_ when an ambience starts OR when

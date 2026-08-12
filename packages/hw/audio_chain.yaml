@@ -154,6 +154,14 @@ speaker:
   # ambience can play at a time, because a mixer source has exactly one owner - the
   # component that starts and stops it. Sharing one input between two components
   # would put the start/stop race back that this whole arrangement removes.
+  #
+  # `timeout: never` IS LOAD-BEARING ON `ambience_mixing_input`, not just tidy.
+  # loop_source starts that source once and then leaves it running forever,
+  # feeding it or not - because a graceful stop can leave a source wedged in
+  # STATE_STOPPING, silent and un-restartable, and after 5 s a wedged source
+  # stops the SHARED OUTPUT SPEAKER. `timeout: never` is what lets an unfed
+  # source sit in STATE_RUNNING contributing nothing instead. The full mechanism
+  # is in LoopSource::stop(). Give this a timeout and ambiences play once.
   - platform: mixer
     id: mixing_speaker
     output_speaker: i2s_audio_speaker

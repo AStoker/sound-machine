@@ -74,8 +74,12 @@ void LoopSource::select_(int index) {
 }
 
 void LoopSource::start(int index) {
-  if (this->speaker_ == nullptr || this->is_failed())
+  if (this->speaker_ == nullptr)
     return;
+  if (this->is_failed()) {
+    ESP_LOGW(TAG, "Refusing to start ambience %d: this component failed earlier", index);
+    return;
+  }
   if (index < 0 || static_cast<size_t>(index) >= this->files_.size()) {
     ESP_LOGW(TAG, "No ambience %d configured", index);
     return;
@@ -83,38 +87,61 @@ void LoopSource::start(int index) {
   if (this->active_ && this->current_ == index)
     return;  // already playing this one
 
-  const bool switching = this->active_;
+  const bool was_active = this->active_;
   this->select_(index);
+  this->active_ = true;
 
-  if (!switching) {
-    // Declare the stream format before feeding samples. This is asserted, not
-    // discovered: the mixer source is one channel at this rate and there is no
-    // resampler in front of it, so adopt_format_() refuses a file that
-    // disagrees rather than letting it play at the wrong speed.
+  if (!this->started_) {
+    // FIRST START ONLY, for the life of the device - see stop() for why the
+    // mixer source is never taken down again. Declare the stream format before
+    // feeding samples: asserted, not discovered, because the mixer source is one
+    // channel at this rate and there is no resampler in front of it, so
+    // adopt_format_() refuses a file that disagrees rather than letting it play
+    // at the wrong speed.
     this->speaker_->set_audio_stream_info(audio::AudioStreamInfo(16, 1, this->sample_rate_));
     this->speaker_->start();
-    this->active_ = true;
-    ESP_LOGD(TAG, "Ambience %d started", index);
+    this->started_ = true;
+    ESP_LOGD(TAG, "Ambience %d started (mixer source up)", index);
   } else {
-    // Deliberately NOT stopping and restarting the speaker. Every file here is
-    // the same format, so the running stream stays valid and the switch costs
-    // nothing but a rewind - which is the whole reason the ambiences share one mixer
-    // source.
-    ESP_LOGD(TAG, "Switched to ambience %d", index);
+    ESP_LOGD(TAG, "Ambience %d %s", index, was_active ? "switched in" : "resumed");
   }
 }
 
 void LoopSource::stop() {
-  // If we never started there is nothing to stop. The guard matters: a restore
-  // at boot can call this before the mixer source's task exists, and stopping
-  // it then aborts.
   if (!this->active_)
     return;
   this->active_ = false;
-  if (this->speaker_ != nullptr)
-    this->speaker_->stop();
-  // Hand the decoder's working memory back while the ambience is off.
-  this->decoder_ = nullptr;
+  // ---------------------------------------------------------------------
+  // THE MIXER SOURCE IS DELIBERATELY NOT STOPPED. Same lesson as the decoder,
+  // one layer up, and learned the hard way: stopping it here made an ambience
+  // play once and then never again.
+  //
+  // `SourceSpeaker::stop()` is graceful. The source enters STATE_STOPPING and
+  // only reaches STOPPED once `pending_playback_frames_` drains to zero - and
+  // that counter is decremented only AFTER `playback_delay_frames_`, the
+  // handicap a source is given for starting while the output pipeline already
+  // held frames (mixer_speaker.cpp, the output callback). An ambience always
+  // starts into a pipeline still holding the previous sound's ~150 ms, so it
+  // always carries a handicap. If that handicap outlives the callbacks the
+  // counter freezes short of zero and the source sits in STOPPING for good:
+  // `play()` will not auto-restart it (it is not *stopped*), its ring buffer was
+  // already released by `enter_stopping_state_()`, and every later write is
+  // discarded. Silent until reboot, while noise on its own source is fine.
+  //
+  // Worse: after STOPPING_TIMEOUT_MS (5 s) a stuck source calls `stop()` on the
+  // SHARED OUTPUT SPEAKER, taking the noise generator and the voice reply with
+  // it.
+  //
+  // So the source is started once and left running for the life of the device.
+  // `timeout: never` in hw/audio_chain.yaml is what makes that legal: with no
+  // timeout and no graceful-stop request, STATE_RUNNING never leaves itself, and
+  // a running source with an empty buffer contributes nothing to the mix.
+  // Stopping an ambience is therefore just: stop feeding it.
+  //
+  // Cost: up to `buffer_duration` (100 ms) of already-buffered audio still plays
+  // out after this returns. That is a tail, not a glitch.
+  // ---------------------------------------------------------------------
+  this->decoder_ = nullptr;  // hand the decoder's working memory back
   ESP_LOGD(TAG, "Ambience %d stopped after %u pass(es)", this->current_, (unsigned) this->passes_);
   this->current_ = -1;
 }
