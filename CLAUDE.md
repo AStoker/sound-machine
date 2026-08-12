@@ -240,7 +240,12 @@ knowing before you trust a number.
 - **`ups_shunt_ohms` (`0.01 Ω`)** is inherited from the module's documentation,
   not measured. Bus voltage and SOC do not depend on it; **absolute current and
   power do.** The idle reading (~0.15 A) is plausible but that is not verification.
-- **`tof_near_m` / `tof_far_m`** (0.20 / 0.30 m) are guesses.
+- **The ToF measures its own pinhole, not the room** — a fixed ~0.024 m of
+  optical crosstalk through the 3.5 mm shared bore. So `hw/proximity.yaml`
+  detects *deviation from a learned baseline* rather than distance, and there are
+  no `tof_near_m` / `tof_far_m` settings. The deviation thresholds ARE measured
+  (see FUTURE-DEVELOPMENT C1); the enclosure fix that would make plain distance
+  work again is H4. Don't add a distance threshold back before that lands.
 - **Touch, again** — 2500 is calibrated against a bench pad behind the unthinned
   2.5 mm wall, not the designed 40 × 22 mm pads behind 1.6 mm. Re-calibrate when
   those go in.

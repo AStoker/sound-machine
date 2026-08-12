@@ -415,70 +415,69 @@ substitutions:
   knob_led_gamma: "1.8"              # >1 = perceptually even fade
 
   # ---- VL53L0X time-of-flight (knob pre-illumination) ----
-  # Thresholds in METRES - that is what the sensor publishes. near/far differ on
-  # purpose: hysteresis, so a hovering hand doesn't chatter the pixel.
+  #
+  # >>> READ hw/proximity.yaml's header BEFORE CHANGING ANY OF THIS. The sensor
+  # >>> does not measure the room in this enclosure - it ranges its own 3.5mm
+  # >>> pinhole at a fixed ~0.024m through optical crosstalk - so the verdict is
+  # >>> built on DEVIATION from that constant, and none of the numbers below are
+  # >>> distances to a hand. There is no "how far away" to tune here.
   tof_update_interval: "250ms"       # every read is I2C traffic on a bus this
                                      # build keeps deliberately quiet - 4/s is
                                      # plenty responsive for "a hand is coming"
-  # LONG RANGE IS A SENSITIVITY KNOB, NOT A REACH ONE, AND IT IS OFF UNTIL
-  # MEASURED. It drops the component's signal-rate limit from 0.25 to 0.10 MCPS
-  # and rewrites three tuning registers, which is what lets a weak return be
-  # believed at all - and a PALM is a weak return (skin reflects a few percent of
-  # 940nm where the datasheet's white target reflects ~88%). So it is a plausible
-  # fix for "it doesn't see my hand hovering".
-  #
-  # It was turned ON, together with an explicit 50ms timing budget and a floor
-  # change, and the sensor then reported no usable distance at all. THREE
-  # SIMULTANEOUS CHANGES MEANT NOTHING COULD BE BLAMED, so both sensor-level ones
-  # are reverted here and this is back to the configuration that at least
-  # produced readings. Try them ONE AT A TIME against the DEBUG log:
-  #   1. this -> "true"
-  #   2. add `timing_budget: 50ms` to the sensor in hw/proximity.yaml (longer
-  #      integration = more photons; the component's own default is ~33ms)
-  # If either kills the readings, that one is the answer and it belongs in
-  # FUTURE-DEVELOPMENT C1.
+  # Long range drops the signal-rate limit from 0.25 to 0.10 MCPS: a real
+  # sensitivity lever, and a pointless one right now. A more sensitive receiver
+  # just hears the crosstalk more clearly. Revisit WITH the enclosure fix (H4),
+  # along with adding `timing_budget: 50ms` to the sensor - the other lever, and
+  # equally pointless until the pinhole is opened up.
   tof_long_range: "false"
-  tof_near_m: "0.25"                 # <= this asserts "hand near" (~10 in)
-  tof_far_m: "0.40"                  # must go beyond this to release (~16 in)
-  tof_max_valid_m: "1.2"             # above this, treat as no target at all
+  # ---- The deviation thresholds, in METRES OF CHANGE from the baseline ----
+  # MEASURED on the assembled machine over ~2 minutes of log:
+  #   idle            0.020 - 0.030   (mean 0.0245, sd ~0.0015)
+  #   hand arriving   0.036, 0.046    (+0.012, +0.022)
+  #   hand held over  0.011 - 0.019   (-0.013 to -0.006)
+  #   hand leaving    0.028 - 0.038
+  # So the worst idle excursion is ~0.0055 and the weakest hand signal is ~0.006.
+  # 0.010 sits nearly 2x above the noise, and asserting needs two of them in a
+  # row, which the noise never manages. RAISE THIS FIRST if the pixel lights on
+  # its own; lower it if a slow hand is missed.
+  tof_deviation_near_m: "0.010"      # |reading - baseline| to assert
+  tof_deviation_far_m: "0.006"       # must fall below this to release
+  # How fast the baseline follows the quiet-room reading, per sample. At 4
+  # samples/s, 0.02 is a ~12s time constant: fast enough to absorb something
+  # newly parked over the knob within a minute, far too slow to be dragged by a
+  # hand passing through. It only ever learns from samples that already look
+  # quiet (see the gate in hw/proximity.yaml), so this is drift tracking only.
+  tof_baseline_alpha: "0.02"
+  tof_baseline_warmup_samples: "20"  # ~5s of settling before any verdict counts
+  tof_max_valid_m: "1.2"             # beyond this the crosstalk return itself was
+                                     # lost - not a target, a broken measurement
   tof_confirm_samples: "2"           # consecutive near readings to assert
   tof_release_samples: "3"           # consecutive far readings to release.
                                      # Slower to release on purpose: a single
                                      # dropped reading must not blink the pixel.
-  # ---- What "no reading" looks like, and why there are two kinds ----
+  # ---- The floor, and what it is NOT for ----
   # The ESPHome component publishes the range register WITHOUT consulting the
-  # range-status byte next to it, so a failed measurement is not reported as a
-  # failure - it is reported as a distance. Two encodings come out of it:
+  # range-status byte next to it, so a failed measurement arrives dressed as a
+  # distance rather than as a failure. This rejects the bottom of that: a reading
+  # at or below 5mm is the chip returning nothing useful.
   #
-  #   NaN        the chip reported >=8190mm: genuinely nothing in range. This is
-  #              EVIDENCE OF ABSENCE and the debounce counts it as "far".
-  #   <= min     0, or a few centimetres, from a measurement that did not
-  #              resolve (phase/sigma fail). The number is meaningless - it is
-  #              NOT a target 3cm away, and it is NOT proof nothing is there.
-  #              The debounce IGNORES these; see tof_invalid_hold_samples.
+  # IT IS DELIBERATELY WELL BELOW THE READINGS A HAND PRODUCES. It was briefly
+  # 0.05, on the reasoning that the chip's usable minimum is ~30-50mm so anything
+  # under it must be junk - which is true of a sensor looking at a room and false
+  # of this one, where the normal reading is 0.024 and a hand pushes it to 0.011.
+  # At 0.05 every single sample was rejected and the sensor went silent.
   #
-  # Conflating the two is what made a hovering hand unreliable: a real 0.20m
-  # reading followed by one junk 0.03m reading looked like near-then-far, which
-  # reset the confirm counter, so the two consecutive near samples needed to
-  # assert were rarely collected. Both encodings still PUBLISH as
-  # tof_no_target_m, so the entity holds one number meaning "no usable target"
-  # rather than flapping between 'unknown' and 0.03. tof_no_target_m MUST stay
-  # above tof_max_valid_m, or a no-target reading would be treated as a hand.
-  #
-  # RAISED from 0.03 to 0.05: the chip's own usable minimum is ~30-50mm, so a
-  # reading below that was never a real target - but at 0.03 the junk readings
-  # landing at 0.031-0.035 slipped past the floor and were treated as a hand
-  # right on the sensor. If the idle entity still shows a small distance rather
-  # than tof_no_target_m, raise this to just above whatever it is showing.
-  tof_min_valid_m: "0.05"
+  # A rejected reading still PUBLISHES as tof_no_target_m so the entity holds one
+  # number meaning "nothing usable" rather than flapping between 'unknown' and a
+  # junk distance. tof_no_target_m MUST stay above tof_max_valid_m.
+  tof_min_valid_m: "0.005"
   tof_no_target_m: "2.0"
-  # How many CONSECUTIVE unresolved readings before the debounce stops ignoring
+  # How many CONSECUTIVE unusable readings before the debounce stops ignoring
   # them and releases. Ignoring them is right for the odd dropped sample; doing
-  # it forever would latch the pixel on if the sensor started failing every read
-  # (something entering its cone at point-blank range does exactly that). At
-  # tof_update_interval this is 12 x 250ms = 3s of solid junk before it gives up.
+  # it forever would latch the pixel on if the sensor stopped reporting entirely.
+  # At tof_update_interval this is 12 x 250ms = 3s of silence before it gives up.
   tof_invalid_hold_samples: "12"
-  tof_publish_delta_m: "0.02"        # only publish the entity when the distance
+  tof_publish_delta_m: "0.02"        # only publish the entity when the reading
                                      # actually moved 2cm. The debounce runs off
                                      # the raw value, so this is display-only.
   # Re-send the last value this often even when nothing changed, so the entity's

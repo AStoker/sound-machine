@@ -39,7 +39,7 @@
 #   on_audio_ready
 #
 # DEFINES  sound_option, sound_option_last (globals), sound_select,
-#          media_loop, sound_next, sound_off, volume_feedback,
+#          sound_next, sound_off, volume_feedback,
 #          indicator_hue_from_volume, and the event handlers above.
 # CONSUMES api/sound (noise_play, noise_stop, media_*, volume_apply),
 #          api/display (display_show_code), api/indicator (set_hue, flash,
@@ -227,15 +227,18 @@ select:
             return;
           }
           id(noise_stop)->execute();
-          // Loop mode is read per start, so flipping the switch takes effect the
-          // next time a track is chosen.
-          id(media_set_repeat)->execute(id(media_loop).state);
+          // ALWAYS LOOP. A track here is a sleep bed, not a song: every one of
+          // them is chosen to run until something turns it off, exactly like a
+          // noise colour, and an option that stops on its own after a minute
+          // would be a different feature. There was a "Media Loop" switch and it
+          // only ever had one useful position. The api verb keeps its parameter,
+          // so a one-shot track is still a `false` away if one ever exists.
+          id(media_set_repeat)->execute(true);
           switch (track) {
             case 0: id(media_play_la_la)->execute(); break;
-            // A 61s loop bed, meant to be heard with Media Loop ON - one pass is
-            // not a sound machine. The seam is whatever gap the MP3 decoder
-            // leaves at end-of-file; the clip's head and tail levels are within
-            // 0.5 dB, so nothing else calls attention to the wrap.
+            // The seam on a 61s loop is whatever gap the MP3 decoder leaves at
+            // end-of-file; the clip's head and tail levels are within 0.5 dB, so
+            // nothing else calls attention to the wrap.
             case 1: id(media_play_crickets)->execute(); break;
           }
       # ----- URL / Home Assistant track (uncomment + edit to use) -----
@@ -247,13 +250,3 @@ select:
       #       .set_media_url("http://homeassistant.local:8123/local/rain.mp3")
       #       .perform();
       #     break;
-
-switch:
-  # Loop mode for MEDIA tracks (on = repeat, off = play once). Read by the Media
-  # Preset select and by anything triggered from Home Assistant.
-  - platform: template
-    name: "Media Loop"
-    id: media_loop
-    icon: "mdi:repeat"
-    optimistic: true
-    restore_mode: RESTORE_DEFAULT_ON

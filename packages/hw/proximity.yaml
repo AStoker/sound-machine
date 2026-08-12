@@ -21,20 +21,39 @@
 # 'unknown' in Home Assistant. See the filters block for why the debounce
 # doesn't go through them.
 #
-# IF IT WILL NOT SEE A HAND, look at the raw readings before touching a
-# threshold: set `tof_log_level: DEBUG` (settings.yaml section 12) and watch the
-# "Got distance" lines with the space above the knob empty, then with a hand at
-# 30 / 20 / 10cm. What you learn from that:
-#   * idle shows a small fixed distance (~0.03m)  -> unresolved measurements, or
-#     something inside the sensor's 25-degree cone. The debounce already ignores
-#     these; raise tof_min_valid_m just above whatever it shows.
-#   * a hand reads nothing at all                  -> sensitivity. tof_long_range
-#     and tof_timing_budget are the levers, in that order.
-#   * a hand reads the RIGHT distance but the pixel does not light -> thresholds.
-#     tof_near_m / tof_far_m, tracked as C1 in FUTURE-DEVELOPMENT.md.
+# ---------------------------------------------------------------------
+# WHAT THIS SENSOR ACTUALLY MEASURES, AND WHY THE VERDICT IS NOT A DISTANCE
+#
+# It is not measuring the room. In this enclosure it measures a fixed 0.024 m,
+# forever, four times a second - MEASURED over minutes: every sample between
+# 0.020 and 0.030, sd about 0.0015. There is nothing 24 mm above the crown. That
+# number is OPTICAL CROSSTALK: the emitter and the receiver share one 3.5 mm
+# pinhole through the crown (TOF_HOLE_D in 3d-print/enclosure_geom.py) with no
+# barrier between them, so some of the emitted light reaches the receiver
+# straight off the bore and the chip ranges its own aperture. ST's guidance is a
+# larger opening and a light-tight septum between the two windows; 3.5 mm shared
+# is below it. That is a print change, tracked as H4 in FUTURE-DEVELOPMENT.md.
+#
+# So the absolute reading is meaningless AND the deviation from it is not: a hand
+# over the pinhole changes what comes back. From the same log - idle 0.024, hand
+# approaching 0.036 / 0.046, hand held over the knob 0.011-0.019, hand leaving
+# 0.028-0.038. Ten to twenty millimetres of swing against 1.5 of noise.
+#
+# THIS FILE THEREFORE DETECTS CHANGE, NOT RANGE. It learns the quiet-room reading
+# as a slow EMA and calls "hand near" when a sample departs from it by more than
+# tof_deviation_near_m. Consequences worth knowing before trusting it:
+#   * It cannot tell you HOW FAR a hand is, only that one is there. There is no
+#     threshold in metres to tune any more, because no reading is in metres.
+#   * The baseline only learns from samples that already look quiet, so a hand
+#     resting over the knob cannot be absorbed into it.
+#   * Anything permanently parked over the pinhole becomes the new normal within
+#     about a minute. That is the intended behaviour, not a bug.
+#   * FIX THE PINHOLE AND THIS SHOULD BE REPLACED with plain distance
+#     thresholds - it is a workaround for a hole, and it is only worth its
+#     complexity while that hole is 3.5 mm.
 #
 # DEFINES  knob_distance (sensor), knob_proximity (binary_sensor),
-#          hand_near (global) + its three sample counters.
+#          hand_near + hand_baseline_m (globals) + the sample counters.
 # CONSUMES internal_i2c (device core), the tof_* settings.
 # REQUIRES script on_hand_near_changed (behavior/sound.yaml).
 # =====================================================================
@@ -53,9 +72,23 @@ globals:
     type: int
     restore_value: no
     initial_value: '0'
-  # Consecutive UNRESOLVED readings. Not a third verdict - just the leash on how
-  # long an unresolved sample may be ignored before it is treated as "far".
+  # Consecutive UNUSABLE readings. Not a third verdict - just the leash on how
+  # long such a sample may be ignored before it is treated as "far".
   - id: hand_invalid_count
+    type: int
+    restore_value: no
+    initial_value: '0'
+  # The quiet-room reading, learned at runtime. This is the number every verdict
+  # is measured AGAINST - see "WHAT THIS SENSOR ACTUALLY MEASURES" above. Not
+  # persisted: it is cheap to relearn and it tracks a physical state (what is in
+  # front of the pinhole) that a reboot cannot vouch for.
+  - id: hand_baseline_m
+    type: float
+    restore_value: no
+    initial_value: '0.0'
+  # Samples taken since boot, capped at the warm-up length. Until the baseline
+  # has settled, no deviation means anything.
+  - id: hand_warmup_count
     type: int
     restore_value: no
     initial_value: '0'
@@ -66,31 +99,29 @@ sensor:
     name: "Knob Distance"
     address: ${i2c_addr_tof}
     update_interval: ${tof_update_interval}
-    # SENSITIVITY, not reach - a palm is a much weaker return than the datasheet's
-    # white target, so the short-range signal-rate limit may be rejecting hands.
-    # Currently OFF: see settings.yaml section 8 for why, and for the second lever
-    # (`timing_budget:`) that goes here when this one has been ruled in or out.
+    # Left at the component's defaults. Long range and an explicit timing budget
+    # are the sensitivity levers, and they are pointless while the pinhole
+    # dominates the return - a more sensitive receiver just hears the crosstalk
+    # better. Revisit them WITH the enclosure fix (H4), not before.
     long_range: ${tof_long_range}
     # WHY THE PUBLISHED VALUE IS FILTERED BUT THE DEBOUNCE IS NOT
-    # There is no target in range most of the time on a bedside table, and the
-    # component reports that in two different ways: NaN when the target is past
-    # ~8.19m, and a sub-minimum number (0, or a few cm) when a measurement did
-    # not resolve, because it publishes the range register without consulting the
-    # range-status byte next to it. Raw, that is an entity alternating between
-    # 'unknown' and 0.03m 4x a second. The debounce below still needs those
-    # samples - and needs to tell the two apart, which the entity does not - so
-    # the two paths are split: filters clean up what the entity sees, and the
-    # debounce hangs off on_raw_value, upstream of them.
+    # The entity is for a human watching Home Assistant; the debounce needs every
+    # sample and needs to tell apart things the entity flattens together - a
+    # failed measurement (the component publishes the range register without
+    # consulting the range-status byte next to it, so a failure arrives dressed
+    # as a distance) from a genuine >=8190mm NaN. So the two paths are split:
+    # filters clean up what the entity sees, and the debounce hangs off
+    # on_raw_value, upstream of them.
     filters:
       # Collapse both "nothing usable" encodings into one. "No target" is a fact,
       # not an absence of one - publish it as a distance past anything this
-      # sensor can legitimately see. The DEBOUNCE does not do this: to it the two
-      # encodings mean different things (see the classifier below).
+      # sensor can legitimately see.
       - lambda: |-
           return (std::isnan(x) || x <= ${tof_min_valid_m}f) ? ${tof_no_target_m}f : x;
-      # With no-target pinned to a constant, an idle sensor now publishes the
-      # same number forever. Only forward real movement - HA retains the last
-      # state, and nothing on-device reads knob_distance.state.
+      # Only forward real movement - HA retains the last state, and nothing
+      # on-device reads knob_distance.state. Note this is a 2mm delta against a
+      # reading that idles at 24mm: the entity is now a usable picture of the
+      # crosstalk baseline and what a hand does to it.
       - delta: ${tof_publish_delta_m}
       # ...but a sensor that has stopped reporting ALSO holds its last state
       # forever, so with the delta alone those two look identical and the entity
@@ -104,52 +135,71 @@ sensor:
     # Fires on every sample, before the filters above - NaN included.
     on_raw_value:
       - lambda: |-
-          // Debounce in BOTH axes before believing "a hand is here":
-          //   * distance hysteresis - it takes tof_near_m to assert but
-          //     tof_far_m to release, so a hand hovering at the boundary does
-          //     not chatter;
+          // Three guards before believing "a hand is here", in this order:
+          //   * usability   - the sample has to be a number the chip could have
+          //                   produced at all;
+          //   * DEVIATION from the learned baseline, with hysteresis - it takes
+          //     tof_deviation_near_m to assert but only tof_deviation_far_m to
+          //     stay asserted, so a hand at the boundary does not chatter;
           //   * consecutive samples - assert on tof_confirm_samples, release on
-          //     tof_release_samples (slower to release, so one dropped reading
+          //     tof_release_samples (slower to release, so one odd reading
           //     cannot blink the pixel).
           //
-          // THIS IS THE RAW VALUE, AND IT HAS THREE MEANINGS, NOT TWO. A sample
-          // is near, far, or UNRESOLVED, and the third one is why hovering used
-          // to be unreliable:
+          // The verdict is on the CHANGE, not the distance. See the header: in
+          // this enclosure the chip ranges its own pinhole at a fixed ~0.024m, so
+          // there is no distance here to compare against a threshold in metres.
           //
-          //   NaN            the chip saw >=8190mm. Nothing is there. That is
-          //                  real evidence, and it counts as FAR.
-          //   <= min_valid   0, or a few centimetres, from a measurement that
-          //                  failed. The component publishes the range register
-          //                  without checking the range-status byte beside it,
-          //                  so a failure arrives dressed as a distance. It is
-          //                  neither a target nor proof of an empty room, so it
-          //                  is IGNORED - the counters are left exactly as they
-          //                  were and the next real sample continues the run.
-          //
-          // Both used to fall through to "far" together. One junk reading in the
-          // middle of a hover therefore reset the confirm counter, and since
-          // asserting needs tof_confirm_samples in a row, the assert often never
-          // happened. Ignoring them costs nothing when they are rare and is
-          // leashed by tof_invalid_hold_samples when they are not.
+          // WHAT COUNTS AS UNUSABLE - and it is not "small". Small is normal
+          // here; a hand pushes the reading DOWN to 0.011-0.019. Only two things
+          // are unusable: a NaN (the chip reported >=8190mm, so the crosstalk
+          // return it always sees was itself lost - something is very wrong), and
+          // a reading beyond tof_max_valid_m for the same reason. Both are
+          // IGNORED rather than treated as "far": the counters are left exactly
+          // as they were, so one dropped sample mid-hover no longer resets the
+          // run of consecutive near readings that asserting depends on.
           float distance_m = x;
-          const bool resolved = std::isnan(distance_m) ||
-                                distance_m > ${tof_min_valid_m}f;
-          if (!resolved) {
-            // Unresolved. Ignore it - unless they keep coming, in which case
-            // something is sitting on the sensor and "far" is the safe verdict.
+          const bool usable = !std::isnan(distance_m) &&
+                              distance_m > ${tof_min_valid_m}f &&
+                              distance_m < ${tof_max_valid_m}f;
+          if (!usable) {
+            // Ignore it - unless they keep coming, in which case the sensor is
+            // not telling us anything and "far" is the safe verdict. Falling
+            // through AS THE BASELINE is how that is expressed: zero deviation
+            // is exactly what "nobody is there" looks like to the test below.
             if (++id(hand_invalid_count) < ${tof_invalid_hold_samples}) return;
             id(hand_invalid_count) = ${tof_invalid_hold_samples};
-            distance_m = NAN;                       // fall through as "far"
+            distance_m = id(hand_baseline_m);
           } else {
             id(hand_invalid_count) = 0;
           }
 
-          float threshold = id(hand_near) ? ${tof_far_m}f : ${tof_near_m}f;
-          // Every comparison against NaN is false, so a genuine no-target
-          // reading lands in the "far" branch by design.
-          bool near_now = (distance_m > ${tof_min_valid_m}f) &&
-                          (distance_m < ${tof_max_valid_m}f) &&
-                          (distance_m <= threshold);
+          // Learn the quiet-room reading before judging anything against it. The
+          // first sample seeds it outright - starting from 0 would read as a
+          // 24mm deviation and fire the pixel at every boot - and the warm-up
+          // then lets the EMA settle before any verdict is allowed.
+          if (id(hand_warmup_count) < ${tof_baseline_warmup_samples}) {
+            id(hand_baseline_m) = (id(hand_warmup_count) == 0)
+                ? distance_m
+                : id(hand_baseline_m) +
+                  ${tof_baseline_alpha}f * (distance_m - id(hand_baseline_m));
+            id(hand_warmup_count)++;
+            return;
+          }
+
+          const float deviation = fabsf(distance_m - id(hand_baseline_m));
+          const float threshold = id(hand_near) ? ${tof_deviation_far_m}f
+                                                : ${tof_deviation_near_m}f;
+          const bool near_now = deviation >= threshold;
+
+          // THE BASELINE ONLY LEARNS FROM QUIET SAMPLES. Updating it on every
+          // reading would let a hand held over the knob become the new normal
+          // within a few seconds, and the pixel would go out with the hand still
+          // there. Gating on near_now means the drift it does track is the slow
+          // kind - temperature, a moved object - which is the only kind there is
+          // when nothing is happening.
+          if (!near_now)
+            id(hand_baseline_m) += ${tof_baseline_alpha}f *
+                                   (distance_m - id(hand_baseline_m));
 
           // Counters are clamped at their thresholds rather than left to climb:
           // nothing reads them past that, and an unbounded counter on a sensor

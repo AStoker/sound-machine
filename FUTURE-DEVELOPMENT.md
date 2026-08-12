@@ -10,8 +10,8 @@ and leave the number dead.
 
 | | | |
 |---|---|---|
-| **[H — Hardware](#h--hardware)** | H1 bulk capacitance · H2 shunt value · H3 touch electrode | needs a soldering iron |
-| **[C — Calibration](#c--calibration)** | C1 ToF thresholds · C2 gesture timing · C3 noise gain · C4 dim curve | needs the assembled machine |
+| **[H — Hardware](#h--hardware)** | H1 bulk capacitance · H2 shunt value · H3 touch electrode · H4 ToF pinhole | needs a soldering iron |
+| **[C — Calibration](#c--calibration)** | C1 ToF deviation thresholds · C2 gesture timing · C3 noise gain · C4 dim curve | needs the assembled machine |
 | **[V — Validation](#v--validation)** | V1 AEC over noise · V2 sunrise on the final crescent · V3 `(?)` constants | needs measuring, not changing |
 | **[F — Features](#f--features)** | F1 touchless wake | not built |
 | **[T — Tech debt](#t--tech-debt)** | T1 blanket `except ImportError` · T2 stability foot span | optional |
@@ -98,54 +98,83 @@ quiet bench sample.
 > `measurement_duration` bug, documented in `packages/hw/touch.yaml`, not a
 > wiring fault.
 
+### H4. Open up the ToF pinhole — it is blinding the sensor
+
+**Diagnosed from a DEBUG log on the assembled machine; the fix is a print
+change.** The VL53L0X reports a fixed **0.024 m, forever** — every sample between
+0.020 and 0.030 over two minutes, sd ~0.0015. There is nothing 24 mm above the
+crown. That reading is **optical crosstalk**: the emitter and the receiver share
+one **3.5 mm** bore through the crown (`TOF_HOLE_D` in
+[`3d-print/enclosure_geom.py`](3d-print/enclosure_geom.py)) with no barrier
+between them, so emitted light reaches the receiver off the bore itself and the
+chip ranges its own aperture. ST's guidance for a shared window is a larger
+opening **and** a light-tight septum between the two optical paths.
+
+**What to change** — one or both, cheapest first:
+
+1. **Widen the bore** to ≥ 6 mm, chamfered on the inside so the wall leaves the
+   25° cone immediately.
+2. **Split it into two apertures** with a septum between emitter and receiver —
+   the proper fix, and the one that survives a wider cone.
+3. **Drop `TOF_STAND` (2.0 mm)** so the board sits against the skin. Every
+   millimetre of standoff is another millimetre of tube in front of the cone;
+   the file already says so.
+
+**Until then, C1's baseline-deviation detector is what makes the feature work** —
+it reads the *change* in the crosstalk return, which a hand does perturb by 10–20
+mm against 1.5 mm of noise. That workaround should be **deleted** when this is
+fixed, and plain distance thresholds put back; it is 40 lines of cleverness
+standing in for a 3 mm drill.
+
+**Acceptance test:** with the space above the knob empty, DEBUG shows
+`Distance is out of range` (not a number). That is the sensor seeing the room.
+
 ---
 
 ## C — Calibration
 
-### C1. Calibrate the ToF proximity thresholds
+### C1. ~~Calibrate the ToF proximity thresholds~~ → tune the deviation thresholds
 
-`tof_near_m` / `tof_far_m` (**0.25 / 0.40 m**) are still guesses, never measured.
-The VL53L0X is live in `packages/hw/proximity.yaml` but only pre-illuminates the
-knob NeoPixel when a hand comes near.
+**Superseded by measurement. There are no distance thresholds any more, because
+the sensor does not measure distance in this enclosure** — see **H4**. It ranges
+its own pinhole at a fixed ~0.024 m, so `tof_near_m` / `tof_far_m` are gone and
+`packages/hw/proximity.yaml` now detects *deviation from a learned baseline*.
 
-**How:** watch the **Knob Proximity** binary sensor while reaching for the knob
-and adjust until it leads your hand without firing across the room. Low stakes —
-the knob-pixel feature degrades gracefully to volume-only if the sensor is absent.
+**Measured, from a 2-minute DEBUG log on the assembled machine:**
 
-**This is currently worse than "uncalibrated" — the sensor reports no usable
-distance at all.** After a round of changes it sat at `tof_no_target_m` (2.00 m)
-permanently. What is known, and what is not:
+| | Reading | Deviation |
+|---|---|---|
+| idle (129 samples) | 0.020–0.030, mean 0.0245, sd ~0.0015 | ≤ 0.0055 |
+| hand arriving | 0.036, 0.046 | +0.012, +0.022 |
+| hand held over the knob | 0.011–0.019 | −0.013 to −0.006 |
+| hand leaving | 0.028–0.038 | +0.003 to +0.013 |
 
-**Landed and kept — logic only, cannot affect what the chip measures:**
+`tof_deviation_near_m` **0.010** sits nearly 2× above the worst idle excursion
+and below the weakest hand signal. Replayed against that log it produces **zero**
+false fires across the idle stretch, asserts on the *second* sample of the hand
+arriving, and releases 2.5 s after it leaves.
 
-- **Unresolved readings are ignored, not counted as "far".** The component
+**What to tune, and which way:** pixel lights on its own → raise
+`tof_deviation_near_m`. Slow hand missed → lower it, or lower
+`tof_confirm_samples`. Pixel drops while the hand is still there → the baseline
+is being dragged; lower `tof_baseline_alpha`.
+
+**Also landed here, and worth keeping whatever happens to the optics:**
+
+- The floor (`tof_min_valid_m`) rejects failed measurements — the component
   publishes the range register without the range-status byte beside it, so a
-  failed measurement arrives dressed as a distance of a few centimetres. One of
-  those mid-hover reset the confirm counter, and asserting needs two
-  *consecutive* near samples — so the assert frequently never happened.
-  `tof_min_valid_m` rose 0.03 → 0.05 to catch them; `tof_invalid_hold_samples`
-  (12 ≈ 3 s) leashes how long they may be ignored.
-- **A `heartbeat: 60s` filter on the published entity.** Before it, a `delta`
-  filter meant a live sensor watching an empty room and a sensor that died at
-  setup produced the identical entity — one number, never updating. Now the
-  last-updated time is the liveness signal.
+  failure arrives dressed as a distance. It is **0.005**, deliberately far below
+  what a hand produces; it was briefly 0.05 on room-sensor reasoning and rejected
+  every single sample.
+- Unusable readings are *ignored*, not counted as "far", so one dropped sample
+  mid-hover no longer resets the run of consecutive near samples that asserting
+  depends on. `tof_invalid_hold_samples` (12 ≈ 3 s) leashes that.
+- A **`heartbeat: 60s`** filter on the entity. Without it a live sensor seeing
+  nothing and a sensor that died at setup were the identical entity — one number,
+  never updating.
 
-**Reverted, and to be retried ONE AT A TIME:** `long_range: true` and an explicit
-`timing_budget: 50ms` went in together with the floor change, so when the
-readings stopped, nothing could be blamed. Both are sensitivity levers worth
-having — a palm reflects a few percent of 940 nm where the datasheet's white
-target reflects ~88 %, and short range's 0.25 MCPS signal-rate limit may simply
-be rejecting hands — but each needs its own build and its own log.
-
-**Diagnose before tuning.** `tof_log_level` is on `DEBUG` for this; the raw
-stream is the only place the truth is visible. Then:
-
-| What DEBUG shows | What it means |
-|---|---|
-| no ToF lines at all | setup failed — look for `setup timeout` / `reference calibration failed`, and for `0x29` in the boot I2C scan |
-| `Distance is out of range`, always | the chip sees nothing: aim, or sensitivity |
-| a small fixed number, always | unresolved reads, or something sitting in its 25° cone |
-| the right distance, but no pixel | *now* it is this entry — move the thresholds |
+> `tof_log_level` is on **DEBUG** while this is being watched. Put it back to
+> `WARN` once you trust it; it is four log lines a second.
 
 ### C2. Widen the gesture timing dead band
 

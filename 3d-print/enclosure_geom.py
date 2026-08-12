@@ -716,6 +716,14 @@ TOUCH_WALL   = 1.6   # local wall thinning behind each pad, from WALL
 # ---- VL53L0X ToF, on the crown just to the right of the knob --------------
 # Mounted LONGWISE front-to-back so the 17.8 mm edge clears the encoder board.
 TOF_HOLE_D  = 3.5    # pinhole aperture through the crown (clears the 25 deg FoV)
+# >>> 3.5 IS TOO SMALL, AND IT IS MEASURED, NOT SUSPECTED. Clearing the cone is
+# >>> not the only requirement: emitter and receiver share this one bore with no
+# >>> barrier between them, so light crosses over inside it and the assembled
+# >>> machine ranges its own aperture at a fixed 0.024 m instead of the room.
+# >>> The firmware works around it (packages/hw/proximity.yaml detects deviation
+# >>> from that constant rather than distance). The real fix is >=6 mm chamfered,
+# >>> or two bores with a septum -- tracked as H4 in FUTURE-DEVELOPMENT.md. Left
+# >>> at 3.5 here because the dome is PRINTED: changing it reprints the dome.
 TOF_PCB_W   = 17.78  # Adafruit #3317 STEMMA QT, short edge -- CONFIRMED
 TOF_PCB_D   = 25.4   #   "                      long edge  -- CONFIRMED
 # >>> TOF_X IS NOT A BOARD-EDGE GAP ANY MORE, SO IT IS RESOLVED LATER. It used to
