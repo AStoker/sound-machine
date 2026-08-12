@@ -236,9 +236,10 @@ select:
           id(media_set_repeat)->execute(true);
           switch (track) {
             case 0: id(media_play_la_la)->execute(); break;
-            // The seam on a 61s loop is whatever gap the MP3 decoder leaves at
-            // end-of-file; the clip's head and tail levels are within 0.5 dB, so
-            // nothing else calls attention to the wrap.
+            // Crickets is a 59s CROSSFADE loop - the file's own seam is now
+            // shallower than an ordinary moment in the recording, so what is
+            // left at the wrap is the pipeline restart, not the audio. See
+            // packages/settings.yaml §11 and FUTURE-DEVELOPMENT T4.
             case 1: id(media_play_crickets)->execute(); break;
           }
       # ----- URL / Home Assistant track (uncomment + edit to use) -----

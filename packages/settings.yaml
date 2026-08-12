@@ -206,6 +206,10 @@ substitutions:
   # makes the DAC->speaker path non-linear again - the exact thing running with
   # AGC off is protecting for the XVF3800's echo canceller. If you hear it clip
   # or "breathe" before the knob maxes out, come back down.
+  # NOT the lever for the constant speaker hiss - that is the codec's own
+  # converter noise, upstream of this gain, so turning it down attenuates hiss
+  # and signal equally. Diagnosis and the real options are in
+  # FUTURE-DEVELOPMENT T6.
   amp_gain_db: "9"
   # 9.0 dBV is the top of the range (~2.5W into 4 ohm), just under the clipping
   # point at 5V. It should NEVER engage in normal use - it is a fault stop, not
