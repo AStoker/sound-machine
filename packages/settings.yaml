@@ -471,9 +471,17 @@ substitutions:
   tof_max_valid_m: "1.2"             # beyond this the crosstalk return itself was
                                      # lost - not a target, a broken measurement
   tof_confirm_samples: "2"           # consecutive near readings to assert
-  tof_release_samples: "3"           # consecutive far readings to release.
-                                     # Slower to release on purpose: a single
-                                     # dropped reading must not blink the pixel.
+  # Consecutive far readings to release. 8 = 2s, up from 3 = 0.75s, and the
+  # reason is specific: A HAND CROSSES THE BASELINE ON ITS WAY IN. The reading
+  # rises to ~0.045 as a hand comes down toward the knob, then falls THROUGH the
+  # 0.024 baseline to ~0.013 when the hand is right on top of it - so mid-gesture
+  # there are 3-4 consecutive samples with almost zero deviation, which is
+  # indistinguishable from an empty room to a test that only looks at |deviation|.
+  # At 0.75s that dropped the pixel and re-lit it half a second later; measured
+  # in the 20:59:31 gesture of soundmachine-logs-10, and reproduced exactly by
+  # replaying that log. 2s bridges the crossing while still telling four separate
+  # gestures apart. Raising it further merges gestures that were a second apart.
+  tof_release_samples: "8"
   # ---- The floor, and what it is NOT for ----
   # The ESPHome component publishes the range register WITHOUT consulting the
   # range-status byte next to it, so a failed measurement arrives dressed as a
@@ -496,9 +504,15 @@ substitutions:
   # it forever would latch the pixel on if the sensor stopped reporting entirely.
   # At tof_update_interval this is 12 x 250ms = 3s of silence before it gives up.
   tof_invalid_hold_samples: "12"
-  tof_publish_delta_m: "0.02"        # only publish the entity when the reading
-                                     # actually moved 2cm. The debounce runs off
-                                     # the raw value, so this is display-only.
+  # Only publish the entity when the reading actually moved this far. WAS 0.02,
+  # WHICH WAS LARGER THAN THE ENTIRE SIGNAL: this sensor idles at 0.024 and a
+  # hand moves it by 0.010-0.024, so a 20mm gate published "0.02" a handful of
+  # times in ten minutes and never showed a hand at all. That is display-only -
+  # the debounce always ran off the raw value and was detecting hands the whole
+  # time - but it made the entity look dead, and it is the entity you watch when
+  # you are trying to work out whether this thing sees anything.
+  # 2mm is comfortably above the sensor's own ~1.5mm noise.
+  tof_publish_delta_m: "0.002"
   # Re-send the last value this often even when nothing changed, so the entity's
   # last-updated time means "the sensor is still reporting". Without it a live
   # sensor watching an empty room and a sensor that failed at setup look exactly

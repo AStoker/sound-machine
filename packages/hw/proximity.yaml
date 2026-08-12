@@ -39,6 +39,18 @@
 # approaching 0.036 / 0.046, hand held over the knob 0.011-0.019, hand leaving
 # 0.028-0.038. Ten to twenty millimetres of swing against 1.5 of noise.
 #
+# >>> AND THE SWING IS NOT MONOTONIC. A hand hovering HIGH reads HIGH (0.030 to
+# >>> 0.049, and it does track height in that band); a hand right on the knob
+# >>> reads LOW (0.010-0.020). What comes back is a signal-weighted blend of the
+# >>> phantom aperture return and the real one, so as a hand descends the reading
+# >>> rises, then falls back THROUGH the idle baseline on its way down.
+# >>>
+# >>> That crossing is why releasing is slow. For three or four samples in the
+# >>> middle of a real gesture the deviation is ~0, which is exactly what an empty
+# >>> room looks like to a test built on |deviation|. tof_release_samples (2s) is
+# >>> sized to bridge it - measured, then confirmed by replaying the log. Shorten
+# >>> it and the pixel drops out halfway through every reach.
+#
 # THIS FILE THEREFORE DETECTS CHANGE, NOT RANGE. It learns the quiet-room reading
 # as a slow EMA and calls "hand near" when a sample departs from it by more than
 # tof_deviation_near_m. Consequences worth knowing before trusting it:
@@ -99,6 +111,11 @@ sensor:
     name: "Knob Distance"
     address: ${i2c_addr_tof}
     update_interval: ${tof_update_interval}
+    # 3, not the component's default of 2. At 2 decimals every reading this
+    # sensor produces displays as "0.02" or "0.03" - the idle baseline and a hand
+    # right on the knob round to the SAME NUMBER. The third decimal is where the
+    # entire signal lives here.
+    accuracy_decimals: 3
     # Left at the component's defaults. Long range and an explicit timing budget
     # are the sensitivity levers, and they are pointless while the pinhole
     # dominates the return - a more sensitive receiver just hears the crosstalk

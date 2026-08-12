@@ -154,10 +154,25 @@ and below the weakest hand signal. Replayed against that log it produces **zero*
 false fires across the idle stretch, asserts on the *second* sample of the hand
 arriving, and releases 2.5 s after it leaves.
 
+**Confirmed on hardware, and one thing it turned up.** A second log
+(`soundmachine-logs-10`) shows the detector firing on every gesture — and
+*chattering* through the middle of them: ON at 20:59:31.6, OFF at 36.6, ON again
+at 37.0. The cause is that **the swing is not monotonic**. A hand hovering high
+reads 0.030–0.049 and genuinely tracks height; a hand on the knob reads
+0.010–0.020. So a descending hand's reading rises, then falls back *through* the
+0.024 baseline — three or four samples of near-zero deviation in the middle of a
+real gesture, which to a `|deviation|` test is an empty room.
+
+`tof_release_samples` is therefore **8 (2 s)**, not 3 (0.75 s). Replaying that log
+sample-by-sample: at 0.75 s the four gestures produce five lit spans (one split);
+at 2 s they produce four, one per gesture, with ~2 s of tail. Longer merges
+gestures that were a second apart.
+
 **What to tune, and which way:** pixel lights on its own → raise
 `tof_deviation_near_m`. Slow hand missed → lower it, or lower
-`tof_confirm_samples`. Pixel drops while the hand is still there → the baseline
-is being dragged; lower `tof_baseline_alpha`.
+`tof_confirm_samples`. Pixel drops out *mid-reach* → raise
+`tof_release_samples`, that is the baseline crossing above. Pixel drops while the
+hand rests there → the baseline is being dragged; lower `tof_baseline_alpha`.
 
 **Also landed here, and worth keeping whatever happens to the optics:**
 
@@ -172,6 +187,13 @@ is being dragged; lower `tof_baseline_alpha`.
 - A **`heartbeat: 60s`** filter on the entity. Without it a live sensor seeing
   nothing and a sensor that died at setup were the identical entity — one number,
   never updating.
+- **The entity can now show a hand at all.** It published on a `delta` of 0.02 m
+  at 2 decimals — a gate *larger than the whole signal*, and a resolution at which
+  the idle baseline and a hand on the knob both render as `0.02`. Ten minutes of
+  log produced a handful of `0.02`s and looked broken. Now `delta` **0.002** and
+  **3** decimals. Display-only either way — the debounce always ran off the raw
+  value and was detecting hands the whole time — but a dead-looking entity is the
+  first thing anyone checks, so it cost more than it saved.
 
 > `tof_log_level` is on **DEBUG** while this is being watched. Put it back to
 > `WARN` once you trust it; it is four log lines a second.
