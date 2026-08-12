@@ -45,10 +45,11 @@ void LoopSource::setup() {
 
 void LoopSource::dump_config() {
   ESP_LOGCONFIG(TAG, "Loop Source:");
-  ESP_LOGCONFIG(TAG, "  Sample rate: %u Hz (mono, no resampler in this path)", this->sample_rate_);
+  ESP_LOGCONFIG(TAG, "  Sample rate: %u Hz (mono, no resampler in this path)", (unsigned) this->sample_rate_);
   ESP_LOGCONFIG(TAG, "  Gain: %.2f", this->gain_);
   if (this->fade_ms_ > 0) {
-    ESP_LOGCONFIG(TAG, "  Fade-in: %u ms (on start and on switch; the wrap is never faded)", this->fade_ms_);
+    ESP_LOGCONFIG(TAG, "  Fade-in: %u ms (on start and on switch; the wrap is never faded)",
+                  (unsigned) this->fade_ms_);
   }
   for (size_t i = 0; i < this->files_.size(); i++) {
     ESP_LOGCONFIG(TAG, "  Ambience %u: %u bytes, MP3", (unsigned) i, (unsigned) this->files_[i]->length);
@@ -114,7 +115,7 @@ void LoopSource::stop() {
     this->speaker_->stop();
   // Hand the decoder's working memory back while the ambience is off.
   this->decoder_ = nullptr;
-  ESP_LOGD(TAG, "Ambience %d stopped after %u pass(es)", this->current_, this->passes_);
+  ESP_LOGD(TAG, "Ambience %d stopped after %u pass(es)", this->current_, (unsigned) this->passes_);
   this->current_ = -1;
 }
 
@@ -146,7 +147,8 @@ void LoopSource::adopt_format_() {
     ESP_LOGE(TAG,
              "Ambience %d is %u Hz / %u channel(s); this feeds a mixer source directly and needs %u Hz mono. "
              "Re-encode it (ffmpeg -ac 1 -ar %u) - there is no resampler in this path.",
-             this->current_, rate, this->channels_, this->sample_rate_, this->sample_rate_);
+             this->current_, (unsigned) rate, (unsigned) this->channels_, (unsigned) this->sample_rate_,
+             (unsigned) this->sample_rate_);
     this->mark_failed();
     this->stop();
   }

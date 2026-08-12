@@ -33,7 +33,7 @@ void NoiseSource::dump_config() {
                       : this->color_ == NOISE_PINK  ? "pink"
                                                     : "brown";
   ESP_LOGCONFIG(TAG, "  Color: %s", color);
-  ESP_LOGCONFIG(TAG, "  Sample rate: %u Hz", this->sample_rate_);
+  ESP_LOGCONFIG(TAG, "  Sample rate: %u Hz", (unsigned) this->sample_rate_);
   ESP_LOGCONFIG(TAG, "  Gain: %.2f", this->gain_);
   if (this->hp_enabled_) {
     ESP_LOGCONFIG(TAG, "  High-pass: %.0f Hz (12 dB/oct), brown makeup x%.2f", this->hp_frequency_hz_,

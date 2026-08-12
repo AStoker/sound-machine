@@ -11,7 +11,9 @@ void SeesawTouch::setup() {
 }
 
 void SeesawTouch::update() {
-  uint16_t value = this->parent_->get_touch_value(this->channel_);
+  // Signed, deliberately: get_touch_value() returns -1 on an I2C failure. Held
+  // in a uint16_t that sentinel becomes 65535 and the check below never fires.
+  int16_t value = this->parent_->get_touch_value(this->channel_);
   if (value == -1)
     ESP_LOGW(TAG, "touch reading failed for channel %d", this->channel_);
   else

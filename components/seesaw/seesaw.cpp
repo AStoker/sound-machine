@@ -63,8 +63,9 @@ void Seesaw::dump_config() {
     ESP_LOGCONFIG(TAG, "  CPU: unknown (%02x)", this->cpuid_);
   }
   uint32_t v = this->version_;
-  ESP_LOGCONFIG(TAG, "  Version: %d-%02d-%02d %u", v & 0x3f, (v >> 7) & 0xf, (v >> 11) & 0x1f, v >> 16);
-  ESP_LOGCONFIG(TAG, "  Options: %08x", this->options_);
+  ESP_LOGCONFIG(TAG, "  Version: %d-%02d-%02d %u", (int) (v & 0x3f), (int) ((v >> 7) & 0xf), (int) ((v >> 11) & 0x1f),
+                (unsigned) (v >> 16));
+  ESP_LOGCONFIG(TAG, "  Options: %08x", (unsigned) this->options_);
   /*
   if (this->options_ & (1 << SEESAW_GPIO))
     ESP_LOGCONFIG(TAG, "    GPIO");
