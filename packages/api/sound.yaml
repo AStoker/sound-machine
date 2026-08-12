@@ -31,8 +31,9 @@
 # A verb called before that point is a silent no-op by design, not a bug: the
 # restore that follows on_audio_ready is what makes it right.
 #
-# DEFINES  audio_ready (global), volume_pct (sensor), all the verbs above.
-# CONSUMES noise, external_media_player, noise_mixing_input,
+# DEFINES  audio_ready, media_wanted_track (globals), volume_pct (sensor), all
+#          the verbs above.
+# CONSUMES noise, external_media_player, mixing_speaker, noise_mixing_input,
 #          media_mixing_input, la_la_sad, crickets (hw/audio_chain).
 # REQUIRES script on_audio_ready (behavior/sound.yaml).
 # =====================================================================
@@ -49,6 +50,13 @@ globals:
     type: bool
     restore_value: no
     initial_value: 'false'
+  # Which flashed track the machine currently wants playing, as a TRACKS index,
+  # or -1 for none. Exists only to arbitrate the drain wait in the play verbs
+  # below - it is not the sound state, which lives in behavior/sound.yaml.
+  - id: media_wanted_track
+    type: int
+    restore_value: no
+    initial_value: '-1'
 
 script:
   # ---- noise generator ----
@@ -81,22 +89,86 @@ script:
             - media_player.repeat_off:
 
   # One verb per flashed track. Looping follows whatever media_set_repeat was
-  # last told, and relies on the decoder's own end-of-file detection - the
-  # player's idle state is unreliable behind the mixer.
+  # last told.
+  #
+  # ---------------------------------------------------------------------
+  # WHY EVERY TRACK WAITS FOR THE MIXER TO DRAIN FIRST
+  #
+  # `repeat_one` does NOT key off the decoder's end-of-file, whatever the name
+  # suggests. It is implemented in SpeakerMediaPlayer::loop(), and it restarts
+  # the file only when the media *pipeline* reports PLAYING -> STOPPED. That
+  # transition walks back through the resampler to media_mixing_input, and a
+  # mixer source speaker only leaves STATE_RUNNING once its
+  # `pending_playback_frames_` counter reaches zero.
+  #
+  # That counter is drained by the i2s speaker's output callback, which fires
+  # ONLY for buffers containing real audio. And a source speaker that starts
+  # contributing while the output pipeline already holds frames is given a
+  # `playback_delay_frames_` handicap equal to that backlog, which is drained
+  # FIRST. So when a track ends and nothing else is making sound, the callbacks
+  # stop before the handicap is paid off, the counter freezes short of zero, and
+  # media_mixing_input is left in STATE_STOPPING for good. The pipeline reports
+  # PLAYING forever: repeat never fires, and - because the resampler is in
+  # passthrough here (mono 48 kHz in, 48 kHz out) and so has no ring buffer to
+  # fall back on - every later play is silently discarded too. One track, then
+  # a dead media channel until reboot.
+  #
+  # Noise escapes this because it first contributes at boot, when the pipeline
+  # is empty and the handicap is zero.
+  #
+  # Waiting for the mixer to report an empty pipeline before handing it a track
+  # buys the same zero handicap, so the counter can drain exactly to zero at
+  # end-of-file and the transition happens. The wait is bounded: on timeout we
+  # play anyway, which is no worse than not waiting at all.
+  #
+  # This is upstream behaviour, not a bug in this config - esphome/esphome#14641
+  # ("mixer speaker always reporting playing") is closed as not planned, and
+  # mixer_speaker.cpp / resampler_speaker.cpp / speaker_media_player.cpp /
+  # audio_pipeline.cpp in 2026.7.2 are all byte-identical to upstream `dev`.
+  # See FUTURE-DEVELOPMENT T3 for the fallback if this ever stops holding.
+  #
+  # media_wanted_track is what makes the wait safe: the play only happens if the
+  # track it was queued for is still the one wanted. Switching tracks or calling
+  # media_stop during the (~150 ms) wait cancels it rather than racing it.
+  # ---------------------------------------------------------------------
   - id: media_play_la_la
+    mode: restart
     then:
-      - media_player.speaker.play_on_device_media_file:
-          media_file: la_la_sad
-          announcement: false
+      - lambda: 'id(media_wanted_track) = 0;'
+      - wait_until:
+          condition:
+            lambda: 'return id(mixing_speaker)->get_frames_in_pipeline() == 0;'
+          timeout: ${media_drain_timeout}
+      - if:
+          condition:
+            lambda: 'return id(media_wanted_track) == 0;'
+          then:
+            - media_player.speaker.play_on_device_media_file:
+                media_file: la_la_sad
+                announcement: false
 
   - id: media_play_crickets
+    mode: restart
     then:
-      - media_player.speaker.play_on_device_media_file:
-          media_file: crickets
-          announcement: false
+      - lambda: 'id(media_wanted_track) = 1;'
+      - wait_until:
+          condition:
+            lambda: 'return id(mixing_speaker)->get_frames_in_pipeline() == 0;'
+          timeout: ${media_drain_timeout}
+      - if:
+          condition:
+            lambda: 'return id(media_wanted_track) == 1;'
+          then:
+            - media_player.speaker.play_on_device_media_file:
+                media_file: crickets
+                announcement: false
 
   - id: media_stop
     then:
+      # -1 is "no track wanted", which also cancels a play still waiting on the
+      # mixer to drain. Without it a stop issued during that window would be
+      # overtaken by the play it was meant to pre-empt.
+      - lambda: 'id(media_wanted_track) = -1;'
       - media_player.repeat_off:
       - media_player.stop:
 

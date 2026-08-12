@@ -264,11 +264,32 @@ capacitance / pull-up load to break the timing-sensitive XVF3800. Fix: run the
 shared bus at **100 kHz with a 1 ms timeout** (room to clock-stretch during its
 firmware boot). Drop toward 10 kHz if it's still flaky fully assembled.
 
-**Broken idle reporting on the media pipeline.** The mixer + `timeout: never`
-permanently suppresses idle-state reporting, so looping/un-ducking can't rely on
-it. Solutions: **`media_player.repeat_one`** (keys off the decoder's own EOF) for
-looping, and a **`duck_watchdog`** keyed off `is_announcing` (not idle) for
-un-ducking after a voice turn.
+**Broken idle reporting on the media pipeline.** The mixer suppresses the media
+pipeline's PLAYING → STOPPED transition, so looping/un-ducking can't rely on the
+player's idle state. Un-ducking is solved by a **`duck_watchdog`** keyed off
+`is_announcing` (not idle).
+
+Looping was *thought* to be solved by **`media_player.repeat_one`**, on the
+belief that it keys off the decoder's own EOF. **It does not** — it is
+implemented in `SpeakerMediaPlayer::loop()` and restarts the file on exactly the
+transition the mixer suppresses, so it was built on the thing that had already
+been ruled out. Symptom: a track plays once, the media player entity sits at
+"playing" forever, and every later track is silent until reboot — while noise,
+on its own mixer source, is unaffected.
+
+The cause is frame accounting. A mixer source only leaves `STATE_RUNNING` once
+`pending_playback_frames_` hits zero; that counter is drained by the i2s output
+callback, which fires only for buffers holding real audio, and a source that
+starts contributing while the pipeline already holds frames is handicapped by
+that backlog first. When a track ends with nothing else making sound, the
+callbacks stop before the handicap is paid, the counter freezes, and the source
+is stuck in `STATE_STOPPING`. Noise escapes it by first contributing at boot,
+when the pipeline is empty.
+
+Fix: **every track waits for `mixing_speaker->get_frames_in_pipeline()` to reach
+zero before it starts**, which gives it the same zero handicap noise gets. This
+is upstream behaviour, not a local bug — [esphome/esphome#14641](https://github.com/esphome/esphome/issues/14641)
+is closed as not planned — so see FUTURE-DEVELOPMENT T3 for the fallback.
 
 **ESPHome 2026.7.x churn.** `select` lost `.state` (use `current_option()` wrapped
 in `std::string()`); persisted selections are tracked in `restore_value` globals

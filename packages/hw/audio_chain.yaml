@@ -190,9 +190,16 @@ media_player:
         file: ${crickets_source}
     # NOTE: no on_idle hook. The mixer keeps this player from reporting idle
     # reliably, so voice-turn un-ducking is driven by the announcement state
-    # instead (see behavior/voice.yaml). Looping uses media_player.repeat_one,
-    # which relies on the decoder's own end-of-file detection rather than the
-    # (broken) idle state.
+    # instead (see behavior/voice.yaml).
+    #
+    # Looping uses media_player.repeat_one - but do NOT read that as "keys off
+    # the decoder's EOF, so the broken idle state doesn't matter". It is the
+    # same state machine: repeat_one restarts the file from
+    # SpeakerMediaPlayer::loop() when the media pipeline reports PLAYING ->
+    # STOPPED, and that transition is exactly what the mixer suppresses. It
+    # only works because every track waits for the mixer to drain before it
+    # starts; api/sound.yaml explains why, and that comment is the one place
+    # the mechanism is spelled out.
 
 # The XVF3800 voice front-end: 4-mic beamforming, noise suppression and the echo
 # canceller that the amp's AGC-off setting exists to protect.

@@ -14,7 +14,7 @@ and leave the number dead.
 | **[C — Calibration](#c--calibration)** | C1 ToF deviation thresholds · C2 gesture timing · C3 noise gain · C4 dim curve | needs the assembled machine |
 | **[V — Validation](#v--validation)** | V1 AEC over noise · V2 sunrise on the final crescent · V3 `(?)` constants | needs measuring, not changing |
 | **[F — Features](#f--features)** | F1 touchless wake | not built |
-| **[T — Tech debt](#t--tech-debt)** | T1 blanket `except ImportError` · T2 stability foot span | optional |
+| **[T — Tech debt](#t--tech-debt)** | T1 blanket `except ImportError` · T2 stability foot span · T3 mixer drain-wait fallback | optional |
 
 ---
 
@@ -295,6 +295,33 @@ inside the wall line.
 
 A v2 geometry change, not a repair — the machine is stable in normal use, with
 14.6 mm of static tipping margin and 10.6° of backward tilt tolerance.
+
+### T3. Fallback if the mixer drain-wait stops holding track looping together
+
+Track looping depends on the media pipeline reporting PLAYING → STOPPED at
+end-of-file, which a mixer source only does once its `pending_playback_frames_`
+counter drains to zero. The current fix makes every track wait for
+`mixing_speaker->get_frames_in_pipeline()` to reach zero before starting, so the
+source is never handicapped by a pre-existing backlog it cannot drain. Written
+up in `packages/api/sound.yaml`; symptoms and mechanism in `SOUNDMACHINE.md` §3.
+
+**It is a workaround for upstream behaviour, and upstream is not going to change
+it** — [esphome/esphome#14641](https://github.com/esphome/esphome/issues/14641)
+is closed as not planned, and as of 2026.7.2 `mixer_speaker.cpp`,
+`resampler_speaker.cpp`, `speaker_media_player.cpp` and `audio_pipeline.cpp` are
+all byte-identical to upstream `dev`. So an ESPHome upgrade could regress this
+without any change here.
+
+**The tell:** a track plays once, the media player entity stays at "playing"
+forever, and every later track is silent until reboot — while noise still works.
+That exact triple is this failure and nothing else.
+
+**If it comes back**, the remaining option is to vendor `mixer` into
+`components/` the way `seesaw` already is, and let `SourceSpeaker::loop()` leave
+`STATE_RUNNING` on `stop_gracefully_` without also requiring
+`pending_playback_frames_ == 0`. Worth pricing against the alternative of
+dropping flashed tracks in favour of generated beds, which need no decoder and
+so never touch this path.
 
 ---
 

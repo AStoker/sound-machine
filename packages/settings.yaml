@@ -624,6 +624,18 @@ substitutions:
   # while keeping peaks 2.4 dB below full scale for the mixer and a TTS reply.
   crickets_source: "https://raw.githubusercontent.com/astoker/sound-machine/main/sounds/Crickets.mp3"
 
+  # How long a track will wait for the mixer's output pipeline to empty before
+  # it starts anyway. Handing the mixer a track while it still holds frames is
+  # what breaks looping outright - the full mechanism is written up in
+  # packages/api/sound.yaml under "WHY EVERY TRACK WAITS FOR THE MIXER TO
+  # DRAIN FIRST", and it is worth reading before touching this.
+  #
+  # The real wait is ~150 ms: i2s_audio_speaker's 100 ms buffer_duration plus
+  # the mixer's own 50 ms transfer buffer. 1s is a backstop, not a target - it
+  # only elapses if the pipeline count never reaches zero, in which case
+  # playing anyway is exactly what the old code did.
+  media_drain_timeout: 1s
+
   # ===================================================================
   # 12. LOGGING
   # ===================================================================
