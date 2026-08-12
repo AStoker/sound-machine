@@ -322,9 +322,28 @@ substitutions:
   cycle_period_s: "180"              # seconds for one full trip round the hue
                                      # wheel. 3 min is slow enough that the
                                      # colour never appears to be moving.
-  cycle_update_interval: 100ms       # repaint rate; the hue itself steps far
-                                     # more slowly than this
-  cycle_brightness: "0.50"
+  # Repaint rate. This one is not just "often enough to look continuous": with
+  # the dithering below, the crescent's AVERAGE colour advances in 1/48ths of an
+  # output step, and a frame is the only chance it gets to move. At 20 Hz it
+  # advances ~2 of those per frame; at 10 Hz it was ~5, which is visible as
+  # micro-stepping even with the dither doing its job. 48 pixels of RMT at 20 Hz
+  # is ~3% duty on a peripheral nothing else uses.
+  cycle_update_interval: 50ms
+  cycle_brightness: "0.50"           # ALSO A RESOLUTION KNOB - see below. 1.0
+                                     # would double the number of levels the
+                                     # colour is rendered in (and the draw).
+  # How far apart in HUE the two ends of the crescent are, in degrees, so the
+  # pixels straddle an output quantisation step instead of all crossing it at
+  # once. The full rationale is in hw/crescent.yaml; the sizing rule is:
+  #
+  #     one output step = 60 / (255 x cycle_brightness x led_max_pct) degrees
+  #                     = 60 / 32 = ~1.9 at the current settings
+  #
+  # 3 degrees is a shade over one step, which is the safe direction to err: too
+  # small and the dither stops working, too large just means the crescent holds a
+  # few degrees of hue spread - and 3 degrees of hue is not something the eye
+  # picks out as a gradient. Raise it if you raise led_max_pct or the brightness.
+  cycle_pixel_spread_deg: "3.0"
   rainbow_effect_name: "Rainbow Arch"
   rainbow_update_interval: 500ms     # nothing animates - this is just a lazy
                                      # repaint so the frame cannot be left stale

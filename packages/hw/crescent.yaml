@@ -123,6 +123,35 @@ light:
       # brightness to them, so the HA brightness slider does nothing while an
       # effect is active. cycle_brightness is the second brightness layer the
       # static presets get from settings; led_max_pct still caps the result.
+      #
+      # ---- WHY THIS DITHERS, AND WHY THE OBVIOUS VERSION LOOKS CHOPPY ----
+      # THERE ARE ONLY ~32 BRIGHTNESS LEVELS PER CHANNEL HERE, not 256. The strip
+      # is 8-bit, and everything downstream multiplies into that: cycle_brightness
+      # (0.50) then led_max_pct (25%). 255 x 0.50 x 0.25 = 32. A hue sweep at full
+      # saturation walks ONE channel from 0 to full across 60 degrees, so those 60
+      # degrees are rendered in 32 steps - and at 180s a step lands about once a
+      # second, as a visible 3% jump in that channel. The first few steps off zero
+      # are the worst: 0 -> 1 -> 2 is a doubling each time. That is the choppiness,
+      # and no amount of finer maths upstream fixes it, because the quantiser is
+      # the last thing in the chain.
+      #
+      # What DOES fix it: the 48 pixels are behind a diffuser and the eye reads
+      # their AVERAGE, so they do not all have to be on the same side of a step at
+      # the same time. Each pixel therefore renders a hue a fraction of a degree
+      # ahead of its neighbour - a span of cycle_pixel_spread_deg across the whole
+      # crescent, sized to about one output step. At any instant some pixels have
+      # rounded up and the rest have not, and the ratio slides smoothly as the
+      # colour advances: ~48x the effective resolution, for one extra term.
+      #
+      # Two things this depends on, so don't undo them:
+      #   * the hue -> RGB conversion is done in FLOAT here rather than through
+      #     ESPHSVColor, whose hue is a uint8 (1.4 deg per count). Quantising the
+      #     hue first would collapse the spread onto 2-3 distinct values and there
+      #     would be almost nothing left to average.
+      #   * the offsets are SCATTERED (golden ratio), not ramped. A ramp puts the
+      #     rounded-up pixels together and walks that boundary along the crescent
+      #     as a faintly visible edge; scattering leaves a fixed 1-LSB speckle the
+      #     diffuser swallows.
       # ---------------------------------------------------------------
       - addressable_lambda:
           name: "${cycle_effect_name}"
@@ -133,20 +162,40 @@ light:
 
             // Position on the wheel, 0..1, wrapping every cycle_period_s.
             const float period_seconds = ${cycle_period_s}.0f;
-            float phase = fmodf((millis() - start_millis) / 1000.0f / period_seconds, 1.0f);
-
-            // 256 hue steps over the period: at the default 180s that is a step
-            // every 0.7s, worth 1.4 degrees - well under what the eye catches.
-            auto hue_rgb = light::ESPHSVColor((uint8_t) (phase * 255.0f), 255, 255).to_rgb();
+            const float phase = fmodf((millis() - start_millis) / 1000.0f / period_seconds, 1.0f);
+            const float base_hue = phase * 360.0f;
             const float level = ${cycle_brightness}f;
-            // White channel stays 0: mixing it in would wash the hue out, and a
-            // saturated colour lighting at most two of the four channels is what
-            // keeps this preset well under the static ones' current draw.
-            Color out((uint8_t) (hue_rgb.r * level),
-                      (uint8_t) (hue_rgb.g * level),
-                      (uint8_t) (hue_rgb.b * level), 0);
-            for (int i = 0; i < it.size(); i++)
-              it[i] = out;
+
+            for (int i = 0; i < it.size(); i++) {
+              // Golden-ratio low-discrepancy offset: evenly spread over 0..1 for
+              // any pixel count, with no correlation between neighbours.
+              float scatter = i * 0.6180339887f;
+              scatter -= floorf(scatter);
+              float hue = base_hue + ${cycle_pixel_spread_deg}f * scatter;
+
+              // Hue -> RGB at full saturation, in float. One channel is at full,
+              // one at zero, and the third ramps across the 60-degree sector.
+              const float sextant = fmodf(hue, 360.0f) / 60.0f;
+              const int sector = (int) sextant;
+              const float ramp = sextant - sector;
+              float red, green, blue;
+              switch (sector) {
+                case 0:  red = 1.0f;        green = ramp;        blue = 0.0f;        break;
+                case 1:  red = 1.0f - ramp; green = 1.0f;        blue = 0.0f;        break;
+                case 2:  red = 0.0f;        green = 1.0f;        blue = ramp;        break;
+                case 3:  red = 0.0f;        green = 1.0f - ramp; blue = 1.0f;        break;
+                case 4:  red = ramp;        green = 0.0f;        blue = 1.0f;        break;
+                default: red = 1.0f;        green = 0.0f;        blue = 1.0f - ramp; break;
+              }
+
+              // Rounded, not truncated - truncation costs half a level of the 32
+              // there are. White channel stays 0: mixing it in would wash the hue
+              // out, and a saturated colour lighting at most two of the four
+              // channels is what keeps this well under the static presets' draw.
+              it[i] = Color((uint8_t) lroundf(red   * level * 255.0f),
+                            (uint8_t) lroundf(green * level * 255.0f),
+                            (uint8_t) lroundf(blue  * level * 255.0f), 0);
+            }
 
       # ---------------------------------------------------------------
       # Rainbow Arch: concentric hue bands, red on the outside and violet at the
