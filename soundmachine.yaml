@@ -155,5 +155,5 @@ external_components:
   # have.) For local component development, push first, then build - or
   # temporarily switch this back to `type: local, path: components`.
   - source: github://astoker/sound-machine@main
-    components: [ noise_source, seesaw, tpa2016 ]
+    components: [ loop_source, noise_source, seesaw, tpa2016 ]
     refresh: 0s

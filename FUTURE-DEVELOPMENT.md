@@ -14,7 +14,7 @@ and leave the number dead.
 | **[C — Calibration](#c--calibration)** | C1 ToF deviation thresholds · C2 gesture timing · C3 noise gain · C4 dim curve | needs the assembled machine |
 | **[V — Validation](#v--validation)** | V1 AEC over noise · V2 sunrise on the final crescent · V3 `(?)` constants · V4 crescent green glitch | needs measuring, not changing |
 | **[F — Features](#f--features)** | F1 touchless wake | not built |
-| **[T — Tech debt](#t--tech-debt)** | T1 blanket `except ImportError` · T2 stability foot span · T3 mixer drain-wait fallback · T4 loop-point gap · T5 `repeat_one` bypasses the drain-wait · T6 speaker hiss | optional |
+| **[T — Tech debt](#t--tech-debt)** | T1 blanket `except ImportError` · T2 stability foot span · ~~T3–T5 flashed-audio looping~~ *(resolved by removal — read before re-adding audio)* · T6 speaker hiss | optional |
 
 ---
 
@@ -354,128 +354,42 @@ inside the wall line.
 A v2 geometry change, not a repair — the machine is stable in normal use, with
 14.6 mm of static tipping margin and 10.6° of backward tilt tolerance.
 
-### T3. Fallback if the mixer drain-wait stops holding track looping together
+### T3–T5. ~~The flashed-audio looping failures~~ — resolved by removal
 
-Track looping depends on the media pipeline reporting PLAYING → STOPPED at
-end-of-file, which a mixer source only does once its `pending_playback_frames_`
-counter drains to zero. The current fix makes every track wait for
-`mixing_speaker->get_frames_in_pipeline()` to reach zero before starting, so the
-source is never handicapped by a pre-existing backlog it cannot drain. Written
-up in `packages/api/sound.yaml`; symptoms and mechanism in `SOUNDMACHINE.md` §3.
+**All three are closed, and none of them was fixed.** They were properties of
+looping a flashed file through `speaker.media_player`, and no flashed file goes
+through it any more: every one is an AMBIENCE, decoded by `components/loop_source`
+straight into a mixer source that starts once and never stops. Looping is a read
+pointer returning to zero.
 
-**It is a workaround for upstream behaviour, and upstream is not going to change
-it** — [esphome/esphome#14641](https://github.com/esphome/esphome/issues/14641)
-is closed as not planned, and as of 2026.7.2 `mixer_speaker.cpp`,
-`resampler_speaker.cpp`, `speaker_media_player.cpp` and `audio_pipeline.cpp` are
-all byte-identical to upstream `dev`. So an ESPHome upgrade could regress this
-without any change here.
+| | was | outcome |
+|---|---|---|
+| **T3** | fallback if the mixer drain-wait stopped holding track looping together | the drain-wait is deleted; nothing depends on it |
+| **T4** | ~300 ms dropout at a track's loop point, from the pipeline restart | no pipeline restart exists to cause it |
+| **T5** | `repeat_one` bypassed the drain-wait, so looping died after a pass or two | nothing calls `repeat_one` |
 
-**The tell:** a track plays once, the media player entity stays at "playing"
-forever, and every later track is silent until reboot — while noise still works.
-That exact triple is this failure and nothing else.
+**The knowledge is kept, because the trap is easy to walk back into.** The
+mechanism — why a mixer source handed `playback_delay_frames_` it cannot drain
+leaves the pipeline reporting PLAYING forever, and why `repeat_one` could never
+be made safe from config — is written up where someone would hit it: the "WHAT
+USED TO BE HERE" block in `packages/api/sound.yaml`, and the two-mechanisms note
+at the top of `packages/hw/audio_chain.yaml`. Upstream has not changed
+([esphome/esphome#14641](https://github.com/esphome/esphome/issues/14641) is
+closed as not planned), so **anything put back on the media player and looped
+will fail exactly the same way.**
 
-**If it comes back**, the remaining option is to vendor `mixer` into
-`components/` the way `seesaw` already is, and let `SourceSpeaker::loop()` leave
-`STATE_RUNNING` on `stop_gracefully_` without also requiring
-`pending_playback_frames_ == 0`. Worth pricing against the alternative of
-dropping flashed tracks in favour of generated beds, which need no decoder and
-so never touch this path.
+**Two things that are still true and still matter:**
 
-### T4. Close the gap `repeat_one` leaves at a track's loop point
-
-The crickets bed is now a true crossfade loop — the file itself is seamless
-(`scripts/make-crickets-loop.py`, and the note in `packages/settings.yaml` §11).
-What remains is firmware: `repeat_one` does not loop *inside* the pipeline, it
-tears the pipeline down and calls `start_file` again, so there is still an
-audible dropout once per pass.
-
-**Measured on hardware**, from the restart to the speaker being told to start:
-
-```
-33.439  speaker_media_player.pipeline: Reading MP3 file type
-33.440  ring_buffer[med_read]: Created ring buffer with size 1000000
-33.446  micro_wake_word: Not enough free bytes in ring buffer ... Resetting
-33.446  i2s_audio.speaker: Event/record queues desynced, restarting speaker task
-33.446  i2s_audio.speaker: Stopped
-33.446  i2s_audio.microphone: Read error: ESP_ERR_TIMEOUT
-33.506  pipeline: Decoded audio has 1 channels, 48000 Hz ...
-33.588  i2s_audio.speaker: Starting
-```
-
-149 ms to the restart, plus the ~150 ms of buffering before sound reappears
-(`buffer_duration: 100ms` + the mixer's 50 ms transfer buffer). Note what else
-that window costs: the speaker task is **torn down and rebuilt** — `timeout:
-never` in `hw/audio_chain.yaml` is meant to prevent exactly that — and the wake
-word loses its ring buffer while the mic read times out. So the loop point
-briefly degrades voice detection too.
-
-**The lead:** everything downstream is triggered 1 ms after a **1 MB** ring
-buffer is allocated. That is `speaker.media_player`'s `buffer_size`, which
-defaults to `1000000` and is re-allocated on every restart. This stream is a
-96 kbps mono MP3 — 12 KB/s — so the buffer is holding roughly 80 seconds of
-compressed audio for no reason. `buffer_size: 131072` still buffers ~10 s and
-should cut the allocation stall by ~8×. **Untested; it is a hypothesis about the
-cause, not a confirmed fix.** Verify by watching whether the `desynced` and
-`ESP_ERR_TIMEOUT` lines disappear from the loop point, not by ear alone.
-
-If that is not enough, the honest options are to accept the dropout, or to drop
-the flashed bed in favour of a generated one (see the last paragraph of T3 —
-generated beds never restart a decoder, so they cannot have this problem).
-
-### T5. `repeat_one` bypasses the drain-wait, so looping dies after a pass or two ⭐
-
-**This is the live blocker on flashed loop beds.** The crickets file is now a
-true crossfade loop and the audio is not the problem — the loop *mechanism* is.
-Observed on hardware: Crickets plays, loops once with a gap, and on the next
-pass the media channel goes silent for good. Exactly T3's signature.
-
-**Why the existing workaround does not cover this.** `media_play_crickets`
-waits for `mixing_speaker->get_frames_in_pipeline() == 0` before starting, which
-buys a zero `playback_delay_frames_` handicap — see `packages/api/sound.yaml`.
-But `repeat_one` is implemented in `SpeakerMediaPlayer::loop()`, which calls
-`media_pipeline_->start_file()` **directly**. It never goes near our script. So
-the drain-wait protects the *first* start and nothing after it: every loop
-iteration is an unprotected restart, and `mixer_speaker.cpp:608` hands it
-whatever `current_pipeline_frames` happens to be. Once that handicap exceeds
-what the callbacks will drain, `pending_playback_frames_` freezes short of zero
-and the channel is dead until reboot.
-
-That the first pass survives and later ones do not is the tell, and it matches
-both captures.
-
-**A second, separate defect in the same area.** Switching straight from one
-track to another is broken. `behavior/sound.yaml` deliberately does not stop the
-player first ("handing it a new file is how it switches"), but the new track's
-drain-wait then waits on a pipeline the *old* track is still actively filling.
-It cannot drain, so the 1 s `media_drain_timeout` backstop fires and plays into
-a live pipeline. Measured, selecting Crickets 0.35 s after La La started:
-
-```
-14:30:35.044  Sound >> Crickets
-14:30:36.162  Reading MP3 file type     <- 1.118 s later: the timeout, not a drain
-14:31:05.884  resampler_speaker: Stopped <- 29.6 s later, at EOF
-```
-
-The resampler stayed configured for La La (44100 Hz, **2 channels**) for the
-whole cricket play, so the 59.076 s file was consumed in 29.650 s — a ratio of
-1.992, i.e. mono samples read as stereo frames — and it played at the wrong
-pitch until the resampler finally reconfigured at the wrap.
-
-**Fixes worth pricing, in increasing order of cost:**
-
-1. *Track → track switch:* issue `media_player.stop:` inside the `media_play_*`
-   verbs before the `wait_until`, so the pipeline can actually reach zero. Use
-   the action, not the `media_stop` script — that one also clears repeat and
-   sets `media_wanted_track = -1`. Fixes the switch defect only.
-2. *Looping:* stop using `repeat_one` and re-arm the loop from the behavior
-   layer, so every pass goes through the drain-wait that already works. Needs a
-   reliable end-of-track signal, which is the thing the mixer obscures — a timer
-   sized to the track length is the crude version.
-3. *Properly:* vendor `mixer` into `components/` and relax
-   `SourceSpeaker::loop()` as T3 already describes.
-
-Until one of these lands, treat flashed tracks as play-once. The generated noise
-beds are unaffected — they never restart a decoder.
+1. **The media player's idle/state reporting is still unreliable** under the
+   mixer. Nothing loops through it now, so it has nothing left to break — but
+   voice-turn un-ducking still keys off announcement state rather than `on_idle`
+   because of it (`behavior/voice.yaml`).
+2. **The track → track switch defect was never fixed, only starved of cases.**
+   Handing the player a new file while the old one is still filling the pipeline
+   makes the drain-wait time out and play into a live pipeline — measured once as
+   a 59 s file consumed in 29.65 s at the wrong pitch, because the resampler was
+   still configured for the previous file. There are no flashed tracks left to
+   trigger it, but a URL sound plus anything else through the player could.
 
 ### T6. Constant speaker hiss — the AIC3104's converter noise floor
 

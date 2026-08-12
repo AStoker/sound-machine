@@ -5,15 +5,29 @@
 # play. Signal path:
 #
 #   noise_source ---\
+#   loop_source  ----\
 #   media files  ----> mixer -> I2S -> XVF3800 -> AIC3104 -> TPA2016 -> 2 speakers
 #   TTS reply    ---/
 #   4 mics -------> I2S in -> XVF3800 beamformer -> wake word / voice assistant
 #
+# TWO WAYS AUDIO REACHES THE MIXER, AND THEY ARE NOT INTERCHANGEABLE.
+#   * AN AMBIENCE runs for hours and must never stop: noise_source and loop_source own
+#     a mixer source each, start it once, and push samples into it forever.
+#     There is no end-of-file and no pipeline, so there is nothing to restart.
+#   * A ONE-SHOT is played through `external_media_player`, which decodes into a
+#     resampler and a pipeline that is torn down at the end.
+#   Looping a one-shot means `repeat_one`, which restarts that pipeline every
+#   pass and eventually wedges the media channel - FUTURE-DEVELOPMENT T3/T4/T5.
+#   EVERY flashed sound here is an ambience, so the media player has no `files:` list
+#   at all; it carries the TTS reply and Home Assistant's audio, and nothing that
+#   loops.
+#
 # DEFINES  amp, i2s_output, i2s_input, aic3104_dac, i2s_mics, i2s_audio_speaker,
 #          announcement_resampling_speaker, media_resampling_speaker,
-#          mixing_speaker + its three inputs (announcement/media/noise), noise,
-#          la_la_sad (flashed media file), external_media_player, respeaker,
-#          mic_mute_switch, and the amp's configuration re-assert tick.
+#          mixing_speaker + its four inputs (announcement/media/noise/ambience),
+#          noise, ambience (loop_source) + the la_la_sad and crickets files it
+#          reads, external_media_player, respeaker, mic_mute_switch, and the
+#          amp's configuration re-assert tick.
 # CONSUMES internal_i2c (device core), the audio settings.
 # WRITTEN BY api/sound.yaml ONLY. Nothing else starts, stops, ducks or
 #          re-levels this chain; behavior packages go through that api. Reading
@@ -132,9 +146,14 @@ speaker:
     output_speaker: media_mixing_input
     sample_rate: 48000
     bits_per_sample: 16
-  # THREE independent inputs, which is what makes ducking possible: the two
+  # FOUR independent inputs, which is what makes ducking possible: the three
   # background channels can be dipped while the spoken reply stays at full
   # volume on its own channel.
+  #
+  # `ambience_mixing_input` is separate from `noise_mixing_input` even though only one
+  # ambience can play at a time, because a mixer source has exactly one owner - the
+  # component that starts and stops it. Sharing one input between two components
+  # would put the start/stop race back that this whole arrangement removes.
   - platform: mixer
     id: mixing_speaker
     output_speaker: i2s_audio_speaker
@@ -149,6 +168,9 @@ speaker:
       - id: noise_mixing_input
         num_channels: 1
         timeout: never
+      - id: ambience_mixing_input
+        num_channels: 1
+        timeout: never
 
 # The noise generator (custom component, components/noise_source). Colour is
 # selected at runtime through api/sound.yaml, never here.
@@ -161,6 +183,39 @@ noise_source:
   high_pass_frequency: ${noise_high_pass_hz}
   high_pass_makeup: ${noise_high_pass_makeup}
 
+# The flashed audio. Every one of these is an AMBIENCE, so none of them belongs to the
+# media player - both declaration sites compile to the same thing (a byte array
+# plus an `audio::AudioFile`), and the only question is which component honestly
+# owns the file.
+#
+# THE FORMAT IS NOT NEGOTIABLE: mono, 48 kHz, MP3. The rules and the ffmpeg
+# recipe are in settings.yaml section 11, under "ADDING AUDIO".
+audio_file:
+  - id: la_la_sad
+    file: ${la_la_sad_source}
+  - id: crickets
+    file: ${crickets_source}
+
+# The ambiences (custom component, components/loop_source). Decodes the files above
+# straight into ONE shared mixer source and rewinds at end-of-file, so a loop
+# costs a read pointer going back to zero instead of a pipeline restart.
+#
+# `files:` ORDER IS THE API. The index is what `ambience_play(index)` takes, and
+# behavior/sound.yaml's AMBIENCES[] must list them in the same order - the two are
+# checked against each other at runtime, so a mismatch logs rather than plays the
+# wrong thing. Adding an ambience is a line here, a line there, and an option in the
+# select; there is no new verb, because an index CAN be a script parameter where
+# an `audio::AudioFile` id cannot.
+loop_source:
+  - id: ambience
+    speaker: ambience_mixing_input
+    sample_rate: 48000
+    gain: ${ambience_gain}
+    fade_length: ${ambience_fade_length}
+    files:
+      - la_la_sad                # ambience 0
+      - crickets                 # ambience 1
+
 media_player:
   - platform: speaker
     id: external_media_player
@@ -172,34 +227,21 @@ media_player:
       speaker: media_resampling_speaker
     volume_min: ${volume_floor_pct}
     volume_max: ${volume_ceiling_pct}
-    # On-device files baked into flash, playable with no HA and no network.
-    # Encode mono, 48 kHz MP3 (matches media_mixing_input - stereo just doubles
-    # the size, since every mixer source is one channel).
+    # NO `files:` LIST, AND THAT IS THE POINT. Every flashed sound this machine
+    # plays runs until something turns it off, which makes all of them ambiences -
+    # they live under `audio_file:` + `loop_source:` above. What is left here is
+    # what this component is actually good at: the TTS reply on the announcement
+    # pipeline, and whatever Home Assistant streams at it.
     #
-    # "Baked into flash" is literal: these become byte arrays in the app image
-    # and eat the same 3.75 MB app partition the firmware lives in. See the size
-    # budget next to the *_source substitutions in settings.yaml section 11.
+    # Putting a flashed file back here would mean looping it with `repeat_one`,
+    # and that is the failure the ambiences exist to avoid - see the two-mechanisms
+    # note at the top of this file, and FUTURE-DEVELOPMENT T3/T4/T5.
     #
-    # ADDING A TRACK: add an entry here AND a `media_play_<name>` script in
-    # api/sound.yaml - a media_file id cannot be passed as a script parameter,
-    # so each flashed track needs its own one-line api verb.
-    files:
-      - id: la_la_sad
-        file: ${la_la_sad_source}
-      - id: crickets
-        file: ${crickets_source}
     # NOTE: no on_idle hook. The mixer keeps this player from reporting idle
     # reliably, so voice-turn un-ducking is driven by the announcement state
-    # instead (see behavior/voice.yaml).
-    #
-    # Looping uses media_player.repeat_one - but do NOT read that as "keys off
-    # the decoder's EOF, so the broken idle state doesn't matter". It is the
-    # same state machine: repeat_one restarts the file from
-    # SpeakerMediaPlayer::loop() when the media pipeline reports PLAYING ->
-    # STOPPED, and that transition is exactly what the mixer suppresses. It
-    # only works because every track waits for the mixer to drain before it
-    # starts; api/sound.yaml explains why, and that comment is the one place
-    # the mechanism is spelled out.
+    # instead (see behavior/voice.yaml). That unreliability is the same defect
+    # that made looping through here fail, and it has not gone away - it just no
+    # longer has anything to break, now that nothing loops here.
 
 # The XVF3800 voice front-end: 4-mic beamforming, noise suppression and the echo
 # canceller that the amp's AGC-off setting exists to protect.

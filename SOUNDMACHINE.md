@@ -39,7 +39,7 @@ being fully custom and locally controlled. It is one integrated device that
 combines:
 
 - **Ambient noise** — continuous white / pink / brown noise, generated on-device,
-  plus flashed loop beds (crickets) for when a colour of noise isn't the mood.
+  plus flashed loop ambiences (crickets) for when a colour of noise isn't the mood.
 - **A far-field voice assistant** — "Okay Nabu" wake word into Home Assistant,
   robust enough to be heard *over* playing noise.
 - **A sunrise light** — an SK6812 crescent that simulates dawn to wake you, plus
@@ -298,10 +298,25 @@ callbacks stop before the handicap is paid, the counter freezes, and the source
 is stuck in `STATE_STOPPING`. Noise escapes it by first contributing at boot,
 when the pipeline is empty.
 
-Fix: **every track waits for `mixing_speaker->get_frames_in_pipeline()` to reach
-zero before it starts**, which gives it the same zero handicap noise gets. This
-is upstream behaviour, not a local bug — [esphome/esphome#14641](https://github.com/esphome/esphome/issues/14641)
-is closed as not planned — so see FUTURE-DEVELOPMENT T3 for the fallback.
+The first fix was to make **every track wait for
+`mixing_speaker->get_frames_in_pipeline()` to reach zero before starting**, which
+buys it the same zero handicap noise gets. It half-worked, and could not do
+better: `repeat_one` calls `start_file()` straight from
+`SpeakerMediaPlayer::loop()`, so the wait protected the *first* start and no
+later one. On hardware that meant a gap at every loop and a dead channel after a
+pass or two.
+
+**The actual fix was to stop using the media player for this at all.** Every
+flashed sound is now a **ambience**: `components/loop_source` decodes it straight into
+its own mixer source, which starts once and never stops, and looping is a read
+pointer returning to zero — no end-of-file, no pipeline, nothing to restart. That
+deleted the drain-wait, the per-file verbs, the repeat flag and the arbitration
+global along with the bug. The media player keeps what it is good at: the TTS
+reply and whatever Home Assistant streams, neither of which loops.
+
+This is upstream behaviour, not a local bug — [esphome/esphome#14641](https://github.com/esphome/esphome/issues/14641)
+is closed as not planned — so **anything put back on the media player and looped
+will fail the same way**. FUTURE-DEVELOPMENT T3–T5 records the whole thing.
 
 **ESPHome 2026.7.x churn.** `select` lost `.state` (use `current_option()` wrapped
 in `std::string()`); persisted selections are tracked in `restore_value` globals

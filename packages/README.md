@@ -35,7 +35,7 @@ hardware behind it, which is what makes the invariants enforceable:
 | api file | is the only writer of | key verbs |
 |---|---|---|
 | `api/display.yaml`   | the display driver        | `display_show_code`, `display_show_status`, `display_set_alert`, `display_show_message` |
-| `api/sound.yaml`     | the audio chain           | `noise_play`, `noise_stop`, `media_*`, `volume_apply`, `sound_duck`/`sound_unduck` |
+| `api/sound.yaml`     | the audio chain           | `noise_play`, `noise_stop`, `ambience_play(index)`, `ambience_stop`, `media_stop`, `volume_apply`, `sound_duck`/`sound_unduck` |
 | `api/light.yaml`     | the crescent strip        | `crescent_off`, `crescent_static`, `crescent_effect` |
 | `api/indicator.yaml` | the knob NeoPixel         | `indicator_set_hue`, `indicator_flash`, `indicator_glow_set` |
 
@@ -145,5 +145,5 @@ build if it drifts from `3d-print/enclosure_geom.py`. See the note in
 | add a display default view (what replaces the clock at rest) | a row in `api/display.yaml`'s defaults table + a setter |
 | add a light preset | an option at the end of `behavior/light.yaml`'s select + a row in **both** its tables (colour *or* effect name) |
 | add a noise colour | an option in `behavior/sound.yaml`'s Sound select, after the last colour |
-| add a flashed track | a `files:` entry in `hw/audio_chain.yaml` + a `media_play_*` verb in `api/sound.yaml` + an option at the END of the same Sound select, its name in `TRACKS`, and a `case` beside it |
+| add a flashed sound | an `audio_file:` entry **and** a `loop_source.files:` entry in `hw/audio_chain.yaml` (same position) + an option at the END of the same Sound select and its name in `AMBIENCES[]`. No new api verb. The file must be **mono 48 kHz MP3** — see "ADDING AUDIO" in `settings.yaml` §11 |
 | change what a button does | the event handler in `behavior/` — the `hw/` file stays put |

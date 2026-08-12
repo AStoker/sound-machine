@@ -229,6 +229,20 @@ substitutions:
   noise_high_pass_hz: "160"
   noise_high_pass_makeup: "4.0"      # tune by ear against white at one volume
 
+  # ---- Sampled ambiences (La La and Crickets; packages/hw/audio_chain.yaml) ----
+  # These apply to ALL of them - the component holds one gain and one fade for the
+  # whole list, because per-file levelling belongs in the files. 100% because each
+  # FILE already carries its own level (see section 11), and at unity the
+  # component passes decoded frames through untouched. Re-encode rather than
+  # turning this down: the peak headroom the mixer and a TTS reply need was
+  # chosen per file, and one gain here cannot respect two different ceilings.
+  ambience_gain: "100%"
+  # Applied when an ambience starts, and when one is switched for another. Shorter
+  # than the noise fade because there is no cold filter state to ease in - the
+  # first sample is already the right sound. There is deliberately NO fade at the
+  # loop point.
+  ambience_fade_length: "1s"
+
   # ---- Volume ----
   volume_floor_pct: "55%"            # media_player volume_min: below this the
                                      # mix is inaudible over a quiet room
@@ -625,28 +639,69 @@ substitutions:
   # default just works everywhere. For LOCAL/offline dev with the repo checked
   # out, override this with the repo-relative path: sounds/La-la-sad.mp3
   #
-  # HOW BIG CAN A TRACK BE? Flashed media is compiled INTO the app image, so it
+  # -------------------------------------------------------------------
+  # ADDING AUDIO - THE FORMAT IS A HARD REQUIREMENT, NOT A PREFERENCE
+  #
+  # Every flashed sound is an AMBIENCE: components/loop_source decodes it straight into
+  # a mixer source, with NO resampler anywhere in that path. That is what makes
+  # the loop free, and it is also why the format cannot be negotiated. A file
+  # that does not match is refused at its first frame and logged - deliberately,
+  # because the alternative is what a mismatch used to do, which was play at the
+  # wrong speed and the wrong pitch for a whole pass before anyone noticed.
+  #
+  #   MP3          the only decoder linked in. Not WAV, not FLAC, not Opus.
+  #   MONO         the mixer source is one channel. Stereo is refused, and on a
+  #                dual-mono file it was only ever doubling the size for nothing.
+  #   48 000 Hz    the mixer's rate. 44.1 kHz is refused.
+  #   Xing/Info    keep the VBR header ffmpeg writes by default. loop_source
+  #                reads its delay/padding fields to trim the codec's priming
+  #                samples, and that is what makes the wrap sample-exact; without
+  #                it every loop grows ~25 ms of silence.
+  #   PEAK <= -2.4 dBFS   headroom for the mixer to add a TTS reply on top
+  #                without clipping. Watch this across a RESAMPLE especially:
+  #                44.1 -> 48 kHz turns intersample peaks into real ones, which
+  #                is how La La spent a while clipping 1064 samples at +1.65 dBFS.
+  #   LEVEL        aim within a few dB of the others, so swapping sounds does not
+  #                need the volume knob touched. The ambiences sit at roughly -17 to
+  #                -18 dBFS RMS today.
+  #
+  # The recipe, for a file that is already a good loop:
+  #   ffmpeg -i in.mp3 -ac 1 -ar 48000 -af "volume=-XdB" -b:a 128k out.mp3
+  # then check the decoded peak before trusting -X. If the file is NOT a good
+  # loop - if it opens or closes with a fade - see the crickets note below, and
+  # scripts/make-crickets-loop.py.
+  #
+  # HOW BIG CAN A FILE BE? Flashed audio is compiled INTO the app image, so it
   # competes with the firmware for one app partition - 0x3C0000 = 3.75 MB, of
-  # which the firmware itself is ~2.4 MB. Both tracks below plus everything else
+  # which the firmware itself is ~2.4 MB. Both files below plus everything else
   # currently leaves ~780 KB free. `esphome compile` prints the real number
   # ("Smallest app partition is ... N bytes free"); check it after adding one.
-  # Encode mono 48 kHz - the mixer input is one channel at 48 kHz, so stereo
-  # doubles the size for nothing.
+  # -------------------------------------------------------------------
+  #
+  # La La: a 48s ambience, mono 48 kHz 128 kbps (~770 KB). It is a composed piece, not
+  # an ambience: it opens from silence and closes on a deliberate ~1 s fade, so
+  # its loop point is a fade-out into a fade-in rather than a seam. That is the
+  # music, and it is left alone - crossfading it would overlap two different bars
+  # (measured 7.1 onsets/second; this is plucked guitar, not a pad).
+  #
+  # It was 44.1 kHz dual-mono, which cost double the bytes for an identical
+  # second channel (L/R correlation 1.0000) and clipped 1064 samples at
+  # +1.65 dBFS once resampled to 48 kHz. Now mono at the same bitrate - so
+  # roughly twice the bits per channel for the same size - and attenuated
+  # 4.25 dB to peak -3.06 dBFS.
   la_la_sad_source: "https://raw.githubusercontent.com/astoker/sound-machine/main/sounds/La-la-sad.mp3"
-  # Crickets: a 59s loop bed, mono 48 kHz 96 kbps (~710 KB). Encoded +13 dB from
-  # source so it sits within a few dB of the noise generator at the same volume
-  # setting - swapping Brown for Crickets should not need the knob touched -
-  # while keeping peaks 2.4 dB below full scale for the mixer and a TTS reply.
+  # Crickets: a 59s ambience, mono 48 kHz 96 kbps (~710 KB).
   #
   # THIS FILE IS A CROSSFADE LOOP, AND THAT IS NOT RECOVERABLE BY RE-ENCODING.
   # The source recording opened with a 65 ms fade-in and closed with an 85 ms
-  # fade-out, so `repeat_one` put a ~150 ms hole in the bed once a minute - the
-  # loudest thing about a sound meant to be unnoticeable. The fix is in the file,
-  # not the firmware: its last 2 s are equal-power crossfaded under its first 2 s
-  # (sin/cos, which holds RMS flat for uncorrelated noise where a linear fade
-  # would dip 3 dB), which both fills the hole and blends out the ~2 dB
-  # low-frequency step that was also across the seam. The 2 s that used to be the
-  # fades are gone - hence 59 s, not 61 s.
+  # fade-out, and those two fades meet at the loop point - a ~150 ms hole in the
+  # ambience once a minute, which is the loudest thing a sound meant to be
+  # unnoticeable can do. Its last 2 s are now equal-power crossfaded under its
+  # first 2 s (sin/cos, which holds RMS flat for uncorrelated noise where a
+  # linear fade would dip 3 dB). That fills the hole and blends out the ~2 dB
+  # low-frequency step that was also across the seam; measured, the wrap is now a
+  # shallower dip than an ordinary moment in the recording. The 2 s that used to
+  # be the fades are gone - hence 59 s, not 61 s.
   #
   # Do not rebuild it by re-encoding an earlier Crickets.mp3, and do not trim it;
   # both silently restore the hole. Rebuild it with
@@ -654,26 +709,10 @@ substitutions:
   # and owns the whole chain - crossfade, then downmix, resample, +13 dB, encode,
   # in that order. `--verify` reports the loop point without writing anything.
   #
-  # ONE THING THE FILE CANNOT FIX. `repeat_one` restarts the media pipeline
-  # rather than looping inside it, and the restart allocates the media_player's
-  # 1 MB reader ring buffer from scratch. On hardware that stall is long enough
-  # to tear down and restart the i2s speaker task ("Event/record queues
-  # desynced") and to time out the mic read, so several hundred ms of silence
-  # remain at the loop point no matter how clean the file is. That is firmware,
-  # not audio - see FUTURE-DEVELOPMENT for the buffer_size lead.
+  # It is +13 dB from source, which puts it within a few dB of the noise
+  # generator at the same volume setting - swapping Brown for Crickets should not
+  # need the knob touched - while keeping peaks 2.4 dB below full scale.
   crickets_source: "https://raw.githubusercontent.com/astoker/sound-machine/main/sounds/Crickets.mp3"
-
-  # How long a track will wait for the mixer's output pipeline to empty before
-  # it starts anyway. Handing the mixer a track while it still holds frames is
-  # what breaks looping outright - the full mechanism is written up in
-  # packages/api/sound.yaml under "WHY EVERY TRACK WAITS FOR THE MIXER TO
-  # DRAIN FIRST", and it is worth reading before touching this.
-  #
-  # The real wait is ~150 ms: i2s_audio_speaker's 100 ms buffer_duration plus
-  # the mixer's own 50 ms transfer buffer. 1s is a backstop, not a target - it
-  # only elapses if the pipeline count never reaches zero, in which case
-  # playing anyway is exactly what the old code did.
-  media_drain_timeout: 1s
 
   # ===================================================================
   # 12. LOGGING

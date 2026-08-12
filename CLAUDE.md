@@ -124,10 +124,29 @@ decisions. There is one display and no plan for another; the split stands becaus
 policy over strings and 300 lines of fonts/panel geometry/register bursts are
 unrelated problems.
 
-**Custom C++ components** in `components/` (`noise_source`, `seesaw`, `tpa2016`)
-follow standard ESPHome layout (`__init__.py` codegen + `.h`/`.cpp`). `seesaw`
-is vendored locally (patched `dump_summary()` for ESPHome 2026.7.x); the upstream
-ssieb git source is left commented in `external_components`.
+**Custom C++ components** in `components/` (`noise_source`, `loop_source`,
+`seesaw`, `tpa2016`) follow standard ESPHome layout (`__init__.py` codegen +
+`.h`/`.cpp`). `seesaw` is vendored locally (patched `dump_summary()` for ESPHome
+2026.7.x); the upstream ssieb git source is left commented in
+`external_components`.
+
+> **EVERY FLASHED SOUND IS AN AMBIENCE, AND THE MEDIA PLAYER HAS NO `files:` LIST.**
+> Anything meant to play until something turns it off — the noise colours, the
+> crickets, La La — owns a mixer source outright via `noise_source` /
+> `loop_source`: started once, never stopped, no decoder pipeline, so there is
+> nothing to restart and no end-of-file. `external_media_player` carries only the
+> TTS reply and Home Assistant's audio, neither of which loops. Looping through
+> it means `repeat_one`, which restarts the whole pipeline every pass — that gaps
+> audibly and, after a pass or two, wedges the media channel for good
+> (FUTURE-DEVELOPMENT T3–T5, resolved by removal, not by a fix). **Do not put a
+> flashed file back on the media player.** The two mechanisms are laid out at the
+> top of `packages/hw/audio_chain.yaml`.
+>
+> **Adding audio? The format is a hard requirement: MP3, mono, 48 kHz, peak
+> ≤ −2.4 dBFS, Xing header intact.** There is no resampler in the ambience path, so a
+> mismatched file is refused at its first frame rather than played at the wrong
+> speed. Full rules and the ffmpeg recipe are under "ADDING AUDIO" in
+> `packages/settings.yaml` §11.
 
 **Sensors & controls live across packages, on one shared I2C bus.** Implemented
 today: BH1750 ambient light (display auto-dim), seesaw rotary encoder (volume +

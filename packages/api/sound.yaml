@@ -14,10 +14,17 @@
 #   noise_play(color_index)   0 = white, 1 = pink, 2 = brown. Sets the colour and
 #                             starts the generator.
 #   noise_stop()
-#   media_play_la_la()        play the flashed file. One verb per flashed track -
-#   media_play_crickets()     a media_file id cannot be a script parameter.
-#   media_stop()              stop playback and clear repeat
-#   media_set_repeat(loop)
+#   ambience_play(index)           start (or switch to) a flashed ambience. The index is
+#   ambience_stop()                the position in loop_source.files: - 0 = La La,
+#                             1 = Crickets. behavior/sound.yaml owns the names.
+#   media_stop()              stop whatever Home Assistant is playing
+#
+# GENERATED, FLASHED, STREAMED - and the first two are both AMBIENCES. They own a
+# mixer source, start once and run for hours; nothing about them ends, so nothing
+# about them can fail to restart. Only Home Assistant's audio and the TTS reply
+# go through the media player's pipeline, and neither of those loops. That is
+# deliberate: looping through it means `repeat_one`, which restarts the pipeline
+# every pass and eventually wedges the channel (FUTURE-DEVELOPMENT T3/T4/T5).
 #   volume_apply(fraction)    absolute volume, 0..1, clamped
 #   sound_duck() / sound_unduck()   dip BOTH background channels for a voice turn
 #
@@ -31,10 +38,9 @@
 # A verb called before that point is a silent no-op by design, not a bug: the
 # restore that follows on_audio_ready is what makes it right.
 #
-# DEFINES  audio_ready, media_wanted_track (globals), volume_pct (sensor), all
-#          the verbs above.
-# CONSUMES noise, external_media_player, mixing_speaker, noise_mixing_input,
-#          media_mixing_input, la_la_sad, crickets (hw/audio_chain).
+# DEFINES  audio_ready (global), volume_pct (sensor), all the verbs above.
+# CONSUMES noise, ambience, external_media_player, noise_mixing_input,
+#          media_mixing_input, ambience_mixing_input (hw/audio_chain).
 # REQUIRES script on_audio_ready (behavior/sound.yaml).
 # =====================================================================
 esphome:
@@ -50,13 +56,6 @@ globals:
     type: bool
     restore_value: no
     initial_value: 'false'
-  # Which flashed track the machine currently wants playing, as a TRACKS index,
-  # or -1 for none. Exists only to arbitrate the drain wait in the play verbs
-  # below - it is not the sound state, which lives in behavior/sound.yaml.
-  - id: media_wanted_track
-    type: int
-    restore_value: no
-    initial_value: '-1'
 
 script:
   # ---- noise generator ----
@@ -75,101 +74,64 @@ script:
     then:
       - lambda: 'if (id(audio_ready)) id(noise).stop();'
 
-  # ---- media ----
-  - id: media_set_repeat
+  # ---- sampled ambiences ----
+  # Same shape as the noise verbs, and gated on audio_ready for the same reason:
+  # starting a mixer source before the stack is up dereferences an event group
+  # that does not exist yet.
+  #
+  # ONE PARAMETERISED VERB, where flashed audio used to need one per file. The
+  # old constraint was real - an `audio::AudioFile` id cannot be a script
+  # parameter - but an INDEX can, so holding the file list inside the component
+  # dissolves it. `index` is the position in `loop_source.files:`
+  # (hw/audio_chain.yaml); behavior/sound.yaml owns the names.
+  #
+  # There is no wait and no repeat flag. The component owns its mixer source
+  # outright, so starting an ambience is just starting it, and switching between ambiences
+  # does not stop the speaker at all.
+  - id: ambience_play
     parameters:
-      loop: bool
+      index: int
     then:
-      - if:
-          condition:
-            lambda: 'return loop;'
-          then:
-            - media_player.repeat_one:
-          else:
-            - media_player.repeat_off:
+      - lambda: 'if (id(audio_ready)) id(ambience)->start(index);'
 
-  # One verb per flashed track. Looping follows whatever media_set_repeat was
-  # last told.
-  #
+  - id: ambience_stop
+    then:
+      - lambda: 'if (id(audio_ready)) id(ambience)->stop();'
+
+  # ---- media ----
   # ---------------------------------------------------------------------
-  # WHY EVERY TRACK WAITS FOR THE MIXER TO DRAIN FIRST
+  # WHAT USED TO BE HERE, AND WHY IT IS NOT
   #
-  # `repeat_one` does NOT key off the decoder's end-of-file, whatever the name
-  # suggests. It is implemented in SpeakerMediaPlayer::loop(), and it restarts
-  # the file only when the media *pipeline* reports PLAYING -> STOPPED. That
-  # transition walks back through the resampler to media_mixing_input, and a
-  # mixer source speaker only leaves STATE_RUNNING once its
-  # `pending_playback_frames_` counter reaches zero.
+  # There were `media_play_<name>` verbs, a `media_set_repeat`, a
+  # `media_wanted_track` global and a bounded wait for the mixer to drain -
+  # roughly seventy lines, all of it load-bearing, all of it in service of
+  # looping a flashed file through `speaker.media_player`.
   #
-  # That counter is drained by the i2s speaker's output callback, which fires
-  # ONLY for buffers containing real audio. And a source speaker that starts
-  # contributing while the output pipeline already holds frames is given a
-  # `playback_delay_frames_` handicap equal to that backlog, which is drained
-  # FIRST. So when a track ends and nothing else is making sound, the callbacks
-  # stop before the handicap is paid off, the counter freezes short of zero, and
-  # media_mixing_input is left in STATE_STOPPING for good. The pipeline reports
-  # PLAYING forever: repeat never fires, and - because the resampler is in
-  # passthrough here (mono 48 kHz in, 48 kHz out) and so has no ring buffer to
-  # fall back on - every later play is silently discarded too. One track, then
-  # a dead media channel until reboot.
+  # The wait existed because `repeat_one` does not key off the decoder's
+  # end-of-file: it restarts the file only when the media *pipeline* reports
+  # PLAYING -> STOPPED, and a mixer source only leaves STATE_RUNNING once its
+  # `pending_playback_frames_` counter reaches zero. A source that starts
+  # contributing while the output pipeline already holds frames is handicapped by
+  # that backlog, and when the callbacks stop before the handicap is paid off the
+  # counter freezes short of zero - pipeline PLAYING forever, media channel dead
+  # until reboot. Waiting for an empty pipeline bought a zero handicap.
   #
-  # Noise escapes this because it first contributes at boot, when the pipeline
-  # is empty and the handicap is zero.
+  # It only ever half-worked, and could not do better: `repeat_one` calls
+  # `start_file()` straight from SpeakerMediaPlayer::loop(), so the wait
+  # protected the FIRST start and no later one. On hardware that meant a gap at
+  # every loop and a dead channel after a pass or two (FUTURE-DEVELOPMENT T5).
   #
-  # Waiting for the mixer to report an empty pipeline before handing it a track
-  # buys the same zero handicap, so the counter can drain exactly to zero at
-  # end-of-file and the transition happens. The wait is bounded: on timeout we
-  # play anyway, which is no worse than not waiting at all.
+  # So the flashed files became ambiences instead, and all of it went. Nothing loops
+  # through the media player now - it carries the TTS reply and Home Assistant's
+  # audio, neither of which repeats. `media_stop` survives because HA can still
+  # be told to play something.
   #
-  # This is upstream behaviour, not a bug in this config - esphome/esphome#14641
-  # ("mixer speaker always reporting playing") is closed as not planned, and
-  # mixer_speaker.cpp / resampler_speaker.cpp / speaker_media_player.cpp /
-  # audio_pipeline.cpp in 2026.7.2 are all byte-identical to upstream `dev`.
-  # See FUTURE-DEVELOPMENT T3 for the fallback if this ever stops holding.
-  #
-  # media_wanted_track is what makes the wait safe: the play only happens if the
-  # track it was queued for is still the one wanted. Switching tracks or calling
-  # media_stop during the (~150 ms) wait cancels it rather than racing it.
+  # This was upstream behaviour, not a bug in this config - esphome/esphome#14641
+  # ("mixer speaker always reporting playing") is closed as not planned. T3 keeps
+  # the details in case a one-shot ever needs them again.
   # ---------------------------------------------------------------------
-  - id: media_play_la_la
-    mode: restart
-    then:
-      - lambda: 'id(media_wanted_track) = 0;'
-      - wait_until:
-          condition:
-            lambda: 'return id(mixing_speaker)->get_frames_in_pipeline() == 0;'
-          timeout: ${media_drain_timeout}
-      - if:
-          condition:
-            lambda: 'return id(media_wanted_track) == 0;'
-          then:
-            - media_player.speaker.play_on_device_media_file:
-                media_file: la_la_sad
-                announcement: false
-
-  - id: media_play_crickets
-    mode: restart
-    then:
-      - lambda: 'id(media_wanted_track) = 1;'
-      - wait_until:
-          condition:
-            lambda: 'return id(mixing_speaker)->get_frames_in_pipeline() == 0;'
-          timeout: ${media_drain_timeout}
-      - if:
-          condition:
-            lambda: 'return id(media_wanted_track) == 1;'
-          then:
-            - media_player.speaker.play_on_device_media_file:
-                media_file: crickets
-                announcement: false
-
   - id: media_stop
     then:
-      # -1 is "no track wanted", which also cancels a play still waiting on the
-      # mixer to drain. Without it a stop issued during that window would be
-      # overtaken by the play it was meant to pre-empt.
-      - lambda: 'id(media_wanted_track) = -1;'
-      - media_player.repeat_off:
       - media_player.stop:
 
   # ---- volume ----
@@ -189,14 +151,22 @@ script:
           id(volume_pct).publish_state(target * 100.0f);
 
   # ---- ducking ----
-  # Both background channels are always dipped together. Noise and media are
-  # independent and can play at once, so dipping both is correct; dipping a
-  # silent channel is a harmless no-op. The spoken reply rides the third
-  # (announcement) channel and stays at full volume.
+  # ALL THREE background channels are always dipped together. Noise, the sampled
+  # ambience and media are independent and can play at once, so dipping all of them is
+  # correct; dipping a silent channel is a harmless no-op. The spoken reply rides
+  # the fourth (announcement) channel and stays at full volume.
+  #
+  # Adding a background channel means adding it to BOTH scripts. A channel that
+  # is ducked and never un-ducked stays quiet for good, and the only symptom is
+  # "that sound got quiet after I talked to it once".
   - id: sound_duck
     then:
       - mixer_speaker.apply_ducking:
           id: noise_mixing_input
+          decibel_reduction: ${duck_decibels}
+          duration: ${duck_ramp}
+      - mixer_speaker.apply_ducking:
+          id: ambience_mixing_input
           decibel_reduction: ${duck_decibels}
           duration: ${duck_ramp}
       - mixer_speaker.apply_ducking:
@@ -208,6 +178,10 @@ script:
     then:
       - mixer_speaker.apply_ducking:
           id: noise_mixing_input
+          decibel_reduction: 0
+          duration: ${unduck_ramp}
+      - mixer_speaker.apply_ducking:
+          id: ambience_mixing_input
           decibel_reduction: 0
           duration: ${unduck_ramp}
       - mixer_speaker.apply_ducking:
