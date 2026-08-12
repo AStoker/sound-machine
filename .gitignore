@@ -10,3 +10,4 @@ __pycache__/
 secrets.yaml
 .venv/
 logs/
+sounds/originals/

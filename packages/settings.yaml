@@ -622,10 +622,34 @@ substitutions:
   # Encode mono 48 kHz - the mixer input is one channel at 48 kHz, so stereo
   # doubles the size for nothing.
   la_la_sad_source: "https://raw.githubusercontent.com/astoker/sound-machine/main/sounds/La-la-sad.mp3"
-  # Crickets: a 61s loop bed, mono 48 kHz 96 kbps (~733 KB). Encoded +13 dB from
+  # Crickets: a 59s loop bed, mono 48 kHz 96 kbps (~710 KB). Encoded +13 dB from
   # source so it sits within a few dB of the noise generator at the same volume
   # setting - swapping Brown for Crickets should not need the knob touched -
   # while keeping peaks 2.4 dB below full scale for the mixer and a TTS reply.
+  #
+  # THIS FILE IS A CROSSFADE LOOP, AND THAT IS NOT RECOVERABLE BY RE-ENCODING.
+  # The source recording opened with a 65 ms fade-in and closed with an 85 ms
+  # fade-out, so `repeat_one` put a ~150 ms hole in the bed once a minute - the
+  # loudest thing about a sound meant to be unnoticeable. The fix is in the file,
+  # not the firmware: its last 2 s are equal-power crossfaded under its first 2 s
+  # (sin/cos, which holds RMS flat for uncorrelated noise where a linear fade
+  # would dip 3 dB), which both fills the hole and blends out the ~2 dB
+  # low-frequency step that was also across the seam. The 2 s that used to be the
+  # fades are gone - hence 59 s, not 61 s.
+  #
+  # Do not rebuild it by re-encoding an earlier Crickets.mp3, and do not trim it;
+  # both silently restore the hole. Rebuild it with
+  # `./scripts/make-crickets-loop.py`, which goes back to sounds/Crickets-original.wav
+  # and owns the whole chain - crossfade, then downmix, resample, +13 dB, encode,
+  # in that order. `--verify` reports the loop point without writing anything.
+  #
+  # ONE THING THE FILE CANNOT FIX. `repeat_one` restarts the media pipeline
+  # rather than looping inside it, and the restart allocates the media_player's
+  # 1 MB reader ring buffer from scratch. On hardware that stall is long enough
+  # to tear down and restart the i2s speaker task ("Event/record queues
+  # desynced") and to time out the mic read, so several hundred ms of silence
+  # remain at the loop point no matter how clean the file is. That is firmware,
+  # not audio - see FUTURE-DEVELOPMENT for the buffer_size lead.
   crickets_source: "https://raw.githubusercontent.com/astoker/sound-machine/main/sounds/Crickets.mp3"
 
   # How long a track will wait for the mixer's output pipeline to empty before
@@ -659,4 +683,4 @@ substitutions:
   #                                   failed" from tag vl53l0x at boot, and for
   #                                   0x29 in the boot I2C scan
   # Put it back to WARN once the question is settled.
-  tof_log_level: "DEBUG"
+  tof_log_level: "WARN"

@@ -381,6 +381,47 @@ That exact triple is this failure and nothing else.
 dropping flashed tracks in favour of generated beds, which need no decoder and
 so never touch this path.
 
+### T4. Close the gap `repeat_one` leaves at a track's loop point
+
+The crickets bed is now a true crossfade loop — the file itself is seamless
+(`scripts/make-crickets-loop.py`, and the note in `packages/settings.yaml` §11).
+What remains is firmware: `repeat_one` does not loop *inside* the pipeline, it
+tears the pipeline down and calls `start_file` again, so there is still an
+audible dropout once per pass.
+
+**Measured on hardware**, from the restart to the speaker being told to start:
+
+```
+33.439  speaker_media_player.pipeline: Reading MP3 file type
+33.440  ring_buffer[med_read]: Created ring buffer with size 1000000
+33.446  micro_wake_word: Not enough free bytes in ring buffer ... Resetting
+33.446  i2s_audio.speaker: Event/record queues desynced, restarting speaker task
+33.446  i2s_audio.speaker: Stopped
+33.446  i2s_audio.microphone: Read error: ESP_ERR_TIMEOUT
+33.506  pipeline: Decoded audio has 1 channels, 48000 Hz ...
+33.588  i2s_audio.speaker: Starting
+```
+
+149 ms to the restart, plus the ~150 ms of buffering before sound reappears
+(`buffer_duration: 100ms` + the mixer's 50 ms transfer buffer). Note what else
+that window costs: the speaker task is **torn down and rebuilt** — `timeout:
+never` in `hw/audio_chain.yaml` is meant to prevent exactly that — and the wake
+word loses its ring buffer while the mic read times out. So the loop point
+briefly degrades voice detection too.
+
+**The lead:** everything downstream is triggered 1 ms after a **1 MB** ring
+buffer is allocated. That is `speaker.media_player`'s `buffer_size`, which
+defaults to `1000000` and is re-allocated on every restart. This stream is a
+96 kbps mono MP3 — 12 KB/s — so the buffer is holding roughly 80 seconds of
+compressed audio for no reason. `buffer_size: 131072` still buffers ~10 s and
+should cut the allocation stall by ~8×. **Untested; it is a hypothesis about the
+cause, not a confirmed fix.** Verify by watching whether the `desynced` and
+`ESP_ERR_TIMEOUT` lines disappear from the loop point, not by ear alone.
+
+If that is not enough, the honest options are to accept the dropout, or to drop
+the flashed bed in favour of a generated one (see the last paragraph of T3 —
+generated beds never restart a decoder, so they cannot have this problem).
+
 ---
 
 ## Done
