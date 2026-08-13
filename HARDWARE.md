@@ -99,9 +99,10 @@ LED-body-to-diffuser-edge gap is **2.95 mm**.
 > vertical structure needs re-checking against this**, the Circadian Sunrise
 > especially. Row 5 is 4 px, so there is no single-pixel apex.
 
-`packages/hw/crescent.yaml` carries `num_leds: 48` and
-`leds_per_row[] = {10, 10, 9, 8, 7, 4}`. `enclosure_geom.crescent_rows()` is the
-source of truth; `gen_drawing.py` prints the table on every run.
+`packages/hw/crescent.yaml` carries `num_leds: 48` and, as a single substitution
+at the top of the file, `crescent_rows: "10, 10, 9, 8, 7, 4"`.
+`enclosure_geom.crescent_rows()` is the source of truth; `gen_drawing.py` prints
+the table on every run, and `check_docs.py` fails the build on a mismatch.
 
 > **History / drift:** earlier design notes referenced a **144 LED/m** strip, an
 > **XL6009 boost converter** and an **R80 / R96 / R117 circular** crescent. The
@@ -122,8 +123,9 @@ source of truth; `gen_drawing.py` prints the table on every run.
 (144 LEDs); LED-enable regs `0x00–0x11`; bank select via command reg `0xFD`
 (`0x00` = frame 0, `0x0B` = function/config).
 
-**Single vs dual.** `matrix_panels: "1"` brings up the left panel alone with a
-compact 3×5 font; `"2"` gives the full 32×9 display with a 5×7 font for a real
+**Single vs dual.** The panel count is the length of `addresses:` in
+`packages/hw/matrix.yaml` — one entry brings up the left panel alone with a
+compact 3×5 font; two give the full 32×9 display with a 5×7 font for a real
 clock. Horizontal tiling: panel *p* owns logical columns `[16p … 16p+15]`. In
 single mode the second address is never touched, so an unwired 2nd board causes
 no I2C errors — bring one panel up first.
@@ -349,7 +351,7 @@ everything reconnected, drop toward 10 kHz.
   the gain time-varying and breaks wake-word-over-noise. All volume control
   stays in software (in the AIC3104 upstream).
 - The chip has **no NVM** — a 5V-rail glitch reverts it to factory defaults
-  (AGC back on). The custom `tpa2016` component rewrites its config at boot, and
+  (AGC back on). The custom `speaker_amp` component rewrites its config at boot, and
   register write **order matters** (compression before gain).
 
 ---

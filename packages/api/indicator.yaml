@@ -4,7 +4,7 @@
 # The only writer of that pixel. Callers say what it should MEAN (a hue, a flash,
 # a glow) and this file owns everything about how it gets there: the fade, the
 # perceptual curve, the ambient brightness ceiling, and - most importantly - how
-# often the seesaw is written to at all.
+# often the knob board is written to at all.
 #
 # THE VERBS
 #   indicator_set_hue(degrees)  0 = red, 120 = green, 240 = blue. The colour the
@@ -18,11 +18,11 @@
 # WHO WINS: a flash always beats a glow; with neither, the pixel fades to black.
 #
 # WHY THIS DRIVES THE PIXEL FROM A LAMBDA INSTEAD OF THE `light:` PLATFORM
-# The vendored seesaw component does provide a light platform (see
-# components/seesaw/light/), and using it would be the obvious choice. It is
+# The vendored knob component does provide a light platform (see
+# components/rotary_knob/light/), and using it would be the obvious choice. It is
 # deliberately NOT used:
 #   * ESPHome's light transitions call write_state() once per main-loop iteration,
-#     and every one of those is 2 I2C transactions to the seesaw. That is hundreds
+#     and every one of those is 2 I2C transactions to the knob board. That is hundreds
 #     of writes/second, on a bus this build has already had to slow to 100kHz
 #     because the XVF3800 was being starved. The interval below is a hard 20 Hz
 #     ceiling instead, and it writes NOTHING while the pixel is idle or already at
@@ -33,13 +33,13 @@
 # pixel is a status indicator, not a lamp.
 #
 # DEFINES  indicator_inited, indicator_level, indicator_hold_until_ms,
-#          indicator_hue_deg, indicator_glow (globals), the three verbs, and the
-#          pixel's tick.
-# CONSUMES seesaw_hub (hw/knob), ambient_level (hw/ambient_light).
+#          indicator_hue_deg, indicator_glow, indicator_last_rgb (globals), the
+#          three verbs, and the pixel's tick.
+# CONSUMES knob_hub (hw/knob), ambient_level (hw/ambient_light).
 # =====================================================================
 globals:
-  # The pixel's pin/length/speed are configured on the seesaw once, then only
-  # colour bytes are sent. Cleared on the way to black so a seesaw brownout reset
+  # The pixel's pin/length/speed are configured on the knob board once, then only
+  # colour bytes are sent. Cleared on the way to black so a brownout reset of that
   # is repaired on the next wake (the chip has no NVM). hw/matrix.yaml solves the
   # same problem the other way round - it probes a register on a tick - because
   # its display is never idle, so it has no "on the way to black" moment to hook.
@@ -69,6 +69,15 @@ globals:
     type: bool
     restore_value: no
     initial_value: 'false'
+  # The last colour actually written to the pixel, packed 0x00RRGGBB, and the
+  # whole of the I2C write dedup. 0xFFFFFFFF means "nothing written yet" - it
+  # cannot collide with a real colour, which only ever fills the low 24 bits.
+  # A global rather than `static`s inside the tick, so that every piece of this
+  # file's state is in its DEFINES line.
+  - id: indicator_last_rgb
+    type: uint32_t
+    restore_value: no
+    initial_value: '0xFFFFFFFFu'
 
 script:
   - id: indicator_set_hue
@@ -132,24 +141,11 @@ interval:
           }
           id(indicator_level) = level;
 
-          // ---- hue -> RGB (a full sweep, so every intermediate value gets its
-          //      own shade instead of snapping between a few colours) ----
-          float hue = id(indicator_hue_deg);
-          hue = fmodf(hue, 360.0f);
-          if (hue < 0.0f) hue += 360.0f;
-          float sector = hue / 60.0f;
-          int   sector_index = ((int) sector) % 6;
-          float ramp = sector - floorf(sector);       // 0..1 within the sector
-          float ramp_down = 1.0f - ramp;
-          float red = 0.0f, green = 0.0f, blue = 0.0f;
-          switch (sector_index) {
-            case 0: red = 1.0f;      green = ramp;      blue = 0.0f;      break;
-            case 1: red = ramp_down; green = 1.0f;      blue = 0.0f;      break;
-            case 2: red = 0.0f;      green = 1.0f;      blue = ramp;      break;
-            case 3: red = 0.0f;      green = ramp_down; blue = 1.0f;      break;
-            case 4: red = ramp;      green = 0.0f;      blue = 1.0f;      break;
-            default: red = 1.0f;     green = 0.0f;      blue = ramp_down; break;
-          }
+          // ---- hue -> RGB (a full float sweep, so every intermediate value
+          //      gets its own shade instead of snapping between a few colours).
+          //      Shared with the crescent's Colour Cycle effect; the reason it
+          //      is float rather than ESPHSVColor is in shared_helpers.h. ----
+          const shared_helpers::Rgb colour = shared_helpers::hue_to_rgb(id(indicator_hue_deg));
 
           // ---- how bright may it get? Follows the same ambient auto-dim the
           //      clock uses, because this pixel sits 60cm from a face at 3am too.
@@ -161,9 +157,9 @@ interval:
           // would hide it for the rest of the scope.
           float intensity = ceiling * powf(level, GAMMA);   // gamma = perceptual fade
 
-          float red_f   = red   * 255.0f * intensity;
-          float green_f = green * 255.0f * intensity;
-          float blue_f  = blue  * 255.0f * intensity;
+          float red_f   = colour.red   * 255.0f * intensity;
+          float green_f = colour.green * 255.0f * intensity;
+          float blue_f  = colour.blue  * 255.0f * intensity;
           uint8_t red_b   = (uint8_t) lroundf(red_f);
           uint8_t green_b = (uint8_t) lroundf(green_f);
           uint8_t blue_b  = (uint8_t) lroundf(blue_f);
@@ -177,23 +173,21 @@ interval:
           }
 
           // ---- write only on a real change ----
-          static uint8_t last_red = 0, last_green = 0, last_blue = 0;
-          static bool have_written = false;
-          if (have_written && red_b == last_red && green_b == last_green && blue_b == last_blue)
+          const uint32_t packed = ((uint32_t) red_b << 16) | ((uint32_t) green_b << 8) | blue_b;
+          if (packed == id(indicator_last_rgb))
             return;
-          last_red = red_b; last_green = green_b; last_blue = blue_b;
-          have_written = true;
+          id(indicator_last_rgb) = packed;
 
           // Configure the pixel BEFORE any write, including the black one the
-          // first tick does - on a warm reboot the seesaw keeps running and would
+          // first tick does - on a warm reboot the knob board keeps running and would
           // otherwise sit there holding whatever colour it had before, since a
           // bare colour write does nothing until pin/length are set.
           if (!id(indicator_inited)) {
-            id(seesaw_hub)->setup_neopixel(${knob_led_pin});
+            id(knob_hub)->setup_neopixel(${knob_led_pin});
             id(indicator_inited) = true;
           }
-          id(seesaw_hub)->color_neopixel(red_b, green_b, blue_b);
+          id(knob_hub)->color_neopixel(red_b, green_b, blue_b);
           // Settled at black: forget the config, so the NEXT wake re-sends it.
-          // That is the recovery path if the seesaw ever browns out and loses its
+          // That is the recovery path if the knob board ever browns out and loses its
           // pin assignment (it has no NVM). Costs 3 tiny writes per wake.
           if (red_b == 0 && green_b == 0 && blue_b == 0) id(indicator_inited) = false;

@@ -16,7 +16,7 @@
 #   2. Buses and pins (I2C addresses, I2S, GPIO)
 #   3. Ambient light (the shared auto-dim level)
 #   4. Display service (content channels, clock, message widths)
-#   5. Matrix driver (IS31FL3731)
+#   5. Clock display (the LED matrix panels)
 #   6. Audio chain (amp, noise, volume, ducking, voice)
 #   7. Crescent light (strip, presets, sunrise, alarm)
 #   8. Knob indicator + proximity
@@ -26,7 +26,7 @@
 #  12. Logging
 #
 # CONVENTION: a value that is DERIVED from something else (the LED row layout,
-# the IS31FL3731's register map) is NOT a substitution - it lives next to the
+# the display panels' register map) is NOT a substitution - it lives next to the
 # code that owns it, so nobody is tempted to "tune" it. See the crescent note in
 # CLAUDE.md for the one geometry coupling that is enforced by a script.
 # =====================================================================
@@ -78,7 +78,7 @@ substitutions:
   i2c_addr_ambient_light: "0x23"     # BH1750
   i2c_addr_tof: "0x29"               # VL53L0X
   i2c_addr_xvf3800: "0x2C"           # ReSpeaker XVF3800 voice front-end
-  i2c_addr_seesaw: "0x36"            # rotary encoder + its NeoPixel
+  i2c_addr_knob: "0x36"              # rotary encoder + its NeoPixel
   i2c_addr_amp: "0x58"               # TPA2016 amplifier
   i2c_addr_rtc: "0x68"               # DS3231 real-time clock
 
@@ -122,7 +122,7 @@ substitutions:
   # One heartbeat drives everything the display does: expiring timed overlays,
   # advancing a scroll, and picking up the minute rolling over. It is safe to
   # tick this fast because the driver skips the I2C write when the resolved frame
-  # is unchanged - an idle tick costs a short string and a hash.
+  # is unchanged - an idle tick costs building a small struct and comparing it.
   display_tick_ms: "250"
   clock_24h_mode: "false"            # true = 24h; the leading zero is blanked
                                      # either way
@@ -131,12 +131,13 @@ substitutions:
   display_code_seconds: "2"
 
   # ---- KEEP THE STRINGS BELOW TO 4 CHARACTERS ----
-  # The COMPACT content (the status overlay + the alert default view) gets one
-  # 16-column panel, which is 4
-  # glyphs of the 3x5 font. Longer strings still work but scroll, and a scrolling
-  # pass takes far longer than the few seconds a status is meant to occupy. The
-  # full rationale - why compact text is confined to one panel at all - is in
-  # packages/hw/matrix.yaml under "WHY COMPACT SCOPE EXISTS".
+  # 4 is how many glyphs fit on this display without one of them landing on the
+  # dead column between the two panels, so 4 characters is what SITS STILL.
+  # Longer strings still work, they just scroll - and a scrolling pass takes far
+  # longer than the few seconds one of these is meant to occupy. The budget is the
+  # same for every channel, because every channel is drawn the same way; the
+  # slot layout is explained in components/clock_display/clock_display.h under
+  # "STATIC TEXT NEVER TOUCHES THE SEAM".
   #
   # Power-source announcements, raised when External Power flips (charger in or
   # out). Gated on the averaging window plus ups_confirm_time, so the message
@@ -164,12 +165,13 @@ substitutions:
   display_scroll_ms_per_px_step: "10"
 
   # ===================================================================
-  # 5. MATRIX DRIVER - IS31FL3731 charlieplex 16x9 panels
-  # Bring up ONE panel first, then set matrix_panels to 2 for the full 32x9
-  # clock. In single mode the second address is never touched, so an unwired
-  # board causes no I2C errors.
+  # 5. CLOCK DISPLAY - the tiled 16x9 LED matrix panels
   # ===================================================================
-  matrix_panels: "2"                 # 1 = single (bring-up); 2 = dual, tiled
+  # The panel addresses, left to right. HOW MANY PANELS THERE ARE is not a
+  # setting: it is the length of the `addresses:` list in hw/matrix.yaml, so
+  # there is nothing here that could disagree with it. To bring up the left panel
+  # alone, delete the second entry from that list - the other address is then
+  # never touched, so an unwired board causes no I2C errors.
   matrix_address: "0x74"             # panel 0 (left)
   matrix_address_2: "0x75"           # panel 1 (right); set the 2nd board's ADDR
                                      # jumper to a free address (0x75/76/77)
@@ -181,9 +183,9 @@ substitutions:
   matrix_pwm_min: "3"                # lit-pixel PWM floor at the darkest end.
                                      # Never 0 - digits must stay readable.
   # How often the driver checks that the panels still hold the configuration it
-  # wrote them. The IS31FL3731 has no NVM, so a glitch on the 5V rail returns it
-  # to its power-on state - blanked, with every LED disabled - and it would then
-  # sit dark forever while the driver happily kept pushing PWM at it. The probe
+  # wrote them. The panels have no NVM, so a glitch on the 5V rail returns them
+  # to their power-on state - blanked, with every LED disabled - and they would then
+  # sit dark forever while the driver happily kept pushing PWM at them. The probe
   # is a 1-byte register read per panel, so this is cheap to run often; the
   # ceiling on how long a reset display could stay dark is this interval.
   matrix_probe_interval: 10s
@@ -197,7 +199,7 @@ substitutions:
   # on_audio_ready.
   audio_ready_delay: 2s
 
-  # ---- TPA2016 amplifier ----
+  # ---- Speaker amplifier ----
   # gain_db is the CEILING, not the operating point - volume lives in the
   # AIC3104 upstream. Was 6 dB (~1W full-scale); raised to 9 dB (~2W) because
   # the mix was a touch quiet. That is near the physical ceiling of a 5V/4-ohm
@@ -260,8 +262,12 @@ substitutions:
   wake_word_cutoff: "0.9"
   mic_mute_update_interval: 60s      # was 1s - quieter logs, still functional
   duck_decibels: "15"                # dip applied to background sound for a turn
-  duck_ramp: 0.3s                    # ramp INTO the dip
-  unduck_ramp: 0.5s                  # ramp back out
+  # In MILLISECONDS, not a time period: these are passed as script parameters
+  # (see sound_duck_apply in api/sound.yaml, which writes the channel list once
+  # rather than once per depth), and a script parameter is a plain int.
+  duck_ramp_ms: "300"                # ramp INTO the dip
+  unduck_ramp_ms: "500"              # ramp back out - gentler, so the background
+                                     # does not swell after a reply
   # The duck watchdog waits for the spoken reply to start, then to finish. Both
   # waits are bounded so a stuck announcement state cannot leave sound ducked
   # forever.
@@ -282,7 +288,7 @@ substitutions:
   # (color_correct) so the strip PHYSICALLY cannot exceed it whatever HA asks.
   # BUDGET (5V rail = Waveshare UPS 3S, 5A):
   #   48 SK6812 RGBW at full all-channel white ~= 2.9A
-  #   TPA2016 into 2x 4ohm at clipping           ~= 1.3A
+  #   Speaker amp into 2x 4ohm at clipping           ~= 1.3A
   #   Flex + XVF3800 + ESP32-S3 + sensors        ~= 0.5A
   # STOPGAP: 65% (~1.9A, ~3.7A of 5A total on paper) was enough to brown out the
   # ESP32 in practice - the strip latches its last frame independent of the MCU,
@@ -433,10 +439,10 @@ substitutions:
   # Colour = volume (blue quiet -> green mid -> red loud), lit by turning the
   # knob and pre-lit by the ToF sensor.
   # The PIN is a SEESAW GPIO, not an ESP one: 6 on the Adafruit I2C QT Rotary
-  # Encoder (#4991 - the same board whose switch is on seesaw pin 24). Other
-  # seesaw boards differ; check the pinout.
+  # Encoder (#4991 - the same board whose switch is on its GPIO 24). Other knob
+  # boards differ; check the pinout.
   knob_led_pin: "6"
-  knob_switch_pin: "24"              # seesaw GPIO for the encoder's push switch
+  knob_switch_pin: "24"              # board GPIO for the encoder's push switch
   knob_led_fade_ms: "50"             # fade tick = 20 Hz. This is also the HARD
                                      # ceiling on how often the pixel is written
                                      # over I2C - do not raise it much (see the
@@ -637,81 +643,14 @@ substitutions:
   # would not be found there even though the file lives in the repo. A value
   # starting with http(s):// is instead downloaded at build time, so the URL
   # default just works everywhere. For LOCAL/offline dev with the repo checked
-  # out, override this with the repo-relative path: sounds/La-la-sad.mp3
+  # out, override these with the repo-relative path: sounds/La-la-sad.mp3
   #
-  # -------------------------------------------------------------------
-  # ADDING AUDIO - THE FORMAT IS A HARD REQUIREMENT, NOT A PREFERENCE
-  #
-  # Every flashed sound is an AMBIENCE: components/loop_source decodes it straight into
-  # a mixer source, with NO resampler anywhere in that path. That is what makes
-  # the loop free, and it is also why the format cannot be negotiated. A file
-  # that does not match is refused at its first frame and logged - deliberately,
-  # because the alternative is what a mismatch used to do, which was play at the
-  # wrong speed and the wrong pitch for a whole pass before anyone noticed.
-  #
-  #   MP3          the only decoder linked in. Not WAV, not FLAC, not Opus.
-  #   MONO         the mixer source is one channel. Stereo is refused, and on a
-  #                dual-mono file it was only ever doubling the size for nothing.
-  #   48 000 Hz    the mixer's rate. 44.1 kHz is refused.
-  #   Xing/Info    keep the VBR header ffmpeg writes by default. loop_source
-  #                reads its delay/padding fields to trim the codec's priming
-  #                samples, and that is what makes the wrap sample-exact; without
-  #                it every loop grows ~25 ms of silence.
-  #   PEAK <= -2.4 dBFS   headroom for the mixer to add a TTS reply on top
-  #                without clipping. Watch this across a RESAMPLE especially:
-  #                44.1 -> 48 kHz turns intersample peaks into real ones, which
-  #                is how La La spent a while clipping 1064 samples at +1.65 dBFS.
-  #   LEVEL        aim within a few dB of the others, so swapping sounds does not
-  #                need the volume knob touched. The ambiences sit at roughly -17 to
-  #                -18 dBFS RMS today.
-  #
-  # The recipe, for a file that is already a good loop:
-  #   ffmpeg -i in.mp3 -ac 1 -ar 48000 -af "volume=-XdB" -b:a 128k out.mp3
-  # then check the decoded peak before trusting -X. If the file is NOT a good
-  # loop - if it opens or closes with a fade - see the crickets note below, and
-  # scripts/make-crickets-loop.py.
-  #
-  # HOW BIG CAN A FILE BE? Flashed audio is compiled INTO the app image, so it
-  # competes with the firmware for one app partition - 0x3C0000 = 3.75 MB, of
-  # which the firmware itself is ~2.4 MB. Both files below plus everything else
-  # currently leaves ~780 KB free. `esphome compile` prints the real number
-  # ("Smallest app partition is ... N bytes free"); check it after adding one.
-  # -------------------------------------------------------------------
-  #
-  # La La: a 48s ambience, mono 48 kHz 128 kbps (~770 KB). It is a composed piece, not
-  # an ambience: it opens from silence and closes on a deliberate ~1 s fade, so
-  # its loop point is a fade-out into a fade-in rather than a seam. That is the
-  # music, and it is left alone - crossfading it would overlap two different bars
-  # (measured 7.1 onsets/second; this is plucked guitar, not a pad).
-  #
-  # It was 44.1 kHz dual-mono, which cost double the bytes for an identical
-  # second channel (L/R correlation 1.0000) and clipped 1064 samples at
-  # +1.65 dBFS once resampled to 48 kHz. Now mono at the same bitrate - so
-  # roughly twice the bits per channel for the same size - and attenuated
-  # 4.25 dB to peak -3.06 dBFS.
+  # >>> THE FILES THEMSELVES ARE DOCUMENTED IN sounds/README.md: the format every
+  # >>> flashed sound must meet and why it is not negotiable, the ffmpeg recipe,
+  # >>> the app-partition size budget, what is peculiar about each of these two
+  # >>> recordings, and how to add a third. None of that is a value you tune, so
+  # >>> none of it lives here - these two lines are.
   la_la_sad_source: "https://raw.githubusercontent.com/astoker/sound-machine/main/sounds/La-la-sad.mp3"
-  # Crickets: a 59s ambience, mono 48 kHz 96 kbps (~710 KB).
-  #
-  # THIS FILE IS A CROSSFADE LOOP, AND THAT IS NOT RECOVERABLE BY RE-ENCODING.
-  # The source recording opened with a 65 ms fade-in and closed with an 85 ms
-  # fade-out, and those two fades meet at the loop point - a ~150 ms hole in the
-  # ambience once a minute, which is the loudest thing a sound meant to be
-  # unnoticeable can do. Its last 2 s are now equal-power crossfaded under its
-  # first 2 s (sin/cos, which holds RMS flat for uncorrelated noise where a
-  # linear fade would dip 3 dB). That fills the hole and blends out the ~2 dB
-  # low-frequency step that was also across the seam; measured, the wrap is now a
-  # shallower dip than an ordinary moment in the recording. The 2 s that used to
-  # be the fades are gone - hence 59 s, not 61 s.
-  #
-  # Do not rebuild it by re-encoding an earlier Crickets.mp3, and do not trim it;
-  # both silently restore the hole. Rebuild it with
-  # `./scripts/make-crickets-loop.py`, which goes back to sounds/Crickets-original.wav
-  # and owns the whole chain - crossfade, then downmix, resample, +13 dB, encode,
-  # in that order. `--verify` reports the loop point without writing anything.
-  #
-  # It is +13 dB from source, which puts it within a few dB of the noise
-  # generator at the same volume setting - swapping Brown for Crickets should not
-  # need the knob touched - while keeping peaks 2.4 dB below full scale.
   crickets_source: "https://raw.githubusercontent.com/astoker/sound-machine/main/sounds/Crickets.mp3"
 
   # ===================================================================

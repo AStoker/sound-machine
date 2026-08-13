@@ -1,8 +1,9 @@
 # =====================================================================
-# HARDWARE: Adafruit seesaw rotary encoder (I2C)  [layer: hw]
+# HARDWARE: the rotary knob - encoder, switch and NeoPixel on one I2C board
+# (Adafruit I2C QT Rotary Encoder #4991)  [layer: hw]
 #
 # One knob, three things on it: a quadrature encoder, a push switch, and a
-# NeoPixel. This file owns the seesaw hub and the two INPUTS. The NeoPixel is
+# NeoPixel. This file owns the knob hub and the two INPUTS. The NeoPixel is
 # owned by api/indicator.yaml, which is its only writer.
 #
 # INPUT EVENTS RAISED (the contract behavior/sound.yaml must implement):
@@ -17,7 +18,7 @@
 # delta -> volume is policy and lives in behavior/sound.yaml. That split is what
 # lets the knob be remapped without touching anything that talks I2C.
 #
-# DEFINES  seesaw_hub, volume_knob (encoder sensor), knob_press (switch),
+# DEFINES  knob_hub, volume_knob (encoder sensor), knob_press (switch),
 #          knob_position_last / knob_position_seeded (globals, internal).
 # CONSUMES internal_i2c (device core), the gesture_* and knob_switch_pin
 #          settings.
@@ -25,7 +26,7 @@
 #          (behavior/sound.yaml).
 # =====================================================================
 globals:
-  # Delta tracking for the encoder. The seesaw reports an absolute, freely
+  # Delta tracking for the encoder. The board reports an absolute, freely
   # wrapping position; only the change between readings is meaningful.
   - id: knob_position_last
     type: int
@@ -38,12 +39,12 @@ globals:
     restore_value: no
     initial_value: 'false'
 
-seesaw:
-  id: seesaw_hub
-  address: ${i2c_addr_seesaw}
+rotary_knob:
+  id: knob_hub
+  address: ${i2c_addr_knob}
 
 sensor:
-  - platform: seesaw
+  - platform: rotary_knob
     type: encoder
     id: volume_knob
     name: "Volume Knob"
@@ -64,7 +65,7 @@ sensor:
           id(on_knob_turn)->execute(clicks);
 
 binary_sensor:
-  - platform: seesaw
+  - platform: rotary_knob
     pin: ${knob_switch_pin}
     id: knob_press
     name: "Knob Press"

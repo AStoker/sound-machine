@@ -17,7 +17,8 @@
 # and not in a behavior package: it is about how eyes respond to light, not about
 # what this device chooses to do.
 #
-# DEFINES  ambient_level (global, 0..15), ambient_light (sensor entity).
+# DEFINES  ambient_level (global, 0..15), ambient_level_smoothed (global, the
+#          slew's working value), ambient_light (sensor entity).
 # CONSUMES internal_i2c (device core), and the ambient_* settings.
 # READ BY  api/display.yaml (folds it into the display frame) and
 #          api/indicator.yaml (the knob pixel's brightness ceiling).
@@ -27,6 +28,15 @@ globals:
     type: int
     restore_value: no
     initial_value: '9'      # sensible mid default until the first lux read
+  # The un-rounded level the slew below works on. A global rather than a `static`
+  # inside the lambda so that all of this file's state is in its DEFINES line -
+  # state a reader cannot find from the header is state they will not know about.
+  # Negative means "no reading yet", which is how the first sample jumps straight
+  # to its target instead of slewing up from the dark end.
+  - id: ambient_level_smoothed
+    type: float
+    restore_value: no
+    initial_value: '-1.0f'
 
 sensor:
   - platform: bh1750
@@ -71,9 +81,10 @@ sensor:
 
           // Slew toward the target instead of snapping, so crossing a boundary
           // (or walking past the sensor) doesn't produce a visible step.
-          static float smoothed = -1.0f;
+          float smoothed = id(ambient_level_smoothed);
           if (smoothed < 0.0f) smoothed = target;       // first reading: jump
           smoothed += (target - smoothed) * ${ambient_slew}f;
+          id(ambient_level_smoothed) = smoothed;
 
           int level = (int) lroundf(smoothed);
           if (level < 0)  level = 0;

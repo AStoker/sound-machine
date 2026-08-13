@@ -5,15 +5,16 @@
 # display. Nothing outside this file names a display id, a font, a panel or a
 # pixel; nothing outside the DRIVER touches the display's I2C address.
 #
-#          behavior/*  ->  display_show_* (here)  ->  display_paint (driver)
+#          behavior/*  ->  display_show_* (here)  ->  matrix->paint(frame)
 #
 # WHY THIS IS A SEPARATE FILE FROM THE DRIVER. Not for pluggability - there is
 # exactly one display and no plan for another. The split is that deciding WHAT to
 # show is a completely different problem from drawing it: priority between four
 # competing sources, expiry, and clock formatting are pure policy over strings,
-# while hw/matrix.yaml is 300 lines of fonts, panel geometry and register
-# bursts. Merged, the policy would be buried in the middle of the renderer and
-# every change to either would be a change to one 500-line file.
+# while the driver is fonts, panel geometry and register bursts. It lives in
+# components/clock_display (C++, like every other register-level driver in this
+# build) rather than in a YAML lambda, which is what lets the contract between
+# the two be a struct the compiler checks.
 #
 # WHAT THIS LAYER OWNS
 #   * the OVERLAYS below and their priority,
@@ -23,8 +24,9 @@
 #   * the single heartbeat that keeps all of the above honest.
 #
 # WHAT THE DRIVER OWNS
-#   * one script, `display_paint`, which renders the resolved FRAME below and
-#     nothing else. It makes no decisions about what to show.
+#   * `paint(frame)`, which renders that Frame and nothing else. It makes no
+#     decisions about what to show, and it skips the I2C write when the frame
+#     resolves to what is already on the glass.
 #
 # TWO KINDS OF CONTENT, and the distinction is the whole design:
 #
@@ -36,13 +38,18 @@
 #   clock.
 #
 # THE OVERLAYS, highest priority first:
-#   message  timed, WIDE     Home Assistant authored text (behavior/message.yaml)
-#   status   timed, COMPACT  a device announcement, e.g. "CHG"  (any behavior)
-#   code     timed, WIDE     a short code from a user action: "L1", "S3", "42"
+#   message  timed   Home Assistant authored text (behavior/message.yaml)
+#   status   timed   a device announcement, e.g. "CHG"  (any behavior)
+#   code     timed   a short code from a user action: "L1", "S3", "42"
 #
 # THE DEFAULT VIEWS, highest priority first:
-#   alert    sticky, COMPACT a condition that persists, e.g. "LOW"
-#   clock    always          the last resort, and the usual answer
+#   alert    sticky  a condition that persists, e.g. "LOW"
+#   clock    always  the last resort, and the usual answer
+#
+# THE CHANNEL DECIDES WHEN, NOT HOW IT LOOKS. Every one of them is drawn in the
+# same font in the same place, so nothing on this display looks like it came from
+# a different machine. Up to 4 characters sits still; longer text scrolls. That is
+# the only difference length makes, and it is the same rule for all four.
 #
 # WHY AN ALERT IS A DEFAULT VIEW AND NOT A HIGH-PRIORITY OVERLAY. It was one
 # once, and it made a flat battery feel like a broken machine: "LOW" is sticky,
@@ -59,28 +66,19 @@
 # Adding a time-of-day default (a dimmer night face, a weekend face) is a row in
 # the defaults table plus a setter - the same shape as adding an overlay.
 #
-# THE FRAME - the driver's entire input:
-#   display_frame_text   text to render; EMPTY means render the clock
-#   display_frame_scope  0 = WIDE: may use the whole display and the roomy font
-#                        1 = COMPACT: if it FITS, it must sit still somewhere it
-#                            cannot straddle a physical panel seam. Text past the
-#                            budget scrolls the full width like any other - see
-#                            "WHY COMPACT SCOPE EXISTS" in hw/matrix.yaml. So
-#                            scope is a hint about layout, not a promise about
-#                            width: keep compact strings to 4 characters if you
-#                            want them static.
-#   display_frame_clock  4 chars, '_' = blank slot, e.g. "_930". EMPTY means the
-#                        clock is not readable and the driver should say so.
-#   display_frame_level  0..15 brightness, from the ambient auto-dim. Already
-#                        clamped - the driver uses it as-is.
-#   display_scroll_ms    ms per pixel for any text too wide for its scope.
-#                        Already bounded by display_set_scroll_speed.
+# THE FRAME - the driver's entire input - is a struct, `clock_display::Frame`,
+# defined and documented in components/clock_display/clock_display.h. It is built as a
+# LOCAL in display_refresh below and handed straight over, so there is no
+# half-updated frame to reason about and nothing to keep in sync between ticks.
+# (It used to be four globals plus a prose contract repeated in two file headers.
+# The compiler now checks what those paragraphs used to ask for.)
 #
-# DEFINES  the overlay + default-view globals, the frame globals, display_show_message,
-#          display_show_status, display_show_code, display_set_alert,
-#          display_set_scroll_speed, display_refresh, and the display tick.
+# DEFINES  the overlay + default-view globals, display_scroll_ms,
+#          display_show_message, display_show_status, display_show_code,
+#          display_set_alert, display_set_scroll_speed, display_refresh, and the
+#          display tick.
 # CONSUMES ds3231_time (hw/rtc), ambient_level (hw/ambient_light),
-#          display_paint (hw/matrix.yaml).
+#          matrix (hw/matrix.yaml).
 # =====================================================================
 globals:
   # ---- overlay state ----
@@ -122,24 +120,8 @@ globals:
     restore_value: no
     initial_value: '""'
 
-  # ---- the resolved frame (the driver's input; see the header) ----
-  - id: display_frame_text
-    type: std::string
-    restore_value: no
-    initial_value: '""'
-  - id: display_frame_scope
-    type: int
-    restore_value: no
-    initial_value: '0'
-  - id: display_frame_clock
-    type: std::string
-    restore_value: no
-    initial_value: '""'
-  - id: display_frame_level
-    type: int
-    restore_value: no
-    initial_value: '9'      # mid default until the first ambient reading
   # Scroll rate for overflowing text. Persisted because it is a user preference.
+  # The only piece of the frame that outlives the tick that builds it.
   - id: display_scroll_ms
     type: int
     restore_value: yes
@@ -150,7 +132,8 @@ script:
   # Each one stamps its overlay (or the default view) and repaints immediately,
   # so feedback is instant rather than waiting up to one tick.
 
-  # A Home Assistant authored message. WIDE scope: long text scrolls.
+  # A Home Assistant authored message - the one channel that is routinely long
+  # enough to scroll.
   # This is the only channel fed by free text, so it is the only one that trims:
   # a trailing space is invisible but still occupies a glyph cell, which would
   # push centred text off-centre. Callers should not have to know that.
@@ -167,8 +150,9 @@ script:
           id(display_message_until_ms) = millis() + (uint32_t) (seconds > 0 ? seconds : 1) * 1000u;
       - script.execute: display_refresh
 
-  # A device announcement. COMPACT scope - keep it to 4 characters, see
-  # settings.yaml section 4 for why.
+  # A device announcement. Keep it to 4 characters so it sits still - a status is
+  # meant to occupy a few seconds, and a scrolling pass takes far longer than
+  # that. See settings.yaml section 4.
   - id: display_show_status
     parameters:
       text: string
@@ -225,30 +209,31 @@ script:
       - script.execute: display_refresh
 
   # ---- resolve + paint ----
-  # Turns the overlays and the default view into the frame, then hands the frame
-  # to the driver. This is the ONLY caller of display_paint.
+  # Turns the overlays and the default view into a Frame, and hands it to the
+  # driver. This is the ONLY caller of paint().
   - id: display_refresh
     then:
       - lambda: |-
           const uint32_t now_ms = millis();
 
-          id(display_frame_text).clear();
-          id(display_frame_scope) = 0;
+          clock_display::Frame frame;
 
           // ---- 1. OVERLAYS ----
-          // PRIORITY IS THIS LIST, in order. Each entry is (text, expiry, scope).
+          // PRIORITY IS THIS LIST, in order. Each entry is (text, expiry).
           // Adding an overlay is a row here plus a setter above - there is no
           // cascade of branches to extend and no second place that encodes the
           // order.
           //
-          // The code overlay is WIDE on purpose: on a dual panel a 2-character
-          // code lands one glyph per panel with the seam between them, which
-          // reads well. Status is COMPACT so it stays off the seam.
-          struct Overlay { std::string *text; uint32_t *until; int scope; };
+          // EVERY CHANNEL LOOKS THE SAME on the glass. There is no per-channel
+          // font or placement to choose: the driver draws whatever it is given in
+          // the same font, in the same seam-free slots, so a low-battery warning
+          // and a volume readout are the same size in the same place. The only
+          // thing length changes is whether the text sits still or scrolls.
+          struct Overlay { std::string *text; uint32_t *until; };
           const Overlay overlays[] = {
-            {&id(display_message_text), &id(display_message_until_ms), 0},  // WIDE
-            {&id(display_status_text),  &id(display_status_until_ms),  1},  // COMPACT
-            {&id(display_code_text),    &id(display_code_until_ms),    0},  // WIDE
+            {&id(display_message_text), &id(display_message_until_ms)},
+            {&id(display_status_text),  &id(display_status_until_ms)},
+            {&id(display_code_text),    &id(display_code_until_ms)},
           };
 
           bool overlaid = false;
@@ -262,8 +247,7 @@ script:
               overlay.text->clear();
               continue;
             }
-            id(display_frame_text)  = *overlay.text;
-            id(display_frame_scope) = overlay.scope;
+            frame.text = *overlay.text;
             overlaid = true;
             break;
           }
@@ -276,48 +260,48 @@ script:
           // needs no row, and nothing can displace it but a view that has
           // deliberately claimed the slot.
           if (!overlaid) {
-            struct DefaultView { std::string *text; int scope; };
-            const DefaultView defaults[] = {
-              {&id(display_alert_text), 1},                                 // COMPACT
+            std::string *const defaults[] = {
+              &id(display_alert_text),
             };
-            for (const DefaultView &view : defaults) {
-              if (view.text->empty())
+            for (std::string *view : defaults) {
+              if (view->empty())
                 continue;
-              id(display_frame_text)  = *view.text;
-              id(display_frame_scope) = view.scope;
+              frame.text = *view;
               break;
             }
           }
 
-          // The clock, built once for whichever driver is loaded. '_' marks a
-          // blank slot; an empty string means the RTC has nothing valid to show.
+          // The clock. '_' marks a blank slot; an empty string means the RTC has
+          // nothing valid to show and the driver says so.
           const bool use_24h = ${clock_24h_mode};
-          std::string clock;
           auto now = id(ds3231_time).now();
           if (now.is_valid()) {
             int hour = now.hour;
             if (!use_24h) { hour = hour % 12; if (hour == 0) hour = 12; }
             const int minute = now.minute;
-            clock.push_back(hour >= 10 ? (char) ('0' + hour / 10) : '_');  // blank leading zero
-            clock.push_back((char) ('0' + hour % 10));
-            clock.push_back((char) ('0' + minute / 10));
-            clock.push_back((char) ('0' + minute % 10));
+            frame.clock.push_back(hour >= 10 ? (char) ('0' + hour / 10) : '_');  // blank leading zero
+            frame.clock.push_back((char) ('0' + hour % 10));
+            frame.clock.push_back((char) ('0' + minute / 10));
+            frame.clock.push_back((char) ('0' + minute % 10));
           }
-          id(display_frame_clock) = clock;
 
-          // Passed straight through: hw/ambient_light.yaml is the only writer and
-          // clamps to 0..15 there. Re-clamping here would only hide a bug in it.
-          id(display_frame_level) = id(ambient_level);
-      - script.execute: display_paint
+          // Both passed straight through: hw/ambient_light.yaml is the only
+          // writer of the level and clamps to 0..15 there, and the scroll rate is
+          // bounded by display_set_scroll_speed. Re-checking either here would
+          // only hide a bug in its owner.
+          frame.level     = (uint8_t) id(ambient_level);
+          frame.scroll_ms = (uint16_t) id(display_scroll_ms);
+
+          id(matrix)->paint(frame);
 
 interval:
   # THE display heartbeat, and the only one. It expires overlays, advances
   # a scroll, and notices the minute rolling over.
   #
-  # It is safe to run this several times a second because display_paint hashes
-  # the frame it is about to draw and returns before touching I2C when nothing
-  # visible changed. An idle tick costs a short string and an FNV hash; a real
-  # repaint costs ~300 bytes on a 100kHz bus, which is why the dedup is the
+  # It is safe to run this several times a second because paint() compares the
+  # frame against what it last drew and returns before touching I2C when nothing
+  # visible changed. An idle tick costs building a small struct and comparing it;
+  # a real repaint costs ~300 bytes on a 100kHz bus, which is why the dedup is the
   # driver's responsibility rather than something callers must think about.
   - interval: ${display_tick_ms}ms
     then:

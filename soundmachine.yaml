@@ -39,8 +39,8 @@ packages:
   hw_proximity: !include packages/hw/proximity.yaml
   hw_power: !include packages/hw/power.yaml
   # The display driver: the only thing in the build that talks to the panels.
-  # It provides `display_paint` and nothing else - what to SHOW is decided one
-  # layer up, in api/display.yaml.
+  # It renders the frame it is handed and nothing else - what to SHOW is decided
+  # one layer up, in api/display.yaml.
   hw_matrix: !include packages/hw/matrix.yaml
 
   # ---- API: the abstraction layer. The only writers of their hardware. ----
@@ -62,7 +62,8 @@ esphome:
   # No on_boot here. Boot work belongs to whichever package owns the thing being
   # brought up, so that dropping the package drops its boot step too:
   #   api/sound.yaml   waits for the audio stack, then raises on_audio_ready
-  #   hw/matrix.yaml   self-initialises inside display_paint
+  #   clock_display       self-initialises on its first paint, and re-does it if a
+  #                    rail glitch wipes the panels
 
 esp32:
   board: esp32-s3-devkitc-1
@@ -147,7 +148,7 @@ external_components:
   # - source:
   #     type: git
   #     url: https://github.com/ssieb/esphome_components
-  #   components: [ seesaw ]
+  #   components: [ seesaw ]   # upstream name
   #   refresh: 1d
   # Custom components pulled from THIS repo by git, so they resolve the same way
   # whether built locally or pulled remotely onto Home Assistant. (A `type: local`
@@ -155,5 +156,13 @@ external_components:
   # have.) For local component development, push first, then build - or
   # temporarily switch this back to `type: local, path: components`.
   - source: github://astoker/sound-machine@main
-    components: [ loop_source, noise_source, seesaw, tpa2016 ]
+    components: [ ambience_player, background_sound, clock_display, noise_generator, rotary_knob, shared_helpers, speaker_amp ]
     refresh: 0s
+
+# Shared helpers for the YAML lambdas (components/shared_helpers). No configuration -
+# naming it here is what puts its header in the generated main.cpp, which is how
+# lambdas in different packages can call the same function. `includes:` would be
+# the obvious alternative and is unusable here: it resolves against the build
+# machine's config dir, so it breaks when this config is pulled onto Home
+# Assistant as a remote package.
+shared_helpers:

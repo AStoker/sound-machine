@@ -35,7 +35,7 @@ hardware behind it, which is what makes the invariants enforceable:
 | api file | is the only writer of | key verbs |
 |---|---|---|
 | `api/display.yaml`   | the display driver        | `display_show_code`, `display_show_status`, `display_set_alert`, `display_show_message` |
-| `api/sound.yaml`     | the audio chain           | `noise_play`, `noise_stop`, `ambience_play(index)`, `ambience_stop`, `media_stop`, `volume_apply`, `sound_duck`/`sound_unduck` |
+| `api/sound.yaml`     | the audio chain           | `noise_play`, `noise_stop`, `ambience_play(name)`, `ambience_stop`, `media_stop`, `volume_apply`, `sound_duck`/`sound_unduck` |
 | `api/light.yaml`     | the crescent strip        | `crescent_off`, `crescent_static`, `crescent_effect` |
 | `api/indicator.yaml` | the knob NeoPixel         | `indicator_set_hue`, `indicator_flash`, `indicator_glow_set` |
 
@@ -100,27 +100,40 @@ like any other, so the tiny device YAML on Home Assistant can override any value
 in it. ESPHome merges packages *before* it expands `${...}`, which is why a
 setting defined in one file is usable in all of them.
 
-**The display is split across two files, and not for pluggability.**
+**The display is split into policy and driver, and not for pluggability.**
 `api/display.yaml` decides *what* to show — priority between competing overlays,
 expiry, which default view sits underneath them, clock formatting — and
-`hw/matrix.yaml` draws it. There is one
-display and no plan for another; the split earns its keep because those are two
-unrelated problems, and merging them would bury 60 lines of policy in the middle
-of 300 lines of fonts and register bursts.
+`components/clock_display` draws it. There is one display and no plan for another;
+the split earns its keep because those are two unrelated problems. The contract
+between them is a struct, `clock_display::Frame`, so it is checked rather than
+described: `api/display.yaml` builds one as a local and calls
+`id(matrix)->paint(frame)`.
 
 **The driver must self-throttle.** `api/display.yaml` ticks several times a
-second and calls `display_paint` every time. The driver hashes what it is about to
-draw and returns before touching I2C when nothing changed. ~300 bytes on this
+second and calls `paint()` every time. The driver compares the frame with what it
+last drew and returns before touching I2C when nothing changed. ~300 bytes on this
 100 kHz bus is ~30 ms of bus time, on a bus that had to be slowed down for the
 XVF3800 in the first place.
 
-**Chips with no NVM repair themselves.** The matrix, the seesaw's NeoPixel and the
+**Register-level code is a component, not a lambda.** Anything that talks to a
+chip in raw registers lives in `components/` as C++ (`clock_display`, `speaker_amp`,
+`rotary_knob`, `noise_generator`, `ambience_player`), and the matching `hw/` file is just its
+configuration. A YAML lambda is fine for interpreting a reading; it is the wrong
+home for fonts, framebuffers and decoders.
+
+**Chips with no NVM repair themselves.** The matrix, the knob's NeoPixel and the
 amp all lose their configuration to a glitch on the shared 5V rail, and in every
 case the symptom is silent (a dark display, a dead pixel, an amp with its AGC
-back on). Each one re-asserts: `hw/matrix.yaml` probes an enable register on a
+back on). Each one re-asserts: `clock_display` probes an enable register on a
 tick, `api/indicator.yaml` re-sends the pin config whenever the pixel settles at
 black, `hw/audio_chain.yaml` re-writes the amp's four registers on a tick. If you
 add an I2C part that has to be configured, give it one of these.
+
+**State lives in `globals:`, not in lambda `static`s.** Every file's header lists
+what it DEFINES, and that list is how anyone finds the device's state. A `static`
+inside a lambda works but appears in no such list, so it is state a reader cannot
+know exists. Where the state belongs to a driver rather than to a package, it is a
+member variable in the component instead.
 
 **So does derived state that is cached on an edge.** The low-battery alert is a
 global maintained by two `on_state` handlers, and an edge that never arrives (or
@@ -140,10 +153,11 @@ build if it drifts from `3d-print/enclosure_geom.py`. See the note in
 |---|---|
 | tune a number | `settings.yaml`, in the matching section |
 | add a sensor or chip | a new `hw/` file; raise events, don't handle them |
-| let something new drive the display | call an `api/display.yaml` verb — never `display_paint` |
+| let something new drive the display | call an `api/display.yaml` verb — never `paint()` |
 | add a display overlay (transient) | a row in `api/display.yaml`'s overlay table + a setter |
 | add a display default view (what replaces the clock at rest) | a row in `api/display.yaml`'s defaults table + a setter |
 | add a light preset | an option at the end of `behavior/light.yaml`'s select + a row in **both** its tables (colour *or* effect name) |
 | add a noise colour | an option in `behavior/sound.yaml`'s Sound select, after the last colour |
-| add a flashed sound | an `audio_file:` entry **and** a `loop_source.files:` entry in `hw/audio_chain.yaml` (same position) + an option at the END of the same Sound select and its name in `AMBIENCES[]`. No new api verb. The file must be **mono 48 kHz MP3** — see "ADDING AUDIO" in `settings.yaml` §11 |
+| add a flashed sound | an `audio_file:` entry and a `name:`/`file:` pair under `ambience_player:` in `hw/audio_chain.yaml`, then that **same name** as an option in the Sound select. No new api verb, no second list. The file must be **mono 48 kHz MP3** — see `sounds/README.md` |
 | change what a button does | the event handler in `behavior/` — the `hw/` file stays put |
+| share a helper between two lambdas | a free function in `components/shared_helpers` — not an `esphome: includes:`, which breaks remote packages |

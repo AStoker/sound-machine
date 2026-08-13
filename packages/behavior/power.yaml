@@ -93,7 +93,7 @@ interval:
   # the warning matters.
   #
   # Recomputing on a tick makes the alert eventually consistent instead of
-  # edge-latched: two boolean reads, and display_paint dedups the repaint, so an
+  # edge-latched: two boolean reads, and the driver dedups the repaint, so an
   # unchanged verdict costs nothing past the string compare. The events stay
   # because they make it INSTANT; this only bounds how wrong it can get.
   - interval: ${power_alert_interval}

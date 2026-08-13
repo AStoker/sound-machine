@@ -23,12 +23,54 @@
 # api layer (also: calling turn_off from inside a running effect is asking for
 # trouble).
 #
-# DEFINES  crescent (light) and its effects, sunrise_duration + sunrise_hold
-#          (numbers), sunrise_done (global).
+# DEFINES  the crescent_* geometry substitutions below, crescent (light) and its
+#          effects, sunrise_duration + sunrise_hold (numbers), sunrise_done +
+#          sunrise_start_ms + cycle_start_ms (globals).
 # CONSUMES the led_*, sunrise_*, cycle_*, rainbow_* and pin_crescent_data
 #          settings.
 # WRITTEN BY api/light.yaml ONLY.
 # =====================================================================
+
+# ---------------------------------------------------------------------
+# THE GEOMETRY, DEFINED ONCE. These are substitutions rather than settings, and
+# they live HERE rather than in settings.yaml, because they are not tunable -
+# they are a copy of what 3d-print/enclosure_geom.py computes from the enclosure,
+# and 3d-print/check_docs.py fails the build if they drift from it.
+#
+# THEY ARE SUBSTITUTIONS RATHER THAN C++ LITERALS FOR ONE REASON: two effects
+# below need them, and until this block existed each effect carried its OWN copy
+# of the row array. check_docs.py used re.search, so it asked only "is the right
+# array in this file somewhere" - which one correct copy satisfied while the
+# other sat next to it being wrong. That is the same trap the row-pitch note
+# further down records falling into. One definition cannot half-drift.
+#
+# ============================ THE ROW LAYOUT ============================
+# LEDs per row, DATA-LINE order, BOTTOM row first. Sum == num_leds.
+# FLATTENED half-ellipse crescent, 89 x 62.7 semi-axes. The flat side is down,
+# so the widest row is row 0. Row counts are limited by whichever binds first:
+# the LED body staying inside the diffuser, or the RIBBON (n x 16.5mm) fitting
+# the cavity. On rows 0, 2 and 4 it is the ribbon.
+#   row 0: 177.8mm -> 10   row 3: 150.0mm -> 8
+#   row 1: 174.1mm -> 10   row 4: 126.3mm -> 7
+#   row 2: 165.2mm ->  9   row 5:  87.7mm -> 4   total 48
+#
+# >>> ROWS ARE ONLY 10.4mm APART -- they BUTT, ribbon edge to ribbon edge --
+# >>> against 16.5mm between pixels along a row. THE ROW PITCH IS 10.4, NOT 16.5.
+# >>> Vertical gradients therefore have well under half the physical travel a
+# >>> square grid would give, so any effect that sweeps up the crescent will look
+# >>> much faster vertically than horizontally unless it compensates, and any
+# >>> effect that uses row/column INDICES rather than these pitches will squash
+# >>> its bands vertically.
+#
+# If the strip is laid serpentine, every ODD row runs right-to-left. The sunrise
+# only fills whole rows so that does not matter to it, but it will for any effect
+# with horizontal structure. Rainbow Arch sidesteps it by using x^2.
+# ------------------------------------------------------------------------
+substitutions:
+  crescent_rows: "10, 10, 9, 8, 7, 4"
+  crescent_pitch_x: "16.5"     # mm between pixels along a row
+  crescent_pitch_y: "10.4"     # mm between rows
+
 globals:
   # Set true by the Circadian Sunrise effect once it has held at full for the
   # configured hold time. api/light.yaml's tick acts on it and turns the light
@@ -37,6 +79,18 @@ globals:
     type: bool
     restore_value: no
     initial_value: 'false'
+  # When each timed effect last started, re-stamped on its `initial_run`. Globals
+  # rather than `static`s inside the effect lambdas, so that all of this file's
+  # state is in its DEFINES line - state a reader cannot find from the header is
+  # state they will not know exists.
+  - id: sunrise_start_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+  - id: cycle_start_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
 
 number:
   - platform: template
@@ -188,12 +242,11 @@ light:
           name: "${cycle_effect_name}"
           update_interval: ${cycle_update_interval}
           lambda: |-
-            static uint32_t start_millis = 0;
-            if (initial_run) start_millis = millis();
+            if (initial_run) id(cycle_start_ms) = millis();
 
             // Position on the wheel, 0..1, wrapping every cycle_period_s.
             const float period_seconds = ${cycle_period_s}.0f;
-            const float phase = fmodf((millis() - start_millis) / 1000.0f / period_seconds, 1.0f);
+            const float phase = fmodf((millis() - id(cycle_start_ms)) / 1000.0f / period_seconds, 1.0f);
             const float base_hue = phase * 360.0f;
             const float level = ${cycle_brightness}f;
 
@@ -202,30 +255,20 @@ light:
               // any pixel count, with no correlation between neighbours.
               float scatter = i * 0.6180339887f;
               scatter -= floorf(scatter);
-              float hue = base_hue + ${cycle_pixel_spread_deg}f * scatter;
+              const float hue = base_hue + ${cycle_pixel_spread_deg}f * scatter;
 
-              // Hue -> RGB at full saturation, in float. One channel is at full,
-              // one at zero, and the third ramps across the 60-degree sector.
-              const float sextant = fmodf(hue, 360.0f) / 60.0f;
-              const int sector = (int) sextant;
-              const float ramp = sextant - sector;
-              float red, green, blue;
-              switch (sector) {
-                case 0:  red = 1.0f;        green = ramp;        blue = 0.0f;        break;
-                case 1:  red = 1.0f - ramp; green = 1.0f;        blue = 0.0f;        break;
-                case 2:  red = 0.0f;        green = 1.0f;        blue = ramp;        break;
-                case 3:  red = 0.0f;        green = 1.0f - ramp; blue = 1.0f;        break;
-                case 4:  red = ramp;        green = 0.0f;        blue = 1.0f;        break;
-                default: red = 1.0f;        green = 0.0f;        blue = 1.0f - ramp; break;
-              }
+              // Hue -> RGB at full saturation, in FLOAT. Shared with the knob
+              // indicator; shared_helpers.h explains why it is not ESPHSVColor, and the
+              // dither note above explains why that matters especially here.
+              const shared_helpers::Rgb colour = shared_helpers::hue_to_rgb(hue);
 
               // Rounded, not truncated - truncation costs half a level of the 32
               // there are. White channel stays 0: mixing it in would wash the hue
               // out, and a saturated colour lighting at most two of the four
               // channels is what keeps this well under the static presets' draw.
-              it[i] = Color((uint8_t) lroundf(red   * level * 255.0f),
-                            (uint8_t) lroundf(green * level * 255.0f),
-                            (uint8_t) lroundf(blue  * level * 255.0f), 0);
+              it[i] = Color((uint8_t) lroundf(colour.red   * level * 255.0f),
+                            (uint8_t) lroundf(colour.green * level * 255.0f),
+                            (uint8_t) lroundf(colour.blue  * level * 255.0f), 0);
             }
 
       # ---------------------------------------------------------------
@@ -251,14 +294,11 @@ light:
           name: "${rainbow_effect_name}"
           update_interval: ${rainbow_update_interval}
           lambda: |-
-            // Same row layout as the sunrise above, and the same warning: this is
-            // a COPY of 3d-print/enclosure_geom.crescent_rows, bottom row first.
-            static const uint8_t leds_per_row[] = {10, 10, 9, 8, 7, 4};
+            // Geometry from the substitutions at the top of this file - the one
+            // definition, checked against the enclosure by check_docs.py.
+            static const uint8_t leds_per_row[] = {${crescent_rows}};
             const uint8_t row_count = sizeof(leds_per_row) / sizeof(leds_per_row[0]);
-            // Physical spacing from the same source: 16.5mm between pixels along
-            // a row, 10.4mm between rows. The grid is deliberately not square, so
-            // using row/column INDICES here would squash the bands vertically.
-            const float pitch_x = 16.5f, pitch_y = 10.4f;
+            const float pitch_x = ${crescent_pitch_x}f, pitch_y = ${crescent_pitch_y}f;
 
             // Semi-axes of the LED FIELD, derived from the layout rather than
             // copied from the enclosure's 89 x 62.7: those describe the diffuser,
@@ -285,10 +325,14 @@ light:
                 // the rainbow's own span - a full 360 would wrap back to red and
                 // put two red bands on the arch.
                 const float hue_degrees = ${rainbow_hue_span}f * (1.0f - radius);
-                auto hue_rgb = light::ESPHSVColor((uint8_t) (hue_degrees * 255.0f / 360.0f), 255, 255).to_rgb();
-                it[led_index++] = Color((uint8_t) (hue_rgb.r * level),
-                                        (uint8_t) (hue_rgb.g * level),
-                                        (uint8_t) (hue_rgb.b * level), 0);
+                // The same float hue -> RGB the Colour Cycle and the knob pixel
+                // use. This effect holds still, so it does not NEED the finer
+                // steps the others do - but having one conversion in the build
+                // beats having two that a reader has to compare.
+                const shared_helpers::Rgb colour = shared_helpers::hue_to_rgb(hue_degrees);
+                it[led_index++] = Color((uint8_t) (colour.red   * level * 255.0f),
+                                        (uint8_t) (colour.green * level * 255.0f),
+                                        (uint8_t) (colour.blue  * level * 255.0f), 0);
               }
             }
             // Any LEDs past the configured rows stay off.
@@ -303,30 +347,10 @@ light:
           name: "${sunrise_effect_name}"
           update_interval: ${sunrise_update_interval}
           lambda: |-
-            // ============ THE ROW LAYOUT (see the header warning) ============
-            // LEDs per row, DATA-LINE order, BOTTOM row first. Sum == num_leds.
-            // FLATTENED half-ellipse crescent, 89 x 62.7 semi-axes. 16.5mm pitch
-            // ALONG a row; rows are 10.4 apart, NOT 16.5 -- the grid is
-            // deliberately not square, see the note on the light above. The flat
-            // side is down, so the widest row is row 0. Row counts are limited by
-            // whichever binds first: the LED body staying inside the diffuser, or
-            // the RIBBON (n x 16.5mm) fitting the cavity. On rows 0, 2 and 4 it
-            // is the ribbon.
-            //   row 0: 177.8mm -> 10   row 3: 150.0mm -> 8
-            //   row 1: 174.1mm -> 10   row 4: 126.3mm -> 7
-            //   row 2: 165.2mm ->  9   row 5:  87.7mm -> 4   total 48
-            //
-            // >>> ROWS ARE ONLY 10.4mm APART -- they BUTT, ribbon edge to ribbon
-            // >>> edge -- against 16.5mm between pixels along a row. Vertical
-            // >>> gradients therefore have well under half the physical travel a
-            // >>> square grid would give, so any effect that sweeps up the
-            // >>> crescent will look much faster vertically than horizontally
-            // >>> unless it compensates.
-            //
-            // If the strip is laid serpentine, every ODD row runs right-to-left.
-            // The sunrise only fills whole rows so that doesn't matter here, but
-            // it will for any effect with horizontal structure.
-            static const uint8_t leds_per_row[] = {10, 10, 9, 8, 7, 4};
+            // Geometry from the substitutions at the top of this file. This
+            // effect fills whole rows, so it needs the row array but not the
+            // pitches.
+            static const uint8_t leds_per_row[] = {${crescent_rows}};
             const uint8_t row_count = sizeof(leds_per_row) / sizeof(leds_per_row[0]);
 
             // Dawn keyframes across normalized progress 0..1.
@@ -349,9 +373,8 @@ light:
             float hold_minutes = id(sunrise_hold).state;
             if (!(hold_minutes >= 0.0f)) hold_minutes = ${sunrise_default_hold}.0f;             // nan guard
 
-            static uint32_t start_millis = 0;
-            if (initial_run) { start_millis = millis(); id(sunrise_done) = false; }
-            float elapsed_seconds = (millis() - start_millis) / 1000.0f;
+            if (initial_run) { id(sunrise_start_ms) = millis(); id(sunrise_done) = false; }
+            float elapsed_seconds = (millis() - id(sunrise_start_ms)) / 1000.0f;
             float progress = elapsed_seconds / (duration_minutes * 60.0f);
             if (progress > 1.0f) progress = 1.0f;
 

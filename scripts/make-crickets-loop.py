@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Rebuild sounds/Crickets.mp3 as a seamless loop from sounds/Crickets-original.wav.
+"""Rebuild sounds/Crickets.mp3 as a seamless loop from the original recording.
+
+Reads sounds/originals/Crickets-original.wav, writes sounds/Crickets.mp3.
+Needs numpy and ffmpeg on PATH. The format rules every flashed sound has to meet
+are in sounds/README.md; this script exists for the one file that cannot meet the
+loop-point rule by re-encoding alone.
 
 WHY THIS EXISTS
 
@@ -54,7 +59,7 @@ GAIN_DB = 13.0        # matches the level the rest of the config is tuned agains
 BITRATE = "96k"
 
 ROOT = Path(__file__).resolve().parent.parent
-SOURCE = ROOT / "sounds" / "Crickets-original.wav"
+SOURCE = ROOT / "sounds" / "originals" / "Crickets-original.wav"
 TARGET = ROOT / "sounds" / "Crickets.mp3"
 
 

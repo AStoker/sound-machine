@@ -49,13 +49,24 @@
 # rest-voltage curve, not a tunable, which is why it lives here rather than in
 # settings.yaml.
 #
-# DEFINES  battery_voltage, battery_current, battery_current_avg, battery_power,
+# DEFINES  battery_oc_ema (global, the compensated-voltage filter state),
+#          battery_voltage, battery_current, battery_current_avg, battery_power,
 #          battery_shunt_voltage, battery_oc_voltage, battery_level,
 #          battery_cell_voltage, battery_charging, external_power, battery_low.
 # CONSUMES internal_i2c (device core), the ups_* / battery_* settings.
 # REQUIRES scripts on_external_power_changed / on_battery_low_changed
 #          (behavior/power.yaml).
 # =====================================================================
+globals:
+  # EMA state for Battery Compensated Voltage below. A global rather than a
+  # `static` inside that sensor's lambda so this file's state is all in its
+  # DEFINES line above - state a reader cannot find from the header is state they
+  # will not know exists.
+  - id: battery_oc_ema
+    type: float
+    restore_value: no
+    initial_value: '-1.0f'    # negative = not seeded yet
+
 sensor:
   - platform: ina219
     address: ${ups_i2c_address}
@@ -122,10 +133,12 @@ sensor:
 
       float oc = bus - (id(battery_current).state * ${ups_internal_resistance}f);
 
-      static bool seeded = false;
-      static float ema = 0.0f;
-      if (!seeded) { ema = oc; seeded = true; }
-      else         { ema += ${ups_ema_alpha}f * (oc - ema); }
+      // Negative is the "not seeded yet" sentinel - a pack voltage cannot be - so
+      // the first reading becomes the EMA outright instead of ramping up from
+      // zero and reporting a flat battery for the first minute.
+      float ema = id(battery_oc_ema);
+      ema = (ema < 0.0f) ? oc : ema + ${ups_ema_alpha}f * (oc - ema);
+      id(battery_oc_ema) = ema;
       return ema;
 
   # State of charge, derived from the COMPENSATED pack voltage against a

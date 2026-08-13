@@ -89,15 +89,26 @@ def must_not(doc, pattern, why):
 
 
 rows = [c for _, c, _ in g.crescent_rows()]
-row_re = re.escape(str(rows).replace("[", "{").replace("]", "}"))
+row_list_re = re.escape(", ".join(str(c) for c in rows))
 
 # ---------------------------------------------------------------- firmware
 # The one place a stale number does more than mislead: ESPHome will happily
 # address pixels that do not physically exist.
 must("packages/hw/crescent.yaml", rf"num_leds:\s*{g.CRES_PX}\b", "num_leds")
-must("packages/hw/crescent.yaml", rf"leds_per_row\[\] = {row_re}", "row array")
-must("packages/hw/crescent.yaml", rf"{g.LED_PITCH}mm", "measured LED pitch")
-must("packages/hw/crescent.yaml", rf"{g.LED_ROW_PITCH}, NOT", "row pitch")
+# The row array and the two pitches are SUBSTITUTIONS defined once at the top of
+# crescent.yaml, and the effects below expand them. They used to be C++ literals
+# repeated in each effect, which is what made the presence-only rule below
+# insufficient - see the note there.
+must("packages/hw/crescent.yaml", rf'crescent_rows:\s*"{row_list_re}"', "row array")
+must("packages/hw/crescent.yaml", rf'crescent_pitch_x:\s*"{re.escape(str(g.LED_PITCH))}"', "LED pitch")
+must("packages/hw/crescent.yaml", rf'crescent_pitch_y:\s*"{re.escape(str(g.LED_ROW_PITCH))}"', "row pitch")
+must("packages/hw/crescent.yaml", rf"{g.LED_PITCH}mm", "measured LED pitch in prose")
+must("packages/hw/crescent.yaml", rf"{g.LED_ROW_PITCH}, NOT", "row pitch in prose")
+
+# ...and there must be no second, hard-coded copy for those rules to miss. An
+# effect must expand ${crescent_rows}, never re-type the digits.
+must_not("packages/hw/crescent.yaml", r"leds_per_row\[\]\s*=\s*\{\s*\d",
+         "a hard-coded row array (use ${crescent_rows})")
 
 # >>> PRESENCE IS NOT ENOUGH, and this file learned that the hard way. must()
 # >>> above passed for months while crescent.yaml ALSO carried "rows are 11.0
@@ -105,6 +116,8 @@ must("packages/hw/crescent.yaml", rf"{g.LED_ROW_PITCH}, NOT", "row pitch")
 # >>> the authority for the row layout. Both sentences were in the same file. A
 # >>> rule that only asks "is the right number in here somewhere" cannot see the
 # >>> wrong one sitting next to it, so the row pitch gets a staleness rule too.
+# >>> (The array itself is no longer exposed to that failure at all: it is one
+# >>> substitution now, and the must_not above keeps it that way.)
 # >>> Derived, not hard-coded, for the reason spelled out under _stale_px below.
 _stale_row_pitch = "|".join(
     f"{v / 10:.1f}" for v in range(90, 171) if abs(v / 10 - g.LED_ROW_PITCH) > 1e-9

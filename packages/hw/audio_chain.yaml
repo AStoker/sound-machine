@@ -4,14 +4,14 @@
 # Everything the sound physically travels through, and nothing about what to
 # play. Signal path:
 #
-#   noise_source ---\
-#   loop_source  ----\
-#   media files  ----> mixer -> I2S -> XVF3800 -> AIC3104 -> TPA2016 -> 2 speakers
+#   noise_generator ---\
+#   ambience_player  ----\
+#   media files  ----> mixer -> I2S -> XVF3800 -> AIC3104 -> speaker amp -> 2 speakers
 #   TTS reply    ---/
 #   4 mics -------> I2S in -> XVF3800 beamformer -> wake word / voice assistant
 #
 # TWO WAYS AUDIO REACHES THE MIXER, AND THEY ARE NOT INTERCHANGEABLE.
-#   * AN AMBIENCE runs for hours and must never stop: noise_source and loop_source own
+#   * AN AMBIENCE runs for hours and must never stop: noise_generator and ambience_player own
 #     a mixer source each, start it once, and push samples into it forever.
 #     There is no end-of-file and no pipeline, so there is nothing to restart.
 #   * A ONE-SHOT is played through `external_media_player`, which decodes into a
@@ -25,7 +25,7 @@
 # DEFINES  amp, i2s_output, i2s_input, aic3104_dac, i2s_mics, i2s_audio_speaker,
 #          announcement_resampling_speaker, media_resampling_speaker,
 #          mixing_speaker + its four inputs (announcement/media/noise/ambience),
-#          noise, ambience (loop_source) + the la_la_sad and crickets files it
+#          noise, ambience (ambience_player) + the la_la_sad and crickets files it
 #          reads, external_media_player, respeaker, mic_mute_switch, and the
 #          amp's configuration re-assert tick.
 # CONSUMES internal_i2c (device core), the audio settings.
@@ -45,7 +45,7 @@
 #     on steady noise, and - the real problem - makes the echo path
 #     time-varying, which is precisely what the XVF3800's echo canceller cannot
 #     cancel. Wake-word-over-noise is the exact case that would fail.
-#   * So the amp is configured ONCE at boot by the `tpa2016:` block below:
+#   * So the amp is configured ONCE at boot by the `speaker_amp:` block below:
 #     compression 1:1 (AGC off), one fixed analog gain, limiter parked high as a
 #     pure fault stop. All volume lives in software, in the AIC3104 upstream.
 #   * ORDER OF THE REGISTER WRITES MATTERS and is handled inside the component:
@@ -56,7 +56,7 @@
 #     - which means AGC back ON, silently. The interval below re-asserts the
 #     configuration so that state cannot persist; see the note on it.
 # ---------------------------------------------------------------------
-tpa2016:
+speaker_amp:
   id: amp
   address: ${i2c_addr_amp}
   i2c_id: internal_i2c
@@ -80,7 +80,7 @@ interval:
     then:
       - lambda: |-
           if (!id(amp)->apply())
-            ESP_LOGW("tpa2016", "re-assert failed - amp may be on factory defaults (AGC ON)");
+            ESP_LOGW("speaker_amp", "re-assert failed - amp may be on factory defaults (AGC ON)");
 
 # ---------------------------------------------------------------------
 # I2S to/from the XVF3800. The pins are fixed by the Flex's routing, and the
@@ -156,12 +156,12 @@ speaker:
   # would put the start/stop race back that this whole arrangement removes.
   #
   # `timeout: never` IS LOAD-BEARING ON `ambience_mixing_input`, not just tidy.
-  # loop_source starts that source once and then leaves it running forever,
+  # ambience_player starts that source once and then leaves it running forever,
   # feeding it or not - because a graceful stop can leave a source wedged in
   # STATE_STOPPING, silent and un-restartable, and after 5 s a wedged source
   # stops the SHARED OUTPUT SPEAKER. `timeout: never` is what lets an unfed
   # source sit in STATE_RUNNING contributing nothing instead. The full mechanism
-  # is in LoopSource::stop(). Give this a timeout and ambiences play once.
+  # is in AmbiencePlayer::stop(). Give this a timeout and ambiences play once.
   - platform: mixer
     id: mixing_speaker
     output_speaker: i2s_audio_speaker
@@ -180,9 +180,9 @@ speaker:
         num_channels: 1
         timeout: never
 
-# The noise generator (custom component, components/noise_source). Colour is
+# The noise generator (custom component, components/noise_generator). Colour is
 # selected at runtime through api/sound.yaml, never here.
-noise_source:
+noise_generator:
   id: noise
   speaker: noise_mixing_input
   sample_rate: 48000
@@ -196,33 +196,35 @@ noise_source:
 # plus an `audio::AudioFile`), and the only question is which component honestly
 # owns the file.
 #
-# THE FORMAT IS NOT NEGOTIABLE: mono, 48 kHz, MP3. The rules and the ffmpeg
-# recipe are in settings.yaml section 11, under "ADDING AUDIO".
+# THE FORMAT IS NOT NEGOTIABLE: mono, 48 kHz, MP3. The rules, the ffmpeg recipe
+# and the size budget are in sounds/README.md.
 audio_file:
   - id: la_la_sad
     file: ${la_la_sad_source}
   - id: crickets
     file: ${crickets_source}
 
-# The ambiences (custom component, components/loop_source). Decodes the files above
+# The ambiences (custom component, components/ambience_player). Decodes the files above
 # straight into ONE shared mixer source and rewinds at end-of-file, so a loop
 # costs a read pointer going back to zero instead of a pipeline restart.
 #
-# `files:` ORDER IS THE API. The index is what `ambience_play(index)` takes, and
-# behavior/sound.yaml's AMBIENCES[] must list them in the same order - the two are
-# checked against each other at runtime, so a mismatch logs rather than plays the
-# wrong thing. Adding an ambience is a line here, a line there, and an option in the
-# select; there is no new verb, because an index CAN be a script parameter where
-# an `audio::AudioFile` id cannot.
-loop_source:
+# THE `name:` IS THE API. It is what `ambience_play(name)` takes and what the
+# Sound select in behavior/sound.yaml offers, so these two strings are the whole
+# contract - an unknown name logs and plays nothing, and there is no ordering to
+# get wrong. Adding an ambience is an `audio_file:` entry above, an entry here,
+# and an option in that select. There is no new verb, because a name CAN be a
+# script parameter where an `audio::AudioFile` id cannot.
+ambience_player:
   - id: ambience
     speaker: ambience_mixing_input
     sample_rate: 48000
     gain: ${ambience_gain}
     fade_length: ${ambience_fade_length}
     files:
-      - la_la_sad                # ambience 0
-      - crickets                 # ambience 1
+      - name: "La La"
+        file: la_la_sad
+      - name: "Crickets"
+        file: crickets
 
 media_player:
   - platform: speaker
@@ -237,7 +239,7 @@ media_player:
     volume_max: ${volume_ceiling_pct}
     # NO `files:` LIST, AND THAT IS THE POINT. Every flashed sound this machine
     # plays runs until something turns it off, which makes all of them ambiences -
-    # they live under `audio_file:` + `loop_source:` above. What is left here is
+    # they live under `audio_file:` + `ambience_player:` above. What is left here is
     # what this component is actually good at: the TTS reply on the announcement
     # pipeline, and whatever Home Assistant streams at it.
     #

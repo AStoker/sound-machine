@@ -358,7 +358,7 @@ A v2 geometry change, not a repair — the machine is stable in normal use, with
 
 **All three are closed, and none of them was fixed.** They were properties of
 looping a flashed file through `speaker.media_player`, and no flashed file goes
-through it any more: every one is an AMBIENCE, decoded by `components/loop_source`
+through it any more: every one is an AMBIENCE, decoded by `components/ambience_player`
 straight into a mixer source that starts once and never stops. Looping is a read
 pointer returning to zero.
 

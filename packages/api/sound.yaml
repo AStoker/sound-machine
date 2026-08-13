@@ -14,9 +14,9 @@
 #   noise_play(color_index)   0 = white, 1 = pink, 2 = brown. Sets the colour and
 #                             starts the generator.
 #   noise_stop()
-#   ambience_play(index)           start (or switch to) a flashed ambience. The index is
-#   ambience_stop()                the position in loop_source.files: - 0 = La La,
-#                             1 = Crickets. behavior/sound.yaml owns the names.
+#   ambience_play(name)       start (or switch to) a flashed ambience, by the
+#                             `name:` it is given in ambience_player.files:
+#   ambience_stop()
 #   media_stop()              stop whatever Home Assistant is playing
 #
 # GENERATED, FLASHED, STREAMED - and the first two are both AMBIENCES. They own a
@@ -81,18 +81,18 @@ script:
   #
   # ONE PARAMETERISED VERB, where flashed audio used to need one per file. The
   # old constraint was real - an `audio::AudioFile` id cannot be a script
-  # parameter - but an INDEX can, so holding the file list inside the component
-  # dissolves it. `index` is the position in `loop_source.files:`
-  # (hw/audio_chain.yaml); behavior/sound.yaml owns the names.
+  # parameter - but a NAME can, so holding the file list inside the component
+  # dissolves it. `name` is a `name:` from `ambience_player.files:`
+  # (hw/audio_chain.yaml); an unknown one logs there and plays nothing.
   #
   # There is no wait and no repeat flag. The component owns its mixer source
-  # outright, so starting an ambience is just starting it, and switching between ambiences
-  # does not stop the speaker at all.
+  # outright, so starting an ambience is just starting it, and switching between
+  # ambiences does not stop the speaker at all.
   - id: ambience_play
     parameters:
-      index: int
+      name: string
     then:
-      - lambda: 'if (id(audio_ready)) id(ambience)->start(index);'
+      - lambda: 'if (id(audio_ready)) id(ambience)->start(name);'
 
   - id: ambience_stop
     then:
@@ -152,42 +152,51 @@ script:
 
   # ---- ducking ----
   # ALL THREE background channels are always dipped together. Noise, the sampled
-  # ambience and media are independent and can play at once, so dipping all of them is
-  # correct; dipping a silent channel is a harmless no-op. The spoken reply rides
-  # the fourth (announcement) channel and stays at full volume.
+  # ambience and media are independent and can play at once, so dipping all of
+  # them is correct; dipping a silent channel is a harmless no-op. The spoken
+  # reply rides the fourth (announcement) channel and stays at full volume.
   #
-  # Adding a background channel means adding it to BOTH scripts. A channel that
-  # is ducked and never un-ducked stays quiet for good, and the only symptom is
-  # "that sound got quiet after I talked to it once".
-  - id: sound_duck
+  # THE CHANNEL LIST IS WRITTEN ONCE, in sound_duck_apply below, and the two
+  # public verbs are just the two depths it gets called at. That is the whole
+  # reason for the extra script: when the list lived in both verbs, adding a
+  # background channel meant remembering to add it to both, and forgetting the
+  # un-duck side left that channel quiet for good with no symptom beyond "that
+  # sound got quiet after I talked to it once". Now a new channel is one line
+  # that cannot be half-applied.
+  - id: sound_duck_apply
+    parameters:
+      decibels: int
+      ramp_ms: int
     then:
       - mixer_speaker.apply_ducking:
           id: noise_mixing_input
-          decibel_reduction: ${duck_decibels}
-          duration: ${duck_ramp}
+          decibel_reduction: !lambda 'return decibels;'
+          duration: !lambda 'return ramp_ms;'
       - mixer_speaker.apply_ducking:
           id: ambience_mixing_input
-          decibel_reduction: ${duck_decibels}
-          duration: ${duck_ramp}
+          decibel_reduction: !lambda 'return decibels;'
+          duration: !lambda 'return ramp_ms;'
       - mixer_speaker.apply_ducking:
           id: media_mixing_input
-          decibel_reduction: ${duck_decibels}
-          duration: ${duck_ramp}
+          decibel_reduction: !lambda 'return decibels;'
+          duration: !lambda 'return ramp_ms;'
+
+  # Dip for a voice turn, and come back out again. Different ramps on purpose:
+  # into the dip quickly so the reply is not talked over, back out gently so the
+  # background does not swell.
+  - id: sound_duck
+    then:
+      - script.execute:
+          id: sound_duck_apply
+          decibels: ${duck_decibels}
+          ramp_ms: ${duck_ramp_ms}
 
   - id: sound_unduck
     then:
-      - mixer_speaker.apply_ducking:
-          id: noise_mixing_input
-          decibel_reduction: 0
-          duration: ${unduck_ramp}
-      - mixer_speaker.apply_ducking:
-          id: ambience_mixing_input
-          decibel_reduction: 0
-          duration: ${unduck_ramp}
-      - mixer_speaker.apply_ducking:
-          id: media_mixing_input
-          decibel_reduction: 0
-          duration: ${unduck_ramp}
+      - script.execute:
+          id: sound_duck_apply
+          decibels: 0
+          ramp_ms: ${unduck_ramp_ms}
 
 sensor:
   # Volume as a percentage, for Home Assistant. Pushed by volume_apply on every

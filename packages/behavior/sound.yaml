@@ -28,9 +28,11 @@
 #
 # ADDING A COLOUR: add an option after the last colour, in the generator's
 # numbering order. Nothing else.
-# ADDING A FLASHED SOUND: add an option at the END and its name to AMBIENCES[], plus
-# the file to `audio_file:` and `loop_source.files:` in hw/audio_chain.yaml at the
-# SAME position. No api verb - ambience_play takes an index. Mono 48 kHz MP3 only.
+# ADDING A FLASHED SOUND: add it to `audio_file:` and `ambience_player.files:` in
+# hw/audio_chain.yaml with a `name:`, then add that same name as an option here.
+# No api verb and no second list - ambience_play takes the name, and this file
+# asks the component whether an option is an ambience. Mono 48 kHz MP3 only; the
+# format rules are in sounds/README.md.
 #
 # IMPLEMENTS the hardware input contract from hw/knob.yaml:
 #   on_knob_turn(clicks) / on_knob_tap / on_knob_hold
@@ -118,17 +120,12 @@ script:
 
   # ---- the two sound gestures ----
   # Tap: advance Off -> (last sound) -> the next sound -> ... wrapping among every
-  # sound there is, colours and tracks alike. From Off it RESUMES rather than
-  # restarting the cycle; Off is index 0 and reachable only by a hold.
+  # sound there is, colours and ambiences alike. The "Off at 0, resume from Off"
+  # model is shared with the Crescent Preset select and lives in one place -
+  # shared_helpers::cycle_to_next_option, which documents it.
   - id: sound_next
     then:
-      - lambda: |-
-          auto *select = id(sound_select);
-          const size_t sounds = select->size() - 1;        // every option except Off
-          const size_t current = select->active_index().value_or(0);
-          const size_t next = (current == 0) ? (size_t) id(sound_option_last)
-                                            : (current % sounds) + 1;
-          select->make_call().set_index(next).perform();
+      - lambda: 'shared_helpers::cycle_to_next_option(id(sound_select), id(sound_option_last));'
   # Long press: silence.
   - id: sound_off
     then:
@@ -150,7 +147,7 @@ script:
 
 select:
   # SOUND = Off, then the noise colours IN THE GENERATOR'S NUMBERING ORDER, then
-  # the flashed ambiences IN `loop_source.files:` ORDER. One list holding both kinds,
+  # the flashed ambiences IN `ambience_player.files:` ORDER. One list holding both kinds,
   # because only one of them can ever be playing.
   #
   # THAT IS THE POINT OF MERGING THEM. This used to be two selects - Sound and
@@ -200,54 +197,42 @@ select:
           id(sound_option_last) = (int) choice;            // the last real one
           id(display_show_code)->execute("S" + std::to_string(choice));
 
-          // WHERE THE COLOURS END AND THE AMBIENCES BEGIN is derived, not written
-          // down: the ambiences are named below and everything else in the option
-          // list except Off is a colour. So adding a colour stays a one-line
-          // change to the option list, exactly as it was before the merge.
+          // WHICH KIND OF SOUND IS THIS? Ask the component that owns the flashed
+          // files. `ambience_player.files:` names every ambience there is, so an
+          // option it recognises IS one and everything else is a noise colour.
+          // This file therefore keeps NO list of its own to drift out of sync -
+          // the option list above is the only thing here that has to agree with
+          // hw/audio_chain.yaml, and it agrees by name rather than by position.
           //
-          // AMBIENCES[] MUST MATCH `loop_source.files:` IN hw/audio_chain.yaml, in
-          // order - this array is only the display names for the same indices.
-          // The check below is what catches a drift between the two, and it logs
-          // rather than playing the wrong sound.
-          static const char *const AMBIENCES[] = {"La La", "Crickets"};
-          const size_t ambience_count = sizeof(AMBIENCES) / sizeof(AMBIENCES[0]);
-          const size_t colour_count = id(sound_select)->size() - 1 - ambience_count;
-
-          // Every branch below stops BOTH of the other two sources. media_stop is
-          // still one of them even though no flashed sound goes through the
-          // player any more: Home Assistant can be streaming something at it, and
-          // this select means "one sound at a time" regardless of who started it.
-          if (choice <= colour_count) {
-            id(ambience_stop)->execute();                       // colour wins
+          // Both branches stop the other two sources. media_stop is one of them
+          // even though no flashed sound goes through the player any more: Home
+          // Assistant can be streaming something at it, and this select means
+          // "one sound at a time" regardless of who started it.
+          if (id(ambience)->has(x)) {
+            id(noise_stop)->execute();
             id(media_stop)->execute();
-            id(noise_play)->execute((int) choice - 1);
+            // Switching from one ambience to another does not even stop the
+            // mixer source; there is no repeat flag and no wait to arbitrate.
+            id(ambience_play)->execute(x);
             return;
           }
 
-          const size_t ambience = choice - colour_count - 1;
-          if (ambience >= ambience_count || x != AMBIENCES[ambience]) {
-            ESP_LOGW("sound", "option '%s' is not the ambience AMBIENCES[%u] expects - "
-                              "the option list and AMBIENCES have drifted",
-                     x.c_str(), (unsigned) ambience);
-            return;
-          }
-          // Both kinds of sound are now ambiences, so this is the whole branch: stop
-          // the generator, start the sampled one. There is no repeat flag to set,
-          // no wait to arbitrate and no per-file verb, because an index CAN be a
-          // script parameter where an `audio::AudioFile` id could not. Switching
-          // from one ambience to another does not even stop the mixer source.
-          id(noise_stop)->execute();
+          // A noise colour. Its number is its position: the colours run from
+          // option 1 in the generator's own numbering order, so option n is
+          // colour n - 1.
+          id(ambience_stop)->execute();
           id(media_stop)->execute();
-          id(ambience_play)->execute((int) ambience);
+          id(noise_play)->execute((int) choice - 1);
       # ----- ADDING A SOUND -----
-      # A flashed AMBIENCE (the normal case): add the option name above, the same name
-      # to AMBIENCES[], and the file to `audio_file:` + `loop_source.files:` in
-      # hw/audio_chain.yaml - same position in both lists. No new verb. The file
-      # must be mono 48 kHz MP3; see "ADDING AUDIO" in settings.yaml section 11.
+      # A flashed AMBIENCE (the normal case): add the file to `audio_file:` and a
+      # `name:`/`file:` pair to `ambience_player.files:` in hw/audio_chain.yaml, then
+      # add that SAME name as an option above. No new verb, no second list. The
+      # file must be mono 48 kHz MP3 - see sounds/README.md.
       #
-      # A URL sound is possible but is NOT an ambience - it streams through the media
-      # player, needs the network, and must not be looped (FUTURE-DEVELOPMENT
-      # T3/T4/T5). It would need its own branch before the AMBIENCES[] lookup:
+      # A URL sound is possible but is NOT an ambience - it streams through the
+      # media player, needs the network, and must not be looped
+      # (FUTURE-DEVELOPMENT T3/T4/T5). It would need its own branch above the
+      # ambience check:
       #   if (x == "Rain (HA)") {
       #     id(noise_stop)->execute();
       #     id(ambience_stop)->execute();

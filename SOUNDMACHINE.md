@@ -67,7 +67,7 @@ polished (Fusion 360 enclosure, Glowforge-cut acrylic diffuser).
 ### The audio chain (the hard part)
 
 ```
-                                   ┌─────────── noise_source (custom C++) ── white/pink/brown
+                                   ┌─────────── noise_generator (custom C++) ── white/pink/brown
 ESP32-S3 ──I2S──► XVF3800 mics     │
    │              (beamform+AEC)   ├──► mixer ──► AIC3104 DAC ──► TPA2016 amp ──► 2× 4Ω speakers
    │                               │      ▲
@@ -111,13 +111,16 @@ addresses pixels that are not there; `3d-print/check_docs.py` is what stops that
 
 ### The display
 
-The display is **pluggable**: `packages/api/display.yaml` owns the whole
-policy layer (the transient overlays and their priority, expiring them, which
-default view sits underneath, formatting the clock, the tick) and resolves all of it into a *frame*. `packages/hw/matrix.yaml`
-renders that frame by providing `display_paint`, and decides nothing. The split is
-not there so the display can be swapped — it is there because choosing what to
-show and drawing it are unrelated problems, and merging them would bury the
-policy in the middle of 300 lines of fonts and register bursts.
+The display is **policy plus a driver**: `packages/api/display.yaml` owns the
+whole policy layer (the transient overlays and their priority, expiring them,
+which default view sits underneath, formatting the clock, the tick) and resolves
+all of it into an `clock_display::Frame`. `components/clock_display` renders that frame
+and decides nothing. The split is not there so the display can be swapped — it is
+there because choosing what to show and drawing it are unrelated problems, and
+merging them would bury the policy in the middle of 300 lines of fonts and
+register bursts. The frame being a struct is what turns the contract between the
+two halves into something the compiler checks rather than something two file
+headers have to keep agreeing on.
 
 **The api layer is the single writer**, and it resolves one thing out of two
 tiers. First the **overlays**, all transient and all timed, in priority order: a
@@ -218,7 +221,7 @@ These were real problems, diagnosed and solved. Don't re-litigate them without a
 reason — and if you change the relevant area, re-test the thing that broke.
 
 **Gapless noise.** A file-loop approach caused audible restarts at the loop
-seam. Solved by writing a custom `noise_source` C++ component that continuously
+seam. Solved by writing a custom `noise_generator` C++ component that continuously
 injects PCM — white, pink (Paul Kellet filter), and brown (leaky integrator with
 `std::tanh()` soft saturation). Color switches mid-stream with no restart.
 
@@ -231,7 +234,7 @@ select from touching the audio engine before then).
 AEC can only cancel a **linear** echo path. So the **TPA2016 amp's AGC is turned
 OFF** (compression 1:1) rather than tuned — an active compressor downstream of
 the DAC makes the echo path time-varying and un-cancellable. All volume lives in
-software (AIC3104). The amp is written once at boot by the custom `tpa2016`
+software (AIC3104). The amp is written once at boot by the custom `speaker_amp`
 component, with register **write order enforced** (compression before gain, or
 the gain gets clamped to a silent amp).
 
@@ -307,7 +310,7 @@ later one. On hardware that meant a gap at every loop and a dead channel after a
 pass or two.
 
 **The actual fix was to stop using the media player for this at all.** Every
-flashed sound is now a **ambience**: `components/loop_source` decodes it straight into
+flashed sound is now a **ambience**: `components/ambience_player` decodes it straight into
 its own mixer source, which starts once and never stops, and looping is a read
 pointer returning to zero — no end-of-file, no pipeline, nothing to restart. That
 deleted the drain-wait, the per-file verbs, the repeat flag and the arbitration

@@ -60,18 +60,12 @@ script:
     then:
       - script.execute: light_off
 
-  # Tap: advance among the ON presets (1..N). From Off it RESUMES the last one
-  # rather than restarting at 1. Off is index 0 and only reachable by a hold, so
-  # cycling never lands on darkness by accident.
+  # Tap: advance among the ON presets (1..N), resuming the last one from Off. The
+  # model is shared with the Sound select and lives in one place -
+  # shared_helpers::cycle_to_next_option, which documents it.
   - id: light_next
     then:
-      - lambda: |-
-          auto *select = id(light_preset_select);
-          const size_t on_count = select->size() - 1;      // every option except Off
-          const size_t current = select->active_index().value_or(0);
-          const size_t next = (current == 0) ? (size_t) id(light_preset_last)
-                                            : (current % on_count) + 1;
-          select->make_call().set_index(next).perform();
+      - lambda: 'shared_helpers::cycle_to_next_option(id(light_preset_select), id(light_preset_last));'
 
   - id: light_off
     then:

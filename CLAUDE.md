@@ -43,10 +43,11 @@ choices (see "Remote-hosting constraints" below). Repo slug: `astoker/sound-mach
 > **The enclosure geometry and the firmware are coupled, and the coupling is
 > one-way.** `3d-print/enclosure_geom.py` is the source of truth for the LED
 > crescent — pixel count, row layout, row pitch. `packages/hw/crescent.yaml` carries
-> a *copy* of that output (`num_leds` and `leds_per_row[]`). **If you change the
-> crescent, re-run `gen_drawing.py` and re-sync those two values**, or the
-> firmware will address pixels that are not there. Currently **48 px**,
-> `{10, 10, 9, 8, 7, 4}`.
+> a *copy* of that output as `num_leds` plus the `crescent_rows` /
+> `crescent_pitch_*` substitutions at the top of that file — **one definition
+> each**, expanded by the effects below them. **If you change the crescent, re-run
+> `gen_drawing.py` and re-sync those values**, or the firmware will address pixels
+> that are not there. Currently **48 px**, `{10, 10, 9, 8, 7, 4}`.
 >
 > `3d-print/check_docs.py` enforces this — run it after any geometry change.
 
@@ -114,26 +115,46 @@ each id must be defined exactly once. Top-level list keys (`sensor:`, `script:`,
    Raise **one event per fact**, not one per subsystem — a shared event forces the
    handler to work out what changed.
 
-**The display is two files, split by concern rather than for pluggability.**
-`api/display.yaml` decides *what* to show — the transient overlays and their
-priority, expiring them, which default view rests underneath, formatting the
-clock, and the single tick — and resolves them into a *frame*
-(`display_frame_*` globals). `hw/matrix.yaml`
-provides one script, `display_paint`, which renders that frame and makes no
-decisions. There is one display and no plan for another; the split stands because
-policy over strings and 300 lines of fonts/panel geometry/register bursts are
-unrelated problems.
+**The display is policy plus a driver, split by concern rather than for
+pluggability.** `api/display.yaml` decides *what* to show — the transient overlays
+and their priority, expiring them, which default view rests underneath, formatting
+the clock, and the single tick — and resolves them into an `clock_display::Frame`,
+which it builds as a local and hands to `id(matrix)->paint(frame)`. The driver
+(`components/clock_display`) renders it and makes no decisions. There is one display
+and no plan for another; the split stands because policy over strings and 300
+lines of fonts/panel geometry/register bursts are unrelated problems. The Frame
+being a struct rather than a set of globals is what makes that contract something
+the compiler checks.
 
-**Custom C++ components** in `components/` (`noise_source`, `loop_source`,
-`seesaw`, `tpa2016`) follow standard ESPHome layout (`__init__.py` codegen +
-`.h`/`.cpp`). `seesaw` is vendored locally (patched `dump_summary()` for ESPHome
-2026.7.x); the upstream ssieb git source is left commented in
-`external_components`.
+**Custom C++ components** in `components/` follow standard ESPHome layout
+(`__init__.py` codegen + `.h`/`.cpp`):
+
+| Component | What it is |
+| --- | --- |
+| `clock_display` | the LED-matrix display driver; owns the fonts, the tiling and the seam |
+| `noise_generator` | white/pink/brown generator |
+| `ambience_player` | flashed MP3s played as endless ambiences |
+| `background_sound` | the base class those two share: own a mixer source, push samples forever |
+| `speaker_amp` | the amplifier's configuration-only I2C interface |
+| `seesaw` | the rotary encoder hub (vendored) |
+| `shared_helpers` | free functions shared between YAML lambdas (hue→RGB, select cycling) |
+
+`seesaw` is vendored locally (patched `dump_summary()` for ESPHome 2026.7.x, plus
+a fixed `digital_write()` bitmask); the upstream ssieb git source is left
+commented in `external_components`.
+
+> **Code shared between lambdas goes in `components/shared_helpers`, never in
+> `esphome: includes:`.** ESPHome merges every lambda into one generated
+> `main.cpp` that includes each component's header, so a free function in a
+> component header is callable from any package. `includes:` resolves its path
+> against the *build machine's* config dir instead — the same trap as `file:`
+> media paths and `type: local` components, and it breaks the moment this config
+> is pulled onto Home Assistant.
 
 > **EVERY FLASHED SOUND IS AN AMBIENCE, AND THE MEDIA PLAYER HAS NO `files:` LIST.**
 > Anything meant to play until something turns it off — the noise colours, the
-> crickets, La La — owns a mixer source outright via `noise_source` /
-> `loop_source`: started once, never stopped, no decoder pipeline, so there is
+> crickets, La La — owns a mixer source outright via `noise_generator` /
+> `ambience_player`: started once, never stopped, no decoder pipeline, so there is
 > nothing to restart and no end-of-file. `external_media_player` carries only the
 > TTS reply and Home Assistant's audio, neither of which loops. Looping through
 > it means `repeat_one`, which restarts the whole pipeline every pass — that gaps
@@ -145,8 +166,8 @@ unrelated problems.
 > **Adding audio? The format is a hard requirement: MP3, mono, 48 kHz, peak
 > ≤ −2.4 dBFS, Xing header intact.** There is no resampler in the ambience path, so a
 > mismatched file is refused at its first frame rather than played at the wrong
-> speed. Full rules and the ffmpeg recipe are under "ADDING AUDIO" in
-> `packages/settings.yaml` §11.
+> speed. Full rules, the ffmpeg recipe, the app-partition size budget and what is
+> peculiar about each existing file are in [`sounds/README.md`](sounds/README.md).
 
 **Sensors & controls live across packages, on one shared I2C bus.** Implemented
 today: BH1750 ambient light (display auto-dim), seesaw rotary encoder (volume +
@@ -170,7 +191,7 @@ what you are buying.
 
 Cross-file invariants worth knowing before changing behavior:
 - **Display is single-owner, in two stages.** `api/display.yaml` is the only
-  caller of `display_paint`, and `packages/hw/matrix.yaml` is the only code that
+  caller of `paint()`, and `components/clock_display` is the only code that
   touches the display's I2C address. Content is two tables in the api layer, so
   adding to either is a row plus a setter, not a new branch:
   **overlays** (transient, always timed) **message → status → code**, resolved
@@ -187,22 +208,27 @@ Cross-file invariants worth knowing before changing behavior:
     low-battery warning).
   - `display_show_message(text, seconds)` — Home-Assistant-authored text.
 - **The driver must self-throttle.** The api ticks at `display_tick_ms` (250 ms)
-  and calls `display_paint` every time; the driver hashes what it is about to draw
-  and returns before touching I2C when nothing changed. ~300 bytes on this 100 kHz
-  bus is ~30 ms of bus time.
-- **4 characters is the budget for the COMPACT channels** (status and alert). A
-  compact string that fits sits still inside one panel, where it cannot straddle
-  the inter-panel gap — a stationary glyph on the seam permanently loses a column.
-  Anything longer scrolls the **full width**, like any other overflowing text: the
-  seam stops mattering once the text is moving. So exceeding the budget is not
-  broken, just slow — a scrolling pass takes far longer than the few seconds a
-  status is meant to occupy. Full rationale in `packages/hw/matrix.yaml` under
-  "WHY COMPACT SCOPE EXISTS"; that file is the one place it is spelled out.
+  and calls `paint()` every time; the driver compares the frame against what it
+  last drew and returns before touching I2C when nothing changed. ~300 bytes on
+  this 100 kHz bus is ~30 ms of bus time.
+- **Every channel looks identical on the glass**, and that is deliberate: the
+  driver is given characters, not a style, so a low-battery warning is the same
+  size in the same place as a volume readout. There is no per-channel font or
+  scope — there used to be, and it made the battery warning look like it came
+  from another device.
+- **4 characters is the static budget, for all channels alike.** That is how many
+  glyphs fit without one landing on the dead column between the panels. Anything
+  longer scrolls the full width, which is fine — the seam stops mattering once
+  text is moving — just slow, so a status meant to occupy three seconds should fit.
 - **The matrix has a physical inter-panel gap.** Two tiled panels aren't
   seamless — there's a ~1px dead column between them (`matrix_panel_gap`). The
-  matrix lays content out in *physical* columns that include the gap and maps
-  back to logical columns at draw time, so the clock stays centred across the
-  seam. Don't assume the two 16-wide panels are one contiguous 32-wide surface.
+  driver lays content out in *physical* columns that include the gap and maps back
+  to logical columns at draw time. **Static text is placed in seam-free slots**
+  (first panel right-aligned, the rest left-aligned, so adjacent slots are exactly
+  one pitch apart *across* the seam); the dead column just plays the part of the
+  blank column between two glyphs. Full rationale in
+  `components/clock_display/clock_display.h` under "STATIC TEXT NEVER TOUCHES THE
+  SEAM"; that file is the one place it is spelled out.
 - **The TPA2016 amp runs with its AGC OFF (compression 1:1) deliberately.** The
   XVF3800's acoustic echo canceller can only cancel a *linear* echo path, and an
   active compressor downstream of the DAC makes it time-varying. Do not enable

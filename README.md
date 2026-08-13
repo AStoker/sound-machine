@@ -14,7 +14,7 @@ clock, an SK6812 sunrise crescent, and battery/UPS monitoring.
 | `packages/hw/` | One file per physical part (matrix, crescent, knob, UPS, sensors…) |
 | `packages/api/` | The abstraction layer — `display`, `sound`, `light`, `indicator` |
 | `packages/behavior/` | Operational logic: presets, gestures, announcements, voice |
-| `components/` | Custom ESPHome components: `noise_source`, `seesaw`, `tpa2016` |
+| `components/` | Custom ESPHome components, named for their job rather than their chips: `clock_display`, `noise_generator`, `ambience_player`, `background_sound`, `speaker_amp`, `rotary_knob`, `shared_helpers` |
 | `sounds/` | On-device audio baked into flash |
 | `soundmachine.min.yaml` | Reference minimal device YAML for Home Assistant |
 | `secrets.example.yaml` | The secret keys you must provide locally |
