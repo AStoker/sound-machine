@@ -4,6 +4,25 @@ ESPHome firmware for a bedside smart sound machine built on a ReSpeaker Flex
 (XVF3800 + XIAO ESP32-S3): white/pink/brown noise, voice assistant, an LED-matrix
 clock, an SK6812 sunrise crescent, and battery/UPS monitoring.
 
+## Prototype 1, finished
+
+The machine as built and in service: a printed two-tone shell behind a single
+acoustic-cloth face, with the knob capping the top.
+
+| | |
+|---|---|
+| <img src="pictures/front-clock.jpg" width="380" alt="Front of the finished sound machine, showing the time on the LED matrix through the cloth face"> | <img src="pictures/front-crescent.jpg" width="380" alt="Front view with the SK6812 crescent lit in a rainbow above the clock"> |
+| **Resting.** The IS31FL3731 matrix reads through the cloth and nothing else does — the crescent above it is dark and invisible. Brightness tracks room light via the BH1750, so this is the daytime level. | **Crescent lit.** The 48-px SK6812 arc diffused by the same cloth, here cycling hue. It sits in the upper dome; the clock keeps its own space below. Capped at `led_max_pct: 25 %` — see the brownout note in `CLAUDE.md`. |
+
+<img src="pictures/rear.jpg" width="380" alt="Rear of the enclosure showing the vent stack, the BH1750 light pipe, the power switch and the DC barrel jack">
+
+**Rear.** The body is a plain extrusion, so the back is one flat face: the single
+wide vent stack up top, the BH1750's light pipe centred below it (the small hole
+— that sensor is what auto-dims everything you see in the other two photos), the
+power switch, and the centred barrel jack feeding the 3S UPS. The pebble on the
+crown is the knob — turn for volume, tap/hold for sound; the ToF's pinhole is the
+speck just to its right in the first photo.
+
 ## Layout
 
 | Path | What |
@@ -19,6 +38,7 @@ clock, an SK6812 sunrise crescent, and battery/UPS monitoring.
 | `soundmachine.min.yaml` | Reference minimal device YAML for Home Assistant |
 | `secrets.example.yaml` | The secret keys you must provide locally |
 | `3d-print/` | The enclosure: parametric geometry, generators, validation, printable solids |
+| `pictures/` | Photos of the assembled v1 machine (shown above) |
 | [`FUTURE-DEVELOPMENT.md`](FUTURE-DEVELOPMENT.md) | Every open item, one numbered entry each |
 | [`RETROSPECTIVE.md`](RETROSPECTIVE.md) | What building v1 taught |
 
@@ -84,10 +104,11 @@ remaining space; check it after adding one.
 
 ## Status
 
-**Prototype 1 is built and in service** — printed, wired, assembled, running.
-Ongoing work is firmware. See [`SOUNDMACHINE.md`](SOUNDMACHINE.md) for what the
-machine does, [`FUTURE-DEVELOPMENT.md`](FUTURE-DEVELOPMENT.md) for what is still
-open, and [`RETROSPECTIVE.md`](RETROSPECTIVE.md) for how it got here.
+**Prototype 1 is built and in service** — printed, wired, assembled, running
+(photos at the top). Ongoing work is firmware. See
+[`SOUNDMACHINE.md`](SOUNDMACHINE.md) for what the machine does,
+[`FUTURE-DEVELOPMENT.md`](FUTURE-DEVELOPMENT.md) for what is still open, and
+[`RETROSPECTIVE.md`](RETROSPECTIVE.md) for how it got here.
 
 The full v1 development history is preserved on the **v1 release branch**; `main`
 carries the conclusions.
