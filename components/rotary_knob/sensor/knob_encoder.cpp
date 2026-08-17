@@ -13,7 +13,11 @@ void KnobEncoder::setup() {
 }
 
 void KnobEncoder::loop() {
-  int32_t new_value = this->parent_->get_encoder_position(this->number_);
+  int32_t new_value;
+  // A dropped read is silence, not movement: keep the last position and try
+  // again next iteration. The hub's absolute count means nothing is lost.
+  if (!this->parent_->get_encoder_position(this->number_, new_value))
+    return;
   if (new_value < this->min_value_)
     new_value = this->min_value_;
   if (new_value > this->max_value_)

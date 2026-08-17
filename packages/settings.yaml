@@ -246,14 +246,46 @@ substitutions:
   ambience_fade_length: "1s"
 
   # ---- Volume ----
-  volume_floor_pct: "55%"            # media_player volume_min: below this the
-                                     # mix is inaudible over a quiet room
+  #
+  # THE VOLUME FRACTION IS LINEAR IN DECIBELS, WHICH IS WHY THESE NUMBERS LOOK
+  # THE WAY THEY DO. Follow one knob click through the chain: the media player
+  # remaps its 0..1 volume into [volume_floor_pct, volume_ceiling_pct], hands
+  # that to the mixer, which hands it to the AIC3104, whose DAC volume register
+  # is 128 steps of 0.5 dB (0x00 = 0 dB, 0x7F = -63.5 dB, 0x80 = mute). So
+  #
+  #     attenuation = 64 dB x (1 - floor) x (1 - knob)
+  #
+  # and the knob fraction is already a perceptual scale - equal fractions of the
+  # knob are equal decibels. Two things follow, and both were wrong before:
+  #   * The FLOOR sets how quiet the machine can get, in dB, and nothing else
+  #     does. At the old 55% the bottom of the knob was only -28.8 dB, which is
+  #     a bedroom-at-2am kind of loud for a hot recording like Crickets.
+  #   * A step curve that is COARSE at the bottom (the old one, ~9% per click
+  #     there) spends 2.6 dB on a click at exactly the level where you are
+  #     trying to place a whisper. Fine steps belong at the quiet end.
+  volume_floor_pct: "30%"            # media_player volume_min. Bottom of the
+                                     # knob = -44.8 dB, i.e. 16 dB quieter than
+                                     # the old 55%; a true whisper is reachable.
+                                     # Knob EXACTLY 0 still mutes the codec
+                                     # outright (media player mutes below 0.001),
+                                     # which is also the one setting with no hiss
+                                     # (FUTURE-DEVELOPMENT T6).
+                                     # LOWER STILL IS NOT FREE: the codec's hiss
+                                     # does not scale with volume, so every dB of
+                                     # extra range makes it relatively louder at
+                                     # the bottom. If the quiet end sounds hissy
+                                     # rather than quiet, come back up, don't
+                                     # chase it with amp_gain_db.
   volume_ceiling_pct: "100%"
-  # Knob step curve: step = volume_step_at_zero - volume_step_falloff * volume.
-  # Bigger steps when quiet, finer when loud - ~9% per click near the bottom,
-  # ~2% near the top - so the usable range isn't crossed in three clicks.
-  volume_step_at_zero: "0.09"
-  volume_step_falloff: "0.07"
+  # Knob step curve, interpolated across the knob's travel:
+  #     step = at_zero + (at_full - at_zero) x volume
+  # FINE WHEN QUIET, coarse when loud - the opposite of what was here before,
+  # because the fraction is decibels (above) and the quiet end is the end that
+  # gets used. ~1.1 dB per click near the bottom, ~2.7 dB near the top, and
+  # ~25 clicks for the full sweep - close to the ~21 it used to take, so the
+  # knob has not become a longer journey, only a better-placed one.
+  volume_step_at_zero: "0.025"
+  volume_step_at_full: "0.06"
 
   # ---- Voice assistant + ducking ----
   wake_word_model: okay_nabu
@@ -443,6 +475,13 @@ substitutions:
   # boards differ; check the pinout.
   knob_led_pin: "6"
   knob_switch_pin: "24"              # board GPIO for the encoder's push switch
+  # Largest detent change one reading may claim before hw/knob.yaml treats it as
+  # a glitch rather than a turn. The encoder is read every main-loop iteration,
+  # so a real hand cannot fit 12 detents (half a revolution) between two of them;
+  # a jump that big is a corrupted position, and acting on it throws the volume
+  # at a rail. Rejecting one re-seeds the baseline silently, so the cost of being
+  # wrong is a single missed flick, not a stuck reading.
+  knob_max_clicks_per_read: "12"
   knob_led_fade_ms: "50"             # fade tick = 20 Hz. This is also the HARD
                                      # ceiling on how often the pixel is written
                                      # over I2C - do not raise it much (see the
@@ -550,12 +589,7 @@ substitutions:
   # ===================================================================
   # 9. POWER / UPS MONITORING - Waveshare UPS Module 3S (3x 18650 series)
   # ===================================================================
-  # !! PLACEHOLDER !! The monitor chip's address is UNCONFIRMED. Run the boot
-  # I2C scan with the UPS connected and look for an address that isn't already
-  # in section 2. Waveshare's UPS boards normally carry an INA219 at 0x40-0x43;
-  # if the scan turns up 0x40 that is almost certainly it. If the readings come
-  # back nonsense the part may be an INA226 instead - change `platform: ina219`
-  # to `platform: ina226` in packages/hw/power.yaml.
+  # UPS Monitoring address on the I2C bus. This is the address of the INA219/INA226 chip on the Waveshare UPS module.
   ups_i2c_address: "0x41"
   # Series shunt on the UPS board. ALSO UNCONFIRMED - 0.01 ohm is the usual
   # value for a 5A-class board. If reported current is 10x off, this is why.

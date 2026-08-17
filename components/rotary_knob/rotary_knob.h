@@ -83,7 +83,10 @@ class KnobHub : public i2c::I2CDevice, public Component {
   float get_setup_priority() const override;
 
   void enable_encoder(uint8_t number);
-  int32_t get_encoder_position(uint8_t number);
+  // Returns false and leaves `position` untouched when the read fails. The
+  // caller MUST NOT invent a position from a failed read - see the note in
+  // rotary_knob.cpp.
+  bool get_encoder_position(uint8_t number, int32_t &position);
   int16_t get_touch_value(uint8_t channel);
   float get_temperature();
   void set_pinmode(uint8_t pin, uint8_t mode);

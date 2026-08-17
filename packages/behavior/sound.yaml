@@ -72,9 +72,12 @@ script:
     then:
       - lambda: |-
           const float current = id(external_media_player)->volume;
-          // Bigger steps when quiet, finer when loud, so the usable range is not
-          // crossed in three clicks near the bottom.
-          const float step = ${volume_step_at_zero}f - ${volume_step_falloff}f * current;
+          // FINER STEPS WHEN QUIET, coarser when loud. The fraction this walks is
+          // linear in decibels all the way to the codec (the arithmetic is in
+          // settings.yaml section 6), so the quiet end does not need bigger
+          // numbers to be audible - it needs smaller ones, to place a whisper.
+          const float step = ${volume_step_at_zero}f +
+                             (${volume_step_at_full}f - ${volume_step_at_zero}f) * current;
           // MINUS the delta: that is what makes clockwise mean louder on this
           // encoder. Flip the sign here if the knob is wired the other way round -
           // it is the only place the direction is decided. volume_apply clamps.

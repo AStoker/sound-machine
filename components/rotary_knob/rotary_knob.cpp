@@ -66,12 +66,26 @@ void KnobHub::enable_encoder(uint8_t number) {
   this->write8(SEESAW_ENCODER, SEESAW_ENCODER_INTENSET + number, 0x01);
 }
 
-int32_t KnobHub::get_encoder_position(uint8_t number) {
+// A FAILED READ IS NOT A POSITION OF ZERO, AND SAYING SO MOVED THE VOLUME.
+// This returned 0 on an I2C error. The position is ABSOLUTE and the caller
+// works in deltas, so a spurious 0 is not a dropped sample - it is a reported
+// jump of the whole distance back to the boot origin, followed by an equal jump
+// forward on the next good read. On the machine that showed as the volume
+// slamming to 0 or 100 mid-turn and walking back as you kept turning.
+//
+// Errors here are expected occasionally rather than exceptional: this is polled
+// every main-loop iteration on a bus deliberately slowed to 100 kHz, and
+// readbuf() does the seesaw's register write and its read back to back with no
+// pause, which the chip does not always like. Reporting the failure costs the
+// caller nothing - the position is absolute, so the next successful read
+// carries the movement that happened during the gap.
+bool KnobHub::get_encoder_position(uint8_t number, int32_t &position) {
   uint8_t buf[4];
   if (this->readbuf(SEESAW_ENCODER, SEESAW_ENCODER_POSITION + number, buf, 4) != i2c::ERROR_OK)
-    return 0;
+    return false;
   int32_t value = (buf[0] << 24) + (buf[1] << 16) + (buf[2] << 8) + buf[3];
-  return -value;  // make clockwise positive
+  position = -value;  // make clockwise positive
+  return true;
 }
 
 int16_t KnobHub::get_touch_value(uint8_t channel) {

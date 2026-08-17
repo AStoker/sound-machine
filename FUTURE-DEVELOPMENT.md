@@ -424,9 +424,16 @@ driver config) is set by the XVF3800/board firmware at boot, outside this repo.
 
 **What it actually costs: the 3am case.** The hiss is fixed while the music
 scales with the knob, so SNR is *worst* at low volume — exactly how a bedside
-machine gets used. `volume_floor_pct: 55%` puts knob-1 at about −28.5 dB of
+machine gets used. `volume_floor_pct: 30%` puts knob-1 at about −44.8 dB of
 signal, with the hiss not down at all. During noise playback it is masked; in
 the quiet gaps of a flashed track, and all day while idle, it is not.
+
+> **The floor moved, and it moved *towards* this.** It was 55% (knob-1 at
+> −28.5 dB) until the quiet end was widened for a whisper-level Crickets. That
+> is 16 dB more signal attenuation against an unchanged noise floor, so this
+> entry's cost is 16 dB worse than when it was written — the extra range is only
+> as usable as the hiss allows. That is the argument for fix 2 below, not an
+> argument for putting the floor back.
 
 **Fixes worth pricing, in increasing order of cost:**
 

@@ -18,10 +18,10 @@
 # delta -> volume is policy and lives in behavior/sound.yaml. That split is what
 # lets the knob be remapped without touching anything that talks I2C.
 #
-# DEFINES  knob_hub, volume_knob (encoder sensor), knob_press (switch),
+# DEFINES  knob_hub, volume_knob (encoder sensor, internal), knob_press (switch),
 #          knob_position_last / knob_position_seeded (globals, internal).
-# CONSUMES internal_i2c (device core), the gesture_* and knob_switch_pin
-#          settings.
+# CONSUMES internal_i2c (device core), the gesture_*, knob_switch_pin and
+#          knob_max_clicks_per_read settings.
 # REQUIRES scripts on_knob_turn / on_knob_tap / on_knob_hold
 #          (behavior/sound.yaml).
 # =====================================================================
@@ -48,6 +48,13 @@ sensor:
     type: encoder
     id: volume_knob
     name: "Volume Knob"
+    # INTERNAL: a free-running detent count is meaningless outside this file. It
+    # is an absolute number with an arbitrary origin (wherever the knob sat at
+    # boot), only the DELTA below means anything, and it publishes on every
+    # detent - so in Home Assistant it was a rising number nobody can act on,
+    # filling the recorder. The volume it produces is already an entity
+    # (`Volume`, api/sound.yaml); this is the raw material for it.
+    internal: true
     on_value:
       - lambda: |-
           int position = (int) x;
@@ -59,6 +66,18 @@ sensor:
           int clicks = position - id(knob_position_last);
           id(knob_position_last) = position;
           if (clicks == 0) return;
+          // A JUMP THIS BIG IS NOT A HAND. The position is read every main-loop
+          // iteration, so half a revolution between two of them means the
+          // reading is corrupt, not fast. The baseline has already been re-seeded
+          // above, so swallowing it costs nothing and the next real detent is
+          // measured from where the knob actually is. Without this, one bad
+          // 4-byte read is a delta of hundreds and the volume goes straight to a
+          // rail (the component drops FAILED reads now, which was the common
+          // case - this catches a read that succeeds and lies).
+          if (clicks > ${knob_max_clicks_per_read} || clicks < -${knob_max_clicks_per_read}) {
+            ESP_LOGW("rotary_knob", "ignoring implausible encoder jump of %d detents", clicks);
+            return;
+          }
           // Raised from inside the lambda, past both early returns, so it fires
           // only on a genuine movement. An action on the trigger itself would
           // also fire for the setup reading.
